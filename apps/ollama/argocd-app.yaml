@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gemma4-ollama
+  namespace: argocd
+spec:
+  project: default
+  source:
+    # TODO: Update repoURL with the actual git repository URL once pushed to a remote
+    repoURL: https://github.com/YOUR_USER/gemma4.git
+    targetRevision: main
+    path: apps/ollama
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gemma4
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

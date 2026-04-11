@@ -1,0 +1,19 @@
+# Training data (too large for git, upload to Kaggle separately)
+data/train.jsonl
+data/val.jsonl
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Model files
+*.gguf
+*.bin
+*.safetensors
+
+# OS
+.DS_Store
+
+# Notebook checkpoints
+.ipynb_checkpoints/

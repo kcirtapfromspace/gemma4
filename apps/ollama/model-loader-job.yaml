@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: load-gemma4-eicr
+  namespace: gemma4
+spec:
+  template:
+    spec:
+      nodeSelector:
+        node.kubernetes.io/instance-type: jetson-orin-nano
+      containers:
+        - name: loader
+          image: curlimages/curl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # Wait for Ollama to be ready
+              until curl -sf http://ollama.gemma4.svc:11434/api/tags; do
+                echo "Waiting for Ollama..."
+                sleep 5
+              done
+
+              # Pull the base model first (before fine-tuned version is ready)
+              # Replace with your fine-tuned model once uploaded to HuggingFace
+              curl -X POST http://ollama.gemma4.svc:11434/api/pull \
+                -d '{"name": "gemma2:2b", "stream": false}'
+
+              echo "Model loaded successfully"
+      restartPolicy: OnFailure
+  backoffLimit: 3

@@ -1,0 +1,43 @@
+# Custom Ollama container for Jetson Orin Nano on Talos Linux
+# Bundles real Tegra BSP libraries (not stubs) so CUDA works without --runtime nvidia
+#
+# Build: docker buildx build --platform linux/arm64 -f Dockerfile.jetson -t ollama-jetson:r36.4.0 .
+# Must be built ON a linux/arm64 host or with buildx cross-compilation
+
+FROM nvcr.io/nvidia/l4t-jetpack:r36.4.0
+
+# Prevent L4T packages from trying to update boot firmware
+RUN mkdir -p /opt/nvidia/l4t-packages && \
+    touch /opt/nvidia/l4t-packages/.nv-l4t-disable-boot-fw-update-in-preinstall
+
+# Add NVIDIA Jetson apt repositories for Orin (t234 SoC)
+RUN echo "deb https://repo.download.nvidia.com/jetson/common r36.4 main" > /etc/apt/sources.list.d/nvidia-l4t-common.list && \
+    echo "deb https://repo.download.nvidia.com/jetson/t234 r36.4 main" > /etc/apt/sources.list.d/nvidia-l4t-t234.list && \
+    apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc 2>/dev/null || true
+
+# Force-install real Tegra BSP libraries, overwriting zero-byte stubs
+# nvidia-l4t-core provides: libnvrm_gpu.so, libnvrm_mem.so, libnvrm_host1x.so, libnvos.so, etc.
+# nvidia-l4t-cuda provides: libcuda.so (the real CUDA driver for Tegra)
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get download nvidia-l4t-core nvidia-l4t-cuda && \
+    yes | dpkg --force-overwrite --force-depends --force-confnew -i nvidia-l4t-core*.deb || true && \
+    yes | dpkg --force-overwrite --force-depends --force-confnew -i nvidia-l4t-cuda*.deb || true && \
+    rm -f nvidia-l4t-*.deb && \
+    ldconfig && \
+    ls -la /usr/lib/aarch64-linux-gnu/tegra/libnvrm_gpu.so && \
+    test $(stat -c%s /usr/lib/aarch64-linux-gnu/tegra/libnvrm_gpu.so) -gt 1000
+
+# Install curl and Ollama
+RUN apt-get install -y --no-install-recommends curl ca-certificates zstd && \
+    curl -fsSL https://ollama.com/install.sh | sh && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Ensure CUDA and Tegra libraries are discoverable
+ENV LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/compat:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+ENV OLLAMA_HOST=0.0.0.0
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+EXPOSE 11434
+CMD ["ollama", "serve"]

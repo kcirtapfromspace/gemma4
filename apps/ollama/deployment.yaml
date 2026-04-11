@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: gemma4
+  labels:
+    app: ollama
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      nodeSelector:
+        node.kubernetes.io/instance-type: jetson-orin-nano
+      containers:
+        - name: ollama
+          image: 192.168.25.201:5050/ollama-jetson:r36.4.0
+          command: ["ollama"]
+          args: ["serve"]
+          ports:
+            - containerPort: 11434
+              name: api
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0"
+            - name: OLLAMA_MODELS
+              value: "/models"
+            # Limit GPU memory to leave room for OS/k8s (~5GB for model)
+            - name: OLLAMA_GPU_MEMORY
+              value: "5GiB"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+            - name: dev-nvgpu
+              mountPath: /dev/nvgpu
+            - name: dev-nvhost-gpu
+              mountPath: /dev/nvhost-gpu
+            - name: dev-nvhost-ctrl
+              mountPath: /dev/nvhost-ctrl
+            - name: dev-nvhost-ctrl-gpu
+              mountPath: /dev/nvhost-ctrl-gpu
+            - name: dev-nvhost-as-gpu
+              mountPath: /dev/nvhost-as-gpu
+            - name: dev-nvhost-dbg-gpu
+              mountPath: /dev/nvhost-dbg-gpu
+            - name: dev-nvhost-tsg-gpu
+              mountPath: /dev/nvhost-tsg-gpu
+            - name: dev-nvmap
+              mountPath: /dev/nvmap
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "2"
+            limits:
+              memory: "6Gi"
+              cpu: "6"
+          securityContext:
+            privileged: true
+          readinessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      initContainers:
+        - name: init-model-dir
+          image: busybox:latest
+          command: ["mkdir", "-p", "/models"]
+          volumeMounts:
+            - name: models
+              mountPath: /models
+      volumes:
+        - name: models
+          hostPath:
+            path: /var/lib/ollama/models
+            type: DirectoryOrCreate
+        - name: dev-nvgpu
+          hostPath:
+            path: /dev/nvgpu
+        - name: dev-nvhost-gpu
+          hostPath:
+            path: /dev/nvhost-gpu
+        - name: dev-nvhost-ctrl
+          hostPath:
+            path: /dev/nvhost-ctrl
+        - name: dev-nvhost-ctrl-gpu
+          hostPath:
+            path: /dev/nvhost-ctrl-gpu
+        - name: dev-nvhost-as-gpu
+          hostPath:
+            path: /dev/nvhost-as-gpu
+        - name: dev-nvhost-dbg-gpu
+          hostPath:
+            path: /dev/nvhost-dbg-gpu
+        - name: dev-nvhost-tsg-gpu
+          hostPath:
+            path: /dev/nvhost-tsg-gpu
+        - name: dev-nvmap
+          hostPath:
+            path: /dev/nvmap

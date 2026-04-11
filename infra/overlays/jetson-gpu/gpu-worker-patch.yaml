@@ -1,0 +1,22 @@
+# Talos machine config patch for Jetson Orin Nano GPU workers
+# Apply with: talosctl patch mc -n <node-ip> --patch @gpu-worker-patch.yaml
+#
+# The nvgpu kernel module and device nodes are already present on your nodes.
+# This patch adds the nvidia-container-toolkit extension and configures containerd
+# to use the nvidia runtime, enabling GPU access from containers.
+
+machine:
+  kernel:
+    modules:
+      - name: nvgpu
+      - name: nvmap_stub
+      - name: dwmac_tegra
+  install:
+    extraKernelArgs:
+      - iommu.passthrough=1
+      - cma=256M
+  # Remove the broken sysfs entries that spam controller errors.
+  # On Orin the power-gating sysfs paths are different from older Tegra.
+  sysfs:
+    devices.system.cpu.cpufreq.policy0.scaling_governor: performance
+    devices.system.cpu.cpufreq.policy4.scaling_governor: performance
