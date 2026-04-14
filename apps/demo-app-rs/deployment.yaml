@@ -36,7 +36,7 @@ spec:
               containerPort: 8081
           env:
             - name: LLM_BACKEND
-              value: "ollama"
+              value: "llama-server"
             - name: LLM_URL
               value: "http://llama-server.gemma4.svc:8080"
             - name: MODEL_NAME
