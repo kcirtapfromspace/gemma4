@@ -8,10 +8,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::case::{self, Case, QueueStatus};
 use crate::config::{Config, LlmBackend};
-use crate::eicr;
+use crate::diff;
 use crate::entities;
 use crate::extraction;
 use crate::fhir;
+use crate::hl7_output;
+use crate::ingest;
 use crate::jurisdiction;
 use crate::llm::{self, LlmClient};
 use crate::store::{CaseFilter, Store};
@@ -21,6 +23,7 @@ pub struct AppState {
     pub llm: Box<dyn LlmClient>,
     pub config: Config,
     pub started_at: Instant,
+    pub rules: tokio::sync::RwLock<Vec<crate::jurisdiction::JurisdictionRule>>,
 }
 
 const HTML: &str = include_str!("../static/index.html");
@@ -36,7 +39,11 @@ pub async fn sample_eicr() -> &'static str {
 
 #[derive(Deserialize)]
 pub struct ConvertRequest {
-    pub eicr: String,
+    /// Raw clinical data in any supported format (eICR XML, HL7 v2.5.1, FHIR R4 JSON).
+    #[serde(alias = "eicr")]
+    pub data: String,
+    /// Optional format hint: "eicr", "hl7", "fhir". Auto-detected if omitted.
+    pub format: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -53,6 +60,11 @@ pub struct ConvertResponse {
     pub entities: Vec<crate::entities::Entity>,
     pub patient_name: String,
     pub condition_display: String,
+    pub input_format: String,
+    pub hl7_output: Option<String>,
+    pub patient_hash: String,
+    pub is_update: bool,
+    pub diff_summary: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -75,18 +87,16 @@ fn err_json(status: StatusCode, msg: impl Into<String>) -> (StatusCode, Json<Err
 ///   3. Extraction drives everything: FHIR bundle, entities, dedup, routing
 async fn ingest_one(
     state: &AppState,
-    eicr_xml: &str,
+    input: &str,
+    format_hint: Option<&str>,
 ) -> Result<ConvertResponse, (StatusCode, Json<ErrorResponse>)> {
-    // 1. Format CDA/XML into text for the model prompt
-    let summary = eicr::extract(eicr_xml);
-    let prompt_text = summary.to_prompt_text();
-
-    if prompt_text.is_empty() {
-        return Err(err_json(
-            StatusCode::BAD_REQUEST,
-            "Could not extract any data from eICR XML",
-        ));
-    }
+    // 1. Detect format and convert to prompt text
+    let input_format = match format_hint {
+        Some(hint) => ingest::parse_format_hint(hint),
+        None => ingest::detect_format(input),
+    };
+    let prompt_text = ingest::format_for_prompt(input, input_format)
+        .map_err(|e| err_json(StatusCode::BAD_REQUEST, e))?;
 
     // 2. Call the fine-tuned Gemma 4 model
     let start = Instant::now();
@@ -125,8 +135,39 @@ async fn ingest_one(
     let hash = case::dedup_hash(family, given, &ext.patient.dob, primary_snomed);
     let is_dup = state.store.is_graylist(&hash).unwrap_or(false);
 
-    // 7. Jurisdiction routing from model's jurisdiction prediction
-    let (jurisdiction, is_out_of_state) = jurisdiction::route(&ext.jurisdiction);
+    // 6b. Patient hash + eCR diff (eCRims-001/005)
+    let patient_hash_val = case::patient_hash(family, given, &ext.patient.dob);
+    let case_id = uuid::Uuid::new_v4().to_string();
+    let (diff_json_str, prev_case_id_val) = match state.store.find_previous_case(&patient_hash_val, &case_id) {
+        Ok(Some(prev_case)) => {
+            if let Ok(prev_ext) = extraction::parse_stored(&prev_case.extraction_json) {
+                let d = diff::compute_extraction_diff(&prev_ext, &ext);
+                (
+                    serde_json::to_string(&d).unwrap_or_default(),
+                    prev_case.case_id.clone(),
+                )
+            } else {
+                (String::new(), prev_case.case_id.clone())
+            }
+        }
+        _ => (String::new(), String::new()),
+    };
+    let is_update = !prev_case_id_val.is_empty();
+    let diff_summary = if is_update && !diff_json_str.is_empty() {
+        serde_json::from_str::<diff::DiffResult>(&diff_json_str)
+            .ok()
+            .map(|d| d.summary)
+    } else {
+        None
+    };
+
+    // 7. Jurisdiction routing via dynamic rules engine
+    let primary_conf = ext.conditions.first().map(|c| c.conf).unwrap_or(0.0);
+    let rules = state.rules.read().await;
+    let route_result = jurisdiction::evaluate(&rules, &ext.jurisdiction, primary_snomed, primary_conf);
+    drop(rules);
+    let jurisdiction = route_result.jurisdiction_name;
+    let is_out_of_state = route_result.is_out_of_state;
 
     // 8. Determine queue status
     let base_status = if ext.conditions.is_empty() {
@@ -143,7 +184,6 @@ async fn ingest_one(
         base_status
     };
 
-    let case_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     let (city, state_code, _) = ext.patient.addr_parts();
 
@@ -171,10 +211,14 @@ async fn ingest_one(
         prompt_tokens,
         completion_tokens,
         tokens_per_second,
-        raw_eicr_xml: eicr_xml.to_string(),
+        raw_eicr_xml: input.to_string(),
         extraction_json: extraction_json_str,
         fhir_bundle: serde_json::to_string(&fhir_json).unwrap_or_default(),
         entities_json: serde_json::to_string(&entity_list).unwrap_or_default(),
+        input_format: input_format.as_str().to_string(),
+        patient_hash: patient_hash_val.clone(),
+        diff_json: diff_json_str,
+        prev_case_id: prev_case_id_val,
     };
 
     state
@@ -195,6 +239,11 @@ async fn ingest_one(
         entities: entity_list,
         patient_name: ext.patient.name.clone(),
         condition_display: primary_display.to_string(),
+        input_format: input_format.as_str().to_string(),
+        hl7_output: Some(hl7_output::build_hl7_from_extraction(&ext)),
+        patient_hash: patient_hash_val,
+        is_update,
+        diff_summary,
     })
 }
 
@@ -202,7 +251,7 @@ pub async fn convert(
     State(state): State<Arc<AppState>>,
     Json(req): Json<ConvertRequest>,
 ) -> Result<Json<ConvertResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let resp = ingest_one(&state, &req.eicr).await?;
+    let resp = ingest_one(&state, &req.data, req.format.as_deref()).await?;
     Ok(Json(resp))
 }
 
@@ -242,7 +291,7 @@ pub async fn convert_batch(
             .await
             .map_err(|e| err_json(StatusCode::BAD_REQUEST, format!("read error: {e}")))?;
 
-        let item = match ingest_one(&state, &data).await {
+        let item = match ingest_one(&state, &data, None).await {
             Ok(resp) => BatchItem {
                 filename,
                 result: BatchItemResult::Ok(resp),
@@ -303,6 +352,86 @@ pub async fn get_stats(
         .stats()
         .map_err(|e| err_json(StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
     Ok(Json(stats))
+}
+
+pub async fn patient_history(
+    State(state): State<Arc<AppState>>,
+    Path(hash): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let cases = state
+        .store
+        .query_patient_history(&hash)
+        .map_err(|e| err_json(StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
+    Ok(Json(cases))
+}
+
+// --- Jurisdiction Rules CRUD ---
+
+pub async fn list_rules(
+    State(state): State<Arc<AppState>>,
+) -> Json<Vec<crate::jurisdiction::JurisdictionRule>> {
+    let rules = state.rules.read().await;
+    Json(rules.clone())
+}
+
+#[derive(Deserialize)]
+pub struct CreateRuleRequest {
+    pub jurisdiction_name: String,
+    pub state_codes: Vec<String>,
+    #[serde(default)]
+    pub condition_snomeds: Vec<String>,
+    #[serde(default)]
+    pub min_confidence: f64,
+    #[serde(default)]
+    pub priority: i32,
+    #[serde(default = "default_true")]
+    pub active: bool,
+}
+fn default_true() -> bool { true }
+
+pub async fn create_rule(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<CreateRuleRequest>,
+) -> Result<Json<crate::jurisdiction::JurisdictionRule>, (StatusCode, Json<ErrorResponse>)> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let rule = crate::jurisdiction::JurisdictionRule {
+        rule_id: uuid::Uuid::new_v4().to_string(),
+        jurisdiction_name: body.jurisdiction_name,
+        state_codes: body.state_codes,
+        condition_snomeds: body.condition_snomeds,
+        min_confidence: body.min_confidence,
+        priority: body.priority,
+        active: body.active,
+        created_at: now.clone(),
+        updated_at: now,
+    };
+    state
+        .store
+        .insert_rule(&rule)
+        .map_err(|e| err_json(StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
+    let mut rules = state.rules.write().await;
+    *rules = state
+        .store
+        .load_rules()
+        .unwrap_or_default();
+    Ok(Json(rule))
+}
+
+pub async fn delete_rule_handler(
+    State(state): State<Arc<AppState>>,
+    Path(rule_id): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let deleted = state
+        .store
+        .delete_rule(&rule_id)
+        .map_err(|e| err_json(StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
+    if deleted {
+        let mut rules = state.rules.write().await;
+        *rules = state.store.load_rules().unwrap_or_default();
+        Ok(Json(serde_json::json!({"ok": true})))
+    } else {
+        Err(err_json(StatusCode::NOT_FOUND, "rule not found"))
+    }
 }
 
 #[derive(Serialize)]

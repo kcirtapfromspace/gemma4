@@ -1,11 +1,15 @@
 mod case;
 mod config;
 mod dashboard;
+mod diff;
 mod eicr;
 mod entities;
 mod extraction;
 mod fhir;
 mod flight;
+mod hl7;
+mod hl7_output;
+mod ingest;
 mod jurisdiction;
 mod llm;
 mod store;
@@ -13,7 +17,7 @@ mod store;
 use std::sync::Arc;
 
 use arrow_flight::flight_service_server::FlightServiceServer;
-use axum::routing::{get, patch, post};
+use axum::routing::{delete, get, patch, post};
 use axum::Router;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
@@ -46,6 +50,11 @@ async fn main() -> anyhow::Result<()> {
     // Open DuckDB (single instance shared by HTTP + Flight)
     let db = Arc::new(Store::open(&config.db_path)?);
 
+    // Seed default jurisdiction rules if table is empty
+    db.seed_default_rules()?;
+    let initial_rules = db.load_rules()?;
+    tracing::info!(rules = initial_rules.len(), "Loaded jurisdiction rules");
+
     // Build LLM client
     let llm_client = llm::build_client(&config);
 
@@ -55,6 +64,7 @@ async fn main() -> anyhow::Result<()> {
         llm: llm_client,
         config: config.clone(),
         started_at: std::time::Instant::now(),
+        rules: tokio::sync::RwLock::new(initial_rules),
     });
 
     // Axum HTTP server
@@ -68,6 +78,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/cases/:id", patch(dashboard::patch_case))
         .route("/api/stats", get(dashboard::get_stats))
         .route("/api/info", get(dashboard::system_info))
+        .route("/api/patients/:hash/history", get(dashboard::patient_history))
+        .route("/api/rules", get(dashboard::list_rules))
+        .route("/api/rules", post(dashboard::create_rule))
+        .route("/api/rules/:id", delete(dashboard::delete_rule_handler))
         .layer(CorsLayer::permissive())
         .with_state(state);
 

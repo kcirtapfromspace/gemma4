@@ -128,6 +128,11 @@ pub fn parse(raw: &str) -> Result<Extraction> {
     serde_json::from_str(&cleaned).context("failed to parse model extraction JSON")
 }
 
+/// Parse a stored extraction JSON string (already clean, no fences).
+pub fn parse_stored(json_str: &str) -> Result<Extraction> {
+    serde_json::from_str(json_str).context("failed to parse stored extraction JSON")
+}
+
 impl ExtPatient {
     /// Split name into (given, family) for dedup hashing and FHIR Patient.
     pub fn name_parts(&self) -> (&str, &str) {

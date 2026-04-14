@@ -70,6 +70,25 @@ pub struct Case {
     pub extraction_json: String,
     pub fhir_bundle: String,
     pub entities_json: String,
+    pub input_format: String,
+    pub patient_hash: String,
+    pub diff_json: String,
+    pub prev_case_id: String,
+}
+
+/// Compute patient identity hash: sha256(lower(family+given) || birthDate)
+/// Unlike dedup_hash, this does NOT include condition — it links
+/// all cases for the same patient regardless of condition.
+pub fn patient_hash(family: &str, given: &str, dob: &str) -> String {
+    let input = format!(
+        "{}{}{}",
+        family.to_lowercase(),
+        given.to_lowercase(),
+        dob,
+    );
+    let mut hasher = Sha256::new();
+    hasher.update(input.as_bytes());
+    format!("{:x}", hasher.finalize())
 }
 
 /// Compute dedup hash: sha256(lower(family+given) || birthDate || snomed)

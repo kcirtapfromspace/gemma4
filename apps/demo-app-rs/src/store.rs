@@ -7,6 +7,7 @@ use duckdb::Connection;
 use serde::Serialize;
 
 use crate::case::Case;
+use crate::jurisdiction::JurisdictionRule;
 
 pub struct Store {
     conn: Mutex<Connection>,
@@ -84,8 +85,31 @@ impl Store {
             "ALTER TABLE cases ADD COLUMN prompt_tokens BIGINT;
              ALTER TABLE cases ADD COLUMN completion_tokens BIGINT;
              ALTER TABLE cases ADD COLUMN tokens_per_second DOUBLE;
-             ALTER TABLE cases ADD COLUMN extraction_json TEXT;",
+             ALTER TABLE cases ADD COLUMN extraction_json TEXT;
+             ALTER TABLE cases ADD COLUMN input_format VARCHAR DEFAULT 'eicr';
+             ALTER TABLE cases ADD COLUMN patient_hash VARCHAR;
+             ALTER TABLE cases ADD COLUMN diff_json TEXT;
+             ALTER TABLE cases ADD COLUMN prev_case_id VARCHAR;",
         );
+        let _ = conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_cases_patient_hash ON cases(patient_hash, ingested_at);",
+        );
+
+        // Jurisdiction rules table
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS jurisdiction_rules (
+                rule_id          VARCHAR PRIMARY KEY,
+                jurisdiction_name VARCHAR NOT NULL,
+                state_codes      VARCHAR NOT NULL,
+                condition_snomeds VARCHAR NOT NULL DEFAULT '[]',
+                min_confidence   DOUBLE NOT NULL DEFAULT 0.0,
+                priority         INTEGER NOT NULL DEFAULT 0,
+                active           BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at       VARCHAR NOT NULL,
+                updated_at       VARCHAR NOT NULL
+            );",
+        )
+        .context("jurisdiction_rules migration failed")?;
 
         Ok(())
     }
@@ -108,8 +132,9 @@ impl Store {
                 lab_loinc, lab_result, jurisdiction, queue_status, dedup_hash,
                 ingested_at, processed_at, inference_ms,
                 prompt_tokens, completion_tokens, tokens_per_second,
-                raw_eicr_xml, extraction_json, fhir_bundle, entities)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                raw_eicr_xml, extraction_json, fhir_bundle, entities, input_format,
+                patient_hash, diff_json, prev_case_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             duckdb::params![
                 c.case_id,
                 c.patient_name,
@@ -134,6 +159,10 @@ impl Store {
                 c.extraction_json,
                 c.fhir_bundle,
                 c.entities_json,
+                c.input_format,
+                c.patient_hash,
+                c.diff_json,
+                c.prev_case_id,
             ],
         )
         .context("insert_case failed")?;
@@ -148,7 +177,8 @@ impl Store {
             patient_city, condition_snomed, condition_display, lab_loinc, lab_result,
             jurisdiction, queue_status, dedup_hash, ingested_at, processed_at,
             inference_ms, prompt_tokens, completion_tokens, tokens_per_second,
-            raw_eicr_xml, extraction_json, fhir_bundle, entities";
+            raw_eicr_xml, extraction_json, fhir_bundle, entities, input_format,
+            patient_hash, diff_json, prev_case_id";
 
         let (sql, params): (String, Vec<Box<dyn duckdb::ToSql>>) = if let Some(status) = &filter.status {
             (
@@ -184,7 +214,8 @@ impl Store {
             patient_city, condition_snomed, condition_display, lab_loinc, lab_result,
             jurisdiction, queue_status, dedup_hash, ingested_at, processed_at,
             inference_ms, prompt_tokens, completion_tokens, tokens_per_second,
-            raw_eicr_xml, extraction_json, fhir_bundle, entities";
+            raw_eicr_xml, extraction_json, fhir_bundle, entities, input_format,
+            patient_hash, diff_json, prev_case_id";
         let mut stmt = conn.prepare(&format!("SELECT {cols} FROM cases WHERE case_id = ?"))?;
         let result = stmt.query_row([case_id], |row| row_to_case(row)).ok();
         Ok(result)
@@ -197,6 +228,45 @@ impl Store {
             duckdb::params![new_status, case_id],
         )?;
         Ok(updated > 0)
+    }
+
+    /// Find the most recent case for a patient_hash, excluding a specific case_id.
+    pub fn find_previous_case(&self, patient_hash_val: &str, exclude_case_id: &str) -> Result<Option<Case>> {
+        let conn = self.conn.lock().unwrap();
+        let cols = "case_id, patient_name, patient_dob, patient_gender, patient_state,
+            patient_city, condition_snomed, condition_display, lab_loinc, lab_result,
+            jurisdiction, queue_status, dedup_hash, ingested_at, processed_at,
+            inference_ms, prompt_tokens, completion_tokens, tokens_per_second,
+            raw_eicr_xml, extraction_json, fhir_bundle, entities, input_format,
+            patient_hash, diff_json, prev_case_id";
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {cols} FROM cases WHERE patient_hash = ? AND case_id != ? ORDER BY ingested_at DESC LIMIT 1"
+        ))?;
+        let result = stmt.query_row(
+            duckdb::params![patient_hash_val, exclude_case_id],
+            |row| row_to_case(row),
+        ).ok();
+        Ok(result)
+    }
+
+    /// Get all cases for a patient hash, ordered by ingested_at.
+    pub fn query_patient_history(&self, patient_hash_val: &str) -> Result<Vec<Case>> {
+        let conn = self.conn.lock().unwrap();
+        let cols = "case_id, patient_name, patient_dob, patient_gender, patient_state,
+            patient_city, condition_snomed, condition_display, lab_loinc, lab_result,
+            jurisdiction, queue_status, dedup_hash, ingested_at, processed_at,
+            inference_ms, prompt_tokens, completion_tokens, tokens_per_second,
+            raw_eicr_xml, extraction_json, fhir_bundle, entities, input_format,
+            patient_hash, diff_json, prev_case_id";
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {cols} FROM cases WHERE patient_hash = ? ORDER BY ingested_at ASC"
+        ))?;
+        let rows = stmt.query_map([patient_hash_val], |row| row_to_case(row))?;
+        let mut cases = Vec::new();
+        for row in rows {
+            cases.push(row?);
+        }
+        Ok(cases)
     }
 
     pub fn stats(&self) -> Result<Stats> {
@@ -266,6 +336,99 @@ impl Store {
             inference_p95_ms: p95,
             avg_tokens_per_second: avg_tps,
         })
+    }
+
+    // --- Jurisdiction Rules CRUD ---
+
+    pub fn load_rules(&self) -> Result<Vec<JurisdictionRule>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT rule_id, jurisdiction_name, state_codes, condition_snomeds, min_confidence, priority, active, created_at, updated_at FROM jurisdiction_rules ORDER BY priority DESC"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let state_codes_json: String = row.get(2)?;
+            let cond_snomeds_json: String = row.get(3)?;
+            Ok(JurisdictionRule {
+                rule_id: row.get(0)?,
+                jurisdiction_name: row.get(1)?,
+                state_codes: serde_json::from_str(&state_codes_json).unwrap_or_default(),
+                condition_snomeds: serde_json::from_str(&cond_snomeds_json).unwrap_or_default(),
+                min_confidence: row.get(4)?,
+                priority: row.get(5)?,
+                active: row.get(6)?,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
+            })
+        })?;
+        let mut rules = Vec::new();
+        for row in rows {
+            rules.push(row?);
+        }
+        Ok(rules)
+    }
+
+    pub fn insert_rule(&self, rule: &JurisdictionRule) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO jurisdiction_rules (rule_id, jurisdiction_name, state_codes, condition_snomeds, min_confidence, priority, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            duckdb::params![
+                rule.rule_id,
+                rule.jurisdiction_name,
+                serde_json::to_string(&rule.state_codes).unwrap_or_default(),
+                serde_json::to_string(&rule.condition_snomeds).unwrap_or_default(),
+                rule.min_confidence,
+                rule.priority,
+                rule.active,
+                rule.created_at,
+                rule.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub fn update_rule(&self, rule: &JurisdictionRule) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let updated = conn.execute(
+            "UPDATE jurisdiction_rules SET jurisdiction_name=?, state_codes=?, condition_snomeds=?, min_confidence=?, priority=?, active=?, updated_at=? WHERE rule_id=?",
+            duckdb::params![
+                rule.jurisdiction_name,
+                serde_json::to_string(&rule.state_codes).unwrap_or_default(),
+                serde_json::to_string(&rule.condition_snomeds).unwrap_or_default(),
+                rule.min_confidence,
+                rule.priority,
+                rule.active,
+                rule.updated_at,
+                rule.rule_id,
+            ],
+        )?;
+        Ok(updated > 0)
+    }
+
+    pub fn delete_rule(&self, rule_id: &str) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let deleted = conn.execute(
+            "DELETE FROM jurisdiction_rules WHERE rule_id = ?",
+            [rule_id],
+        )?;
+        Ok(deleted > 0)
+    }
+
+    pub fn seed_default_rules(&self) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row(
+            "SELECT count(*) FROM jurisdiction_rules",
+            [],
+            |r| r.get(0),
+        )?;
+        if count > 0 {
+            return Ok(());
+        }
+        drop(conn); // release lock before inserting
+        for rule in crate::jurisdiction::default_rules() {
+            self.insert_rule(&rule)?;
+        }
+        Ok(())
     }
 
     /// Materialize cases as Arrow RecordBatch for Flight export.
@@ -371,5 +534,9 @@ fn row_to_case(row: &duckdb::Row) -> std::result::Result<Case, duckdb::Error> {
         extraction_json: row.get::<_, String>(20).unwrap_or_default(),
         fhir_bundle: row.get::<_, String>(21)?,
         entities_json: row.get::<_, String>(22)?,
+        input_format: row.get::<_, String>(23).unwrap_or_else(|_| "eicr".into()),
+        patient_hash: row.get::<_, String>(24).unwrap_or_default(),
+        diff_json: row.get::<_, String>(25).unwrap_or_default(),
+        prev_case_id: row.get::<_, String>(26).unwrap_or_default(),
     })
 }

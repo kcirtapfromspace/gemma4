@@ -57,6 +57,198 @@ pub fn strip_fences(content: &str) -> String {
     }
 }
 
+/// Parse an incoming FHIR R4 Bundle and format as prompt text matching
+/// EicrSummary::to_prompt_text() output, so the LLM can process it.
+pub fn format_prompt_from_fhir_input(json_str: &str) -> Result<String, String> {
+    let bundle: Bundle = serde_json::from_str(&strip_fences(json_str))
+        .map_err(|e| format!("Invalid FHIR JSON: {e}"))?;
+
+    let mut parts = Vec::new();
+
+    for entry in &bundle.entry {
+        let res = &entry.resource;
+        let rtype = res["resourceType"].as_str().unwrap_or("");
+
+        match rtype {
+            "Patient" => {
+                let name = res["name"].as_array().and_then(|n| n.first());
+                if let Some(n) = name {
+                    let given = n["given"]
+                        .as_array()
+                        .and_then(|g| g.first())
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let family = n["family"].as_str().unwrap_or("");
+                    if !given.is_empty() || !family.is_empty() {
+                        parts.push(format!("Patient: {given} {family}"));
+                    }
+                }
+                if let Some(g) = res["gender"].as_str() {
+                    let code = match g {
+                        "female" => "F",
+                        "male" => "M",
+                        _ => g,
+                    };
+                    parts.push(format!("Gender: {code}"));
+                }
+                if let Some(dob) = res["birthDate"].as_str() {
+                    parts.push(format!("DOB: {dob}"));
+                }
+                if let Some(addr) = res["address"].as_array().and_then(|a| a.first()) {
+                    let city = addr["city"].as_str().unwrap_or("");
+                    let state = addr["state"].as_str().unwrap_or("");
+                    let zip = addr["postalCode"].as_str().unwrap_or("");
+                    if !city.is_empty() && !state.is_empty() {
+                        let mut loc = format!("{city}, {state}");
+                        if !zip.is_empty() {
+                            loc.push(' ');
+                            loc.push_str(zip);
+                        }
+                        parts.push(format!("Location: {loc}"));
+                    }
+                }
+                if let Some(tel) = res["telecom"].as_array().and_then(|t| t.first()) {
+                    if let Some(v) = tel["value"].as_str() {
+                        parts.push(format!("Phone: {v}"));
+                    }
+                }
+            }
+            "Encounter" => {
+                if let Some(start) = res["period"]["start"].as_str() {
+                    parts.push(format!("Encounter: {}", &start[..10.min(start.len())]));
+                }
+            }
+            "Organization" => {
+                if let Some(name) = res["name"].as_str() {
+                    let mut fac = format!("Facility: {name}");
+                    if let Some(ids) = res["identifier"].as_array() {
+                        for id in ids {
+                            if id["system"].as_str().map_or(false, |s| s.contains("npi")) {
+                                if let Some(v) = id["value"].as_str() {
+                                    fac.push_str(&format!(" (NPI: {v})"));
+                                }
+                            }
+                        }
+                    }
+                    parts.push(fac);
+                }
+            }
+            "Condition" => {
+                if let Some(codings) = res["code"]["coding"].as_array() {
+                    for cod in codings {
+                        let sys = cod["system"].as_str().unwrap_or("");
+                        let code = cod["code"].as_str().unwrap_or("");
+                        let display = cod["display"].as_str().unwrap_or("");
+                        if !code.is_empty() && !display.is_empty() {
+                            let label = if sys.contains("snomed") {
+                                "SNOMED"
+                            } else if sys.contains("icd") {
+                                "ICD-10"
+                            } else {
+                                "SNOMED"
+                            };
+                            parts.push(format!("Dx: {display} ({label} {code})"));
+                        }
+                    }
+                }
+            }
+            "Observation" => {
+                let cat = res["category"]
+                    .as_array()
+                    .and_then(|c| c.first())
+                    .and_then(|c| c["coding"].as_array())
+                    .and_then(|c| c.first())
+                    .and_then(|c| c["code"].as_str())
+                    .unwrap_or("");
+
+                if let Some(codings) = res["code"]["coding"].as_array() {
+                    for cod in codings {
+                        let code = cod["code"].as_str().unwrap_or("");
+                        let display = cod["display"].as_str().unwrap_or("");
+                        if code.is_empty() || display.is_empty() {
+                            continue;
+                        }
+
+                        if cat == "vital-signs" {
+                            // Handled separately below
+                            continue;
+                        }
+
+                        // Lab
+                        let result = res["valueCodeableConcept"]["coding"]
+                            .as_array()
+                            .and_then(|c| c.first())
+                            .and_then(|c| c["display"].as_str())
+                            .unwrap_or("");
+                        let mut line = format!("Lab: {display} (LOINC {code})");
+                        if !result.is_empty() {
+                            line.push_str(&format!(" - {result}"));
+                        }
+                        parts.push(line);
+                    }
+                }
+            }
+            "MedicationStatement" => {
+                if let Some(codings) = res["medicationCodeableConcept"]["coding"].as_array() {
+                    for cod in codings {
+                        let code = cod["code"].as_str().unwrap_or("");
+                        let display = cod["display"].as_str().unwrap_or("");
+                        if !code.is_empty() && !display.is_empty() {
+                            parts.push(format!("Meds: {display} (RxNorm {code})"));
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Collect vitals separately for the "Vitals: Temp X, HR Y" format
+    let mut vital_parts = Vec::new();
+    for entry in &bundle.entry {
+        let res = &entry.resource;
+        let cat = res["category"]
+            .as_array()
+            .and_then(|c| c.first())
+            .and_then(|c| c["coding"].as_array())
+            .and_then(|c| c.first())
+            .and_then(|c| c["code"].as_str())
+            .unwrap_or("");
+        if cat != "vital-signs" {
+            continue;
+        }
+        if let Some(cod) = res["code"]["coding"].as_array().and_then(|c| c.first()) {
+            let code = cod["code"].as_str().unwrap_or("");
+            if let Some(vq) = res.get("valueQuantity") {
+                let val = vq["value"].as_f64().map(|v| v.to_string()).unwrap_or_default();
+                let label = match code {
+                    "8310-5" => "Temp",
+                    "8867-4" => "HR",
+                    "9279-1" => "RR",
+                    "2708-6" => "SpO2",
+                    "8480-6" => "BP",
+                    _ => continue,
+                };
+                let suffix = match code {
+                    "8310-5" => "C",
+                    "2708-6" => "%",
+                    _ => "",
+                };
+                vital_parts.push(format!("{label} {val}{suffix}"));
+            }
+        }
+    }
+    if !vital_parts.is_empty() {
+        parts.push(format!("Vitals: {}", vital_parts.join(", ")));
+    }
+
+    if parts.is_empty() {
+        Err("Could not extract data from FHIR Bundle".into())
+    } else {
+        Ok(parts.join("\n"))
+    }
+}
+
 fn uid() -> String {
     uuid::Uuid::new_v4().to_string()
 }
