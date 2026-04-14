@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-Gemma 4 E4B Fine-tuning with Unsloth for eICR → FHIR Conversion
-================================================================
+Gemma 4 E4B Fine-tuning with Unsloth — ClinIQ
+==================================================
 Hackathon: Gemma 4 Good Hackathon (Unsloth Track - $10K prize)
-Task: Convert eICR CDA/XML documents to FHIR R4 Bundles
+Task: Clinical entity extraction from eICR summaries — extract conditions,
+      labs, medications, vitals with ontology codes and case summaries.
+      Replaces cloud NLP (Comprehend Medical + IMO) with edge model.
 Target: Edge deployment on Jetson Orin Nano (8GB unified memory)
 
 Run on Kaggle with free A100 GPU.
@@ -24,7 +26,7 @@ Upload training data (train.jsonl, val.jsonl) as a Kaggle dataset first.
 from unsloth import FastLanguageModel
 import torch
 
-max_seq_length = 4096
+max_seq_length = 1024  # Extraction JSON samples are ~600 tokens
 dtype = None  # auto-detect (bfloat16 on A100)
 load_in_4bit = True  # QLoRA for memory efficiency
 
@@ -113,13 +115,13 @@ trainer = SFTTrainer(
     dataset_text_field="text",
     max_seq_length=max_seq_length,
     dataset_num_proc=2,
-    packing=False,
+    packing=True,  # Pack short sequences for throughput
     args=TrainingArguments(
-        per_device_train_batch_size=2,
+        per_device_train_batch_size=4,
         gradient_accumulation_steps=4,
         warmup_steps=10,
-        num_train_epochs=3,
-        learning_rate=2e-4,
+        num_train_epochs=5,
+        learning_rate=1e-4,
         fp16=not is_bfloat16_supported(),
         bf16=is_bfloat16_supported(),
         logging_steps=10,
@@ -147,48 +149,24 @@ print(f"Training time: {trainer_stats.metrics['train_runtime']:.1f}s")
 # %%
 FastLanguageModel.for_inference(model)
 
-test_eicr = """<?xml version="1.0" encoding="UTF-8"?>
-<ClinicalDocument xmlns="urn:hl7-org:v3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <realmCode code="US"/>
-  <typeId root="2.16.840.1.113883.1.3" extension="POCD_HD000040"/>
-  <templateId root="2.16.840.1.113883.10.20.15.2" extension="2021-01-01"/>
-  <id root="test-doc-001"/>
-  <code code="55751-2" codeSystem="2.16.840.1.113883.6.1" displayName="Public Health Case Report"/>
-  <title>Initial Public Health Case Report - eICR</title>
-  <effectiveTime value="20260401120000-0600"/>
-  <recordTarget>
-    <patientRole>
-      <id extension="PT-TEST" root="2.16.840.1.113883.19.5"/>
-      <patient>
-        <name use="L"><given>Test</given><family>Patient</family></name>
-        <administrativeGenderCode code="M" codeSystem="2.16.840.1.113883.5.1"/>
-        <birthTime value="19900101"/>
-      </patient>
-    </patientRole>
-  </recordTarget>
-  <component>
-    <structuredBody>
-      <component>
-        <section>
-          <code code="11450-4" codeSystem="2.16.840.1.113883.6.1" displayName="Problem list"/>
-          <entry>
-            <act classCode="ACT" moodCode="EVN">
-              <entryRelationship typeCode="SUBJ">
-                <observation classCode="OBS" moodCode="EVN">
-                  <value xsi:type="CD" code="840539006" codeSystem="2.16.840.1.113883.6.96" displayName="COVID-19"/>
-                </observation>
-              </entryRelationship>
-            </act>
-          </entry>
-        </section>
-      </component>
-    </structuredBody>
-  </component>
-</ClinicalDocument>"""
+test_input = """Patient: Maria Garcia
+Gender: F
+DOB: 1985-06-14
+Race: White
+Ethnicity: Hispanic or Latino
+Location: Denver, CO 80202
+Phone: +1-303-555-0142
+Facility: Denver Health Medical Center (NPI: 1234567800)
+Encounter: 2026-03-15
+Reason: fever (39.2C), dry cough for 5 days, shortness of breath
+Dx: COVID-19 (SNOMED 840539006)
+Lab: SARS-CoV-2 RNA NAA+probe Ql (Resp) (LOINC 94500-6) - Detected
+Vitals: Temp 39.2C, HR 92, RR 20, SpO2 95%, BP 128
+Meds: nirmatrelvir 150 MG / ritonavir 100 MG (RxNorm 2599543)"""
 
 messages = [
-    {"role": "system", "content": "You are a clinical informatics assistant. Convert the provided eICR CDA/XML document into a valid HL7 FHIR R4 Bundle JSON. Output valid JSON only."},
-    {"role": "user", "content": f"Convert this eICR to a FHIR R4 Bundle:\n\n{test_eicr}"},
+    {"role": "system", "content": "Extract clinical entities from this eICR summary. Output JSON with: patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), medications (RxNorm), vitals, and a case summary. Include confidence scores. Output valid JSON only."},
+    {"role": "user", "content": test_input},
 ]
 
 inputs = tokenizer.apply_chat_template(
@@ -200,13 +178,25 @@ inputs = tokenizer.apply_chat_template(
 
 outputs = model.generate(
     input_ids=inputs,
-    max_new_tokens=2048,
+    max_new_tokens=512,
     temperature=0.1,
     top_p=0.9,
 )
 
 response = tokenizer.decode(outputs[0][inputs.shape[-1]:], skip_special_tokens=True)
+print("=== Raw response ===")
 print(response)
+
+# Validate JSON
+import json
+try:
+    extraction = json.loads(response)
+    print("\n=== Parsed extraction ===")
+    print(json.dumps(extraction, indent=2))
+    print(f"\nConditions: {[c['name'] for c in extraction.get('conditions', [])]}")
+    print(f"Summary: {extraction.get('summary', 'N/A')}")
+except json.JSONDecodeError as e:
+    print(f"\nJSON parse error: {e}")
 
 # %% [markdown]
 # ## 8. Save & Export

@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama-server
+  namespace: gemma4
+  labels:
+    app: llama-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llama-server
+  template:
+    metadata:
+      labels:
+        app: llama-server
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: talos-jetson-3
+      containers:
+        - name: llama-server
+          image: 192.168.25.201:5050/llama-server:latest
+          args:
+            - "-m"
+            - "/models/cliniq-gemma4-e2b-Q4_K_M.gguf"
+            - "--port"
+            - "8080"
+            - "--ctx-size"
+            - "2048"
+            - "--n-gpu-layers"
+            - "99"
+            - "--host"
+            - "0.0.0.0"
+          ports:
+            - containerPort: 8080
+              name: api
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "2"
+            limits:
+              memory: "5Gi"
+              cpu: "6"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          volumeMounts:
+            - mountPath: /models
+              name: models
+            - mountPath: /dev/nvgpu
+              name: dev-nvgpu
+            - mountPath: /dev/nvhost-gpu
+              name: dev-nvhost-gpu
+            - mountPath: /dev/nvhost-ctrl
+              name: dev-nvhost-ctrl
+            - mountPath: /dev/nvhost-ctrl-gpu
+              name: dev-nvhost-ctrl-gpu
+            - mountPath: /dev/nvhost-as-gpu
+              name: dev-nvhost-as-gpu
+            - mountPath: /dev/nvhost-dbg-gpu
+              name: dev-nvhost-dbg-gpu
+            - mountPath: /dev/nvhost-tsg-gpu
+              name: dev-nvhost-tsg-gpu
+            - mountPath: /dev/nvmap
+              name: dev-nvmap
+      volumes:
+        - name: models
+          hostPath:
+            path: /var/lib/ollama/models
+            type: DirectoryOrCreate
+        - name: dev-nvgpu
+          hostPath:
+            path: /dev/nvgpu
+        - name: dev-nvhost-gpu
+          hostPath:
+            path: /dev/nvhost-gpu
+        - name: dev-nvhost-ctrl
+          hostPath:
+            path: /dev/nvhost-ctrl
+        - name: dev-nvhost-ctrl-gpu
+          hostPath:
+            path: /dev/nvhost-ctrl-gpu
+        - name: dev-nvhost-as-gpu
+          hostPath:
+            path: /dev/nvhost-as-gpu
+        - name: dev-nvhost-dbg-gpu
+          hostPath:
+            path: /dev/nvhost-dbg-gpu
+        - name: dev-nvhost-tsg-gpu
+          hostPath:
+            path: /dev/nvhost-tsg-gpu
+        - name: dev-nvmap
+          hostPath:
+            path: /dev/nvmap
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llama-server
+  namespace: gemma4
+spec:
+  selector:
+    app: llama-server
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30083
+  type: NodePort

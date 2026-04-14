@@ -1,0 +1,50 @@
+# ClinIQ Training Container for Jetson Orin Nano
+# Unsloth + PyTorch + CUDA on JetPack r36.4.0
+#
+# Build ON an ARM64 host or with buildx:
+#   docker buildx build --platform linux/arm64 -f Dockerfile.jetson -t cliniq-train:latest .
+
+# Use our existing Ollama Jetson image as base — it already has real Tegra BSP libs + CUDA
+FROM 192.168.25.201:5050/ollama-jetson:r36.4.0
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Python 3.11 and build tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    python3.11 python3.11-venv python3.11-dev python3-pip \
+    git build-essential && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
+    python3 -m pip install --upgrade pip setuptools wheel && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install PyTorch for Jetson (aarch64 + CUDA)
+RUN pip3 install --no-cache-dir \
+    "numpy<2" \
+    https://developer.download.nvidia.com/compute/redist/jp/v61/pytorch/torch-2.5.0a0+872d972e41.nv24.08.17622132-cp311-cp311-linux_aarch64.whl || \
+    pip3 install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu124
+
+# Install training dependencies
+RUN pip3 install --no-cache-dir \
+    transformers==5.5.0 \
+    datasets \
+    trl \
+    peft \
+    accelerate \
+    bitsandbytes \
+    sentencepiece \
+    protobuf \
+    huggingface_hub
+
+# Install Unsloth
+RUN pip3 install --no-cache-dir unsloth "unsloth_zoo>=2026.4.6" || \
+    pip3 install --no-cache-dir unsloth
+
+ENV LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/compat:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+WORKDIR /workspace
+COPY train.py /workspace/train.py
+
+ENTRYPOINT ["python3", "/workspace/train.py"]

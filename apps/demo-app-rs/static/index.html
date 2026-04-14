@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClinIQ | Surveillance Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; color: #e1e4e8; min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* Header */
+  .header { background: #161b22; border-bottom: 1px solid #30363d; padding: 10px 20px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .header h1 { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+  .header .sub { font-size: 12px; color: #8b949e; }
+  .badge { padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; }
+  .badge.green { background: #238636; color: #fff; }
+  .badge.blue { background: #1f6feb; color: #fff; }
+  .badge.red { background: #da3633; color: #fff; }
+  .badge.yellow { background: #9e6a03; color: #fff; }
+  .badge.gray { background: #484f58; color: #e1e4e8; }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+  /* Layout: 3-column */
+  .layout { display: grid; grid-template-columns: 220px 1fr 1fr; flex: 1; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar { background: #161b22; border-right: 1px solid #30363d; display: flex; flex-direction: column; overflow-y: auto; }
+  .sidebar-section { padding: 12px 14px; border-bottom: 1px solid #21262d; }
+  .sidebar-section h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: #8b949e; margin-bottom: 8px; font-weight: 600; }
+  .queue-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: 13px; margin-bottom: 2px; }
+  .queue-item:hover { background: #1c2128; }
+  .queue-item.active { background: #1f6feb22; color: #58a6ff; }
+  .queue-count { font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .stat-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; color: #8b949e; }
+  .stat-row .val { color: #e1e4e8; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .condition-bar { margin-bottom: 4px; }
+  .condition-bar .label { font-size: 11px; color: #8b949e; margin-bottom: 1px; display: flex; justify-content: space-between; }
+  .condition-bar .bar { height: 4px; background: #21262d; border-radius: 2px; overflow: hidden; }
+  .condition-bar .bar-fill { height: 100%; background: #f78166; border-radius: 2px; transition: width 0.3s; }
+
+  /* Ingest panel at bottom of sidebar */
+  .sidebar-actions { padding: 12px 14px; margin-top: auto; border-top: 1px solid #21262d; }
+  .sidebar-actions h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: #8b949e; margin-bottom: 8px; font-weight: 600; }
+  .btn { border: none; padding: 7px 14px; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; width: 100%; margin-bottom: 6px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .btn-primary { background: #238636; color: #fff; }
+  .btn-primary:hover { background: #2ea043; }
+  .btn-primary:disabled { background: #30363d; color: #8b949e; cursor: not-allowed; }
+  .btn-secondary { background: #30363d; color: #c9d1d9; }
+  .btn-secondary:hover { background: #3d444d; }
+
+  /* Center: case list */
+  .case-list-panel { border-right: 1px solid #30363d; display: flex; flex-direction: column; overflow: hidden; }
+  .case-list-header { padding: 10px 14px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; background: #161b22; flex-shrink: 0; }
+  .case-list-header h2 { font-size: 12px; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }
+  .case-list { flex: 1; overflow-y: auto; }
+  .case-row { padding: 10px 14px; border-bottom: 1px solid #21262d; cursor: pointer; transition: background 0.1s; }
+  .case-row:hover { background: #1c2128; }
+  .case-row.selected { background: #1f6feb18; border-left: 3px solid #1f6feb; }
+  .case-row .case-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .case-row .case-meta { font-size: 11px; color: #8b949e; display: flex; gap: 10px; flex-wrap: wrap; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+  .status-Processed { background: #3fb950; }
+  .status-Flagged { background: #d29922; }
+  .status-Graylist { background: #8b949e; }
+  .status-OutOfState { background: #a371f7; }
+  .status-Intake { background: #1f6feb; }
+  .status-QA { background: #f78166; }
+  .status-Closed { background: #484f58; }
+
+  /* Right: detail panel */
+  .detail-panel { display: flex; flex-direction: column; overflow: hidden; }
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid #30363d; background: #161b22; flex-shrink: 0; }
+  .tab { padding: 9px 14px; font-size: 12px; font-weight: 500; color: #8b949e; background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent; }
+  .tab:hover { color: #e1e4e8; }
+  .tab.active { color: #e1e4e8; border-bottom-color: #f78166; }
+  .tab-content { display: none; flex: 1; overflow: auto; }
+  .tab-content.active { display: flex; flex-direction: column; overflow: auto; }
+  .placeholder { padding: 40px; text-align: center; color: #484f58; font-size: 13px; }
+
+  /* Summary tab */
+  .case-summary { padding: 14px; }
+  .patient-banner { background: #1c2128; border: 1px solid #30363d; border-radius: 6px; padding: 12px 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; }
+  .patient-banner .name { font-size: 16px; font-weight: 600; }
+  .patient-banner .details { font-size: 12px; color: #8b949e; }
+  .finding-card { background: #1c2128; border-radius: 5px; padding: 8px 12px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid #30363d; }
+  .finding-card.observation { border-left-color: #a371f7; }
+  .finding-text { font-size: 13px; }
+  .finding-code { font-size: 10px; color: #8b949e; font-family: monospace; }
+  .summary-text { background: #1c2128; border: 1px solid #30363d; border-radius: 6px; padding: 12px; margin-top: 10px; font-size: 13px; line-height: 1.6; color: #c9d1d9; }
+
+  /* Entities tab */
+  .entity-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .entity-table th { text-align: left; padding: 8px 10px; border-bottom: 1px solid #30363d; color: #8b949e; font-weight: 600; font-size: 10px; text-transform: uppercase; position: sticky; top: 0; background: #161b22; }
+  .entity-table td { padding: 6px 10px; border-bottom: 1px solid #21262d; }
+  .cat-pill { padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 600; }
+  .cat-condition { background: rgba(248,81,73,0.15); color: #f85149; }
+  .cat-observation { background: rgba(163,113,247,0.15); color: #a371f7; }
+  .cat-medication { background: rgba(63,185,80,0.15); color: #3fb950; }
+
+  /* FHIR tab */
+  pre.fhir-json { flex: 1; background: #0d1117; color: #c9d1d9; padding: 14px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 11px; overflow: auto; line-height: 1.4; white-space: pre-wrap; word-break: break-word; margin: 0; }
+  .fhir-viewer { padding: 14px; overflow: auto; }
+  .fhir-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .fhir-header .fhir-title { font-size: 13px; font-weight: 600; }
+  .fhir-header .fhir-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: #238636; color: #fff; }
+  .fhir-toggle { font-size: 11px; color: #58a6ff; cursor: pointer; background: none; border: none; text-decoration: underline; }
+  .fhir-resource { background: #1c2128; border: 1px solid #30363d; border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+  .fhir-resource-header { padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #21262d; }
+  .fhir-resource-type { font-size: 12px; font-weight: 600; }
+  .fhir-resource-type.patient { color: #58a6ff; }
+  .fhir-resource-type.condition { color: #f85149; }
+  .fhir-resource-type.observation { color: #a371f7; }
+  .fhir-resource-type.medication { color: #3fb950; }
+  .fhir-resource-type.encounter { color: #d29922; }
+  .fhir-resource-type.organization { color: #8b949e; }
+  .fhir-resource-type.composition { color: #f78166; }
+  .fhir-resource-body { padding: 8px 12px; }
+  .fhir-field { display: flex; gap: 8px; padding: 2px 0; font-size: 12px; }
+  .fhir-field .fhir-label { color: #8b949e; min-width: 80px; flex-shrink: 0; }
+  .fhir-field .fhir-value { color: #e1e4e8; }
+  .fhir-code { font-family: monospace; font-size: 11px; background: #0d1117; padding: 1px 5px; border-radius: 3px; color: #f78166; }
+
+  /* Model Output tab */
+  .model-output { padding: 14px; overflow: auto; }
+  .model-section { background: #1c2128; border: 1px solid #30363d; border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+  .model-section-header { padding: 8px 12px; border-bottom: 1px solid #21262d; display: flex; justify-content: space-between; align-items: center; }
+  .model-section-title { font-size: 12px; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }
+  .model-section-body { padding: 8px 12px; }
+  .model-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 12px; }
+  .model-item .model-name { color: #e1e4e8; flex: 1; }
+  .model-item .model-codes { display: flex; gap: 6px; align-items: center; }
+  .conf-badge { padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .conf-high { background: rgba(63,185,80,0.15); color: #3fb950; }
+  .conf-med { background: rgba(210,153,34,0.15); color: #d29922; }
+  .conf-low { background: rgba(248,81,73,0.15); color: #f85149; }
+  .model-summary-text { background: #0d1117; border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.6; color: #c9d1d9; margin-top: 4px; }
+
+  /* Timeline tab */
+  .timeline { padding: 14px; }
+  .timeline-item { display: flex; gap: 10px; margin-bottom: 14px; }
+  .timeline-dot { width: 10px; height: 10px; border-radius: 50%; background: #30363d; margin-top: 4px; flex-shrink: 0; }
+  .timeline-dot.active { background: #1f6feb; }
+  .timeline-body { flex: 1; }
+  .timeline-time { font-size: 11px; color: #8b949e; }
+  .timeline-text { font-size: 13px; }
+
+  /* Convert modal */
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #161b22; border: 1px solid #30363d; border-radius: 10px; width: 600px; max-height: 80vh; display: flex; flex-direction: column; }
+  .modal-header { padding: 14px 18px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; }
+  .modal-header h2 { font-size: 15px; font-weight: 600; }
+  .modal-close { background: none; border: none; color: #8b949e; font-size: 18px; cursor: pointer; }
+  .modal-body { padding: 14px 18px; flex: 1; overflow: auto; }
+  .modal-body textarea { width: 100%; height: 250px; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; resize: vertical; outline: none; }
+  .modal-footer { padding: 12px 18px; border-top: 1px solid #30363d; display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* Spinner */
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #30363d; border-top-color: #f78166; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .status-bar { background: #161b22; border-top: 1px solid #30363d; padding: 4px 20px; font-size: 10px; color: #8b949e; display: flex; gap: 20px; flex-shrink: 0; }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar, .detail-panel { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>ClinIQ</h1>
+  <span class="sub">Surveillance Dashboard</span>
+  <span class="badge green" id="badge-model">--</span>
+  <span class="badge blue" id="badge-hardware">--</span>
+  <div class="header-right">
+    <span id="poll-indicator" style="font-size:10px;color:#484f58;">--</span>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Left sidebar: queue + stats -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <h3>Queue</h3>
+      <div id="queue-list">
+        <div class="queue-item active" data-status="" onclick="filterByStatus(this, '')">
+          <span>All Cases</span>
+          <span class="queue-count" id="q-all">0</span>
+        </div>
+        <div class="queue-item" data-status="Processed" onclick="filterByStatus(this, 'Processed')">
+          <span><span class="status-dot status-Processed"></span>Processed</span>
+          <span class="queue-count" id="q-Processed">0</span>
+        </div>
+        <div class="queue-item" data-status="Flagged" onclick="filterByStatus(this, 'Flagged')">
+          <span><span class="status-dot status-Flagged"></span>Flagged</span>
+          <span class="queue-count" id="q-Flagged">0</span>
+        </div>
+        <div class="queue-item" data-status="Graylist" onclick="filterByStatus(this, 'Graylist')">
+          <span><span class="status-dot status-Graylist"></span>Graylist</span>
+          <span class="queue-count" id="q-Graylist">0</span>
+        </div>
+        <div class="queue-item" data-status="OutOfState" onclick="filterByStatus(this, 'OutOfState')">
+          <span><span class="status-dot status-OutOfState"></span>Out of State</span>
+          <span class="queue-count" id="q-OutOfState">0</span>
+        </div>
+        <div class="queue-item" data-status="QA" onclick="filterByStatus(this, 'QA')">
+          <span><span class="status-dot status-QA"></span>QA</span>
+          <span class="queue-count" id="q-QA">0</span>
+        </div>
+        <div class="queue-item" data-status="Closed" onclick="filterByStatus(this, 'Closed')">
+          <span><span class="status-dot status-Closed"></span>Closed</span>
+          <span class="queue-count" id="q-Closed">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Inference</h3>
+      <div class="stat-row"><span>p50 latency</span><span class="val" id="stat-p50">--</span></div>
+      <div class="stat-row"><span>p95 latency</span><span class="val" id="stat-p95">--</span></div>
+      <div class="stat-row"><span>avg tok/s</span><span class="val" id="stat-tps">--</span></div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Top Conditions (7d)</h3>
+      <div id="conditions-chart"></div>
+    </div>
+
+    <div class="sidebar-actions">
+      <h3>Ingest</h3>
+      <button class="btn btn-primary" onclick="openConvertModal()">Convert eICR</button>
+      <button class="btn btn-secondary" onclick="loadAndConvertSample()">Load Sample</button>
+    </div>
+  </div>
+
+  <!-- Center: case list -->
+  <div class="case-list-panel">
+    <div class="case-list-header">
+      <h2>Cases <span id="case-count" style="color:#e1e4e8;font-size:12px;"></span></h2>
+      <span id="list-status" style="font-size:11px;color:#8b949e;"></span>
+    </div>
+    <div class="case-list" id="case-list"></div>
+  </div>
+
+  <!-- Right: detail -->
+  <div class="detail-panel">
+    <div class="tabs">
+      <button class="tab active" data-tab="summary" onclick="switchTab('summary')">Summary</button>
+      <button class="tab" data-tab="model" onclick="switchTab('model')">Model Output</button>
+      <button class="tab" data-tab="entities" onclick="switchTab('entities')">Entities</button>
+      <button class="tab" data-tab="fhir" onclick="switchTab('fhir')">FHIR</button>
+      <button class="tab" data-tab="timeline" onclick="switchTab('timeline')">Timeline</button>
+    </div>
+    <div class="tab-content active" id="tab-summary">
+      <div class="placeholder" id="detail-placeholder">Select a case to view details</div>
+      <div class="case-summary" id="summary-content" style="display:none;"></div>
+    </div>
+    <div class="tab-content" id="tab-model">
+      <div class="placeholder">Select a case to view model extraction</div>
+      <div class="model-output" id="model-content" style="display:none;"></div>
+    </div>
+    <div class="tab-content" id="tab-entities">
+      <div class="placeholder">Select a case to view entities</div>
+      <div id="entities-content" style="display:none;"></div>
+    </div>
+    <div class="tab-content" id="tab-fhir">
+      <div class="placeholder">Select a case to view FHIR Bundle</div>
+      <div class="fhir-viewer" id="fhir-viewer" style="display:none;"></div>
+      <pre class="fhir-json" id="fhir-content" style="display:none;"></pre>
+    </div>
+    <div class="tab-content" id="tab-timeline">
+      <div class="placeholder">Select a case to view timeline</div>
+      <div class="timeline" id="timeline-content" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Convert modal -->
+<div class="modal-overlay" id="convert-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Convert eICR</h2>
+      <button class="modal-close" onclick="closeConvertModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <textarea id="eicr-input" placeholder="Paste eICR CDA/XML here..."></textarea>
+      <div id="convert-status" style="font-size:12px;margin-top:8px;color:#8b949e;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" style="width:auto;" onclick="closeConvertModal()">Cancel</button>
+      <button class="btn btn-primary" style="width:auto;" id="convertBtn" onclick="doConvert()">Convert</button>
+    </div>
+  </div>
+</div>
+
+<div class="status-bar">
+  <span id="info-model">Model: --</span>
+  <span id="info-hardware">Hardware: --</span>
+  <span id="info-backend">Backend: --</span>
+  <span>Gemma 4 Good x Unsloth Hackathon</span>
+</div>
+
+<script>
+var currentFilter = '';
+var selectedCaseId = null;
+var allCases = [];
+
+// --- Utility: safe text escaping ---
+function escHtml(s) {
+  if (!s) return '';
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.textContent;
+}
+
+// --- Utility: safe DOM building ---
+function setText(el, text) { el.textContent = text; }
+function clearChildren(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+
+function createEl(tag, attrs, children) {
+  var el = document.createElement(tag);
+  if (attrs) {
+    Object.keys(attrs).forEach(function(k) {
+      if (k === 'className') el.className = attrs[k];
+      else if (k === 'textContent') el.textContent = attrs[k];
+      else if (k === 'onclick') el.onclick = attrs[k];
+      else el.setAttribute(k, attrs[k]);
+    });
+  }
+  if (children) {
+    (Array.isArray(children) ? children : [children]).forEach(function(c) {
+      if (typeof c === 'string') el.appendChild(document.createTextNode(c));
+      else if (c) el.appendChild(c);
+    });
+  }
+  return el;
+}
+
+function confBadge(conf) {
+  if (conf == null) return null;
+  var cls = conf >= 0.9 ? 'conf-high' : conf >= 0.8 ? 'conf-med' : 'conf-low';
+  return createEl('span', {className: 'conf-badge ' + cls, textContent: (conf * 100).toFixed(0) + '%'});
+}
+
+function buildModelSection(title, children) {
+  var sec = createEl('div', {className: 'model-section'});
+  sec.appendChild(createEl('div', {className: 'model-section-header'}, [
+    createEl('span', {className: 'model-section-title', textContent: title}),
+  ]));
+  var body = createEl('div', {className: 'model-section-body'});
+  children.forEach(function(ch) { if (ch) body.appendChild(ch); });
+  sec.appendChild(body);
+  return sec;
+}
+
+function modelField(label, value) {
+  return createEl('div', {className: 'fhir-field'}, [
+    createEl('span', {className: 'fhir-label', textContent: label}),
+    createEl('span', {className: 'fhir-value', textContent: String(value)}),
+  ]);
+}
+
+function modelItemWithConf(name, codeEls, conf) {
+  var codes = createEl('div', {className: 'model-codes'});
+  codeEls.forEach(function(el) { if (el) codes.appendChild(el); });
+  var badge = confBadge(conf);
+  if (badge) codes.appendChild(badge);
+  return createEl('div', {className: 'model-item'}, [
+    createEl('span', {className: 'model-name', textContent: name}),
+    codes,
+  ]);
+}
+
+function addField(parent, label, value) {
+  parent.appendChild(createEl('div', {className: 'fhir-field'}, [
+    createEl('span', {className: 'fhir-label', textContent: label}),
+    createEl('span', {className: 'fhir-value', textContent: value}),
+  ]));
+}
+
+function addCodeField(parent, display, system, code) {
+  parent.appendChild(createEl('div', {className: 'fhir-field'}, [
+    createEl('span', {className: 'fhir-label', textContent: display}),
+    createEl('span', null, [
+      createEl('span', {className: 'fhir-code', textContent: system + ' ' + code}),
+    ]),
+  ]));
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t.dataset.tab === name); });
+  document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.toggle('active', c.id === 'tab-' + name); });
+}
+
+function filterByStatus(el, status) {
+  document.querySelectorAll('.queue-item').forEach(function(q) { q.classList.remove('active'); });
+  el.classList.add('active');
+  currentFilter = status;
+  refreshCases();
+}
+
+function openConvertModal() {
+  document.getElementById('convert-modal').classList.add('open');
+  document.getElementById('eicr-input').focus();
+}
+function closeConvertModal() {
+  document.getElementById('convert-modal').classList.remove('open');
+  document.getElementById('convert-status').textContent = '';
+}
+
+async function loadAndConvertSample() {
+  try {
+    var resp = await fetch('/api/sample');
+    var xml = await resp.text();
+    document.getElementById('eicr-input').value = xml;
+    openConvertModal();
+    doConvert();
+  } catch(e) {
+    alert('Failed to load sample: ' + e.message);
+  }
+}
+
+async function doConvert() {
+  var input = document.getElementById('eicr-input').value.trim();
+  if (!input) return;
+  var btn = document.getElementById('convertBtn');
+  var statusEl = document.getElementById('convert-status');
+  btn.disabled = true;
+  var start = Date.now();
+  clearChildren(statusEl);
+  statusEl.appendChild(createEl('span', {className: 'spinner'}));
+  statusEl.appendChild(document.createTextNode(' Converting...'));
+
+  try {
+    var resp = await fetch('/api/convert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eicr: input })
+    });
+    var data = await resp.json();
+    var elapsed = ((Date.now() - start) / 1000).toFixed(1);
+
+    clearChildren(statusEl);
+    if (data.error) {
+      statusEl.appendChild(createEl('span', {style: 'color:#f85149', textContent: 'Error: ' + data.error}));
+    } else {
+      statusEl.appendChild(createEl('span', {
+        style: 'color:#3fb950',
+        textContent: 'Case ' + data.case_id.slice(0,8) + '... created (' + data.queue_status + ') in ' + elapsed + 's'
+      }));
+      selectedCaseId = data.case_id;
+      refreshCases();
+      refreshStats();
+      setTimeout(function() { closeConvertModal(); }, 1200);
+    }
+  } catch(e) {
+    clearChildren(statusEl);
+    statusEl.appendChild(createEl('span', {style: 'color:#f85149', textContent: 'Connection error: ' + e.message}));
+  }
+  btn.disabled = false;
+}
+
+async function refreshCases() {
+  try {
+    var url = '/api/cases?limit=200';
+    if (currentFilter) url += '&status=' + currentFilter;
+    var resp = await fetch(url);
+    allCases = await resp.json();
+    renderCaseList();
+    document.getElementById('case-count').textContent = '(' + allCases.length + ')';
+    if (selectedCaseId) loadCaseDetail(selectedCaseId);
+  } catch(e) {}
+}
+
+function renderCaseList() {
+  var el = document.getElementById('case-list');
+  clearChildren(el);
+  if (!allCases.length) {
+    el.appendChild(createEl('div', {className: 'placeholder', textContent: 'No cases yet. Convert an eICR to get started.'}));
+    return;
+  }
+  allCases.forEach(function(c) {
+    var sel = c.case_id === selectedCaseId ? ' selected' : '';
+    var ts = c.ingested_at ? new Date(c.ingested_at).toLocaleString() : '';
+
+    var dot = createEl('span', {className: 'status-dot status-' + c.queue_status});
+    var nameDiv = createEl('div', {className: 'case-name'}, [dot, ' ' + (c.patient_name || 'Unknown')]);
+    var metaDiv = createEl('div', {className: 'case-meta'}, [
+      createEl('span', {textContent: c.condition_display || '--'}),
+      createEl('span', {textContent: c.jurisdiction || ''}),
+      createEl('span', {textContent: c.inference_ms + 'ms'}),
+      createEl('span', {textContent: ts}),
+    ]);
+    var row = createEl('div', {className: 'case-row' + sel}, [nameDiv, metaDiv]);
+    var caseId = c.case_id;
+    row.onclick = function() { selectCase(caseId); };
+    el.appendChild(row);
+  });
+}
+
+function selectCase(id) {
+  selectedCaseId = id;
+  renderCaseList();
+  loadCaseDetail(id);
+}
+
+async function loadCaseDetail(id) {
+  try {
+    var resp = await fetch('/api/cases/' + id);
+    if (!resp.ok) return;
+    var c = await resp.json();
+    renderDetail(c);
+  } catch(e) {}
+}
+
+function statusBadgeClass(s) {
+  switch(s) {
+    case 'Processed': return 'green';
+    case 'Flagged': return 'yellow';
+    case 'Graylist': return 'gray';
+    case 'OutOfState': return 'blue';
+    case 'Closed': return 'gray';
+    default: return 'blue';
+  }
+}
+
+function renderDetail(c) {
+  // Summary tab
+  var sumEl = document.getElementById('summary-content');
+  clearChildren(sumEl);
+
+  var banner = createEl('div', {className: 'patient-banner'}, [
+    createEl('div', null, [
+      createEl('div', {className: 'name', textContent: c.patient_name}),
+      createEl('div', {className: 'details', textContent: c.patient_gender + ' | DOB: ' + c.patient_dob + ' | ' + c.patient_city + ', ' + c.patient_state}),
+    ]),
+    createEl('div', null, [
+      createEl('span', {className: 'badge ' + statusBadgeClass(c.queue_status), textContent: c.queue_status}),
+      document.createTextNode(' '),
+      createEl('span', {className: 'badge blue', textContent: c.jurisdiction}),
+    ]),
+  ]);
+  sumEl.appendChild(banner);
+
+  if (c.condition_display) {
+    sumEl.appendChild(createEl('div', {style: 'margin-bottom:10px'}, [
+      createEl('span', {className: 'badge red', style: 'font-size:12px;padding:3px 10px', textContent: c.condition_display + ' (SNOMED ' + c.condition_snomed + ')'}),
+    ]));
+  }
+  if (c.lab_loinc) {
+    var fc = createEl('div', {className: 'finding-card observation'}, [
+      createEl('div', null, [
+        createEl('div', {className: 'finding-text', textContent: c.lab_result}),
+        createEl('div', {className: 'finding-code', textContent: 'LOINC ' + c.lab_loinc}),
+      ]),
+    ]);
+    sumEl.appendChild(fc);
+  }
+
+  var info = createEl('div', {style: 'margin-top:10px'});
+  var r1 = createEl('div', {className: 'stat-row'}, [
+    createEl('span', {textContent: 'Inference'}),
+    createEl('span', {className: 'val', textContent: c.inference_ms + 'ms'}),
+  ]);
+  var r2 = createEl('div', {className: 'stat-row'}, [
+    createEl('span', {textContent: 'Case ID'}),
+    createEl('span', {className: 'val', style: 'font-size:10px;font-family:monospace', textContent: c.case_id}),
+  ]);
+  var r3 = createEl('div', {className: 'stat-row'}, [
+    createEl('span', {textContent: 'Dedup Hash'}),
+    createEl('span', {className: 'val', style: 'font-size:10px;font-family:monospace', textContent: c.dedup_hash.slice(0,16) + '...'}),
+  ]);
+  var r1b = createEl('div', {className: 'stat-row'}, [
+    createEl('span', {textContent: 'Tokens'}),
+    createEl('span', {className: 'val', textContent:
+      (c.prompt_tokens != null ? c.prompt_tokens + ' in' : '--') + ' / ' +
+      (c.completion_tokens != null ? c.completion_tokens + ' out' : '--')
+    }),
+  ]);
+  var r1c = createEl('div', {className: 'stat-row'}, [
+    createEl('span', {textContent: 'Throughput'}),
+    createEl('span', {className: 'val', textContent:
+      c.tokens_per_second != null ? c.tokens_per_second.toFixed(1) + ' tok/s' : '--'
+    }),
+  ]);
+  info.appendChild(r1);
+  info.appendChild(r1b);
+  info.appendChild(r1c);
+  info.appendChild(r2);
+  info.appendChild(r3);
+  sumEl.appendChild(info);
+
+  sumEl.style.display = 'block';
+  document.getElementById('detail-placeholder').style.display = 'none';
+
+  // Model Output tab
+  var modelEl = document.getElementById('model-content');
+  clearChildren(modelEl);
+  var ext = {};
+  try { ext = JSON.parse(c.extraction_json || '{}'); } catch(e) {}
+
+  if (ext.patient || ext.conditions) {
+    // Patient section
+    if (ext.patient) {
+      var patSec = buildModelSection('Patient', [
+        modelField('Name', ext.patient.name),
+        modelField('DOB', ext.patient.dob),
+        modelField('Sex', ext.patient.sex),
+        modelField('Race', ext.patient.race || '--'),
+        modelField('Ethnicity', ext.patient.ethnicity || '--'),
+        modelField('Address', ext.patient.addr),
+        modelField('Phone', ext.patient.phone || '--'),
+      ]);
+      modelEl.appendChild(patSec);
+    }
+
+    // Conditions section
+    if (ext.conditions && ext.conditions.length) {
+      var condItems = ext.conditions.map(function(co) {
+        return modelItemWithConf(co.name, [
+          createEl('span', {className: 'fhir-code', textContent: 'SNOMED ' + co.snomed}),
+          co.icd10 ? createEl('span', {className: 'fhir-code', textContent: 'ICD-10 ' + co.icd10}) : null,
+          createEl('span', {className: 'fhir-code', textContent: co.status}),
+        ].filter(Boolean), co.conf);
+      });
+      modelEl.appendChild(buildModelSection('Conditions', condItems));
+    }
+
+    // Labs section
+    if (ext.labs && ext.labs.length) {
+      var labItems = ext.labs.map(function(l) {
+        return modelItemWithConf(l.name + ' — ' + l.result, [
+          createEl('span', {className: 'fhir-code', textContent: 'LOINC ' + l.loinc}),
+          l.specimen ? createEl('span', {className: 'fhir-code', textContent: l.specimen}) : null,
+          l.lab_status ? createEl('span', {className: 'fhir-code', textContent: l.lab_status}) : null,
+        ].filter(Boolean), l.conf);
+      });
+      modelEl.appendChild(buildModelSection('Labs', labItems));
+    }
+
+    // Vitals section
+    if (ext.vitals) {
+      var vItems = [];
+      if (ext.vitals.temp != null) vItems.push(modelField('Temperature', ext.vitals.temp + ' C'));
+      if (ext.vitals.hr != null) vItems.push(modelField('Heart Rate', ext.vitals.hr + ' /min'));
+      if (ext.vitals.rr != null) vItems.push(modelField('Resp Rate', ext.vitals.rr + ' /min'));
+      if (ext.vitals.spo2 != null) vItems.push(modelField('SpO2', ext.vitals.spo2 + '%'));
+      if (ext.vitals.sbp != null) vItems.push(modelField('Systolic BP', ext.vitals.sbp + ' mmHg'));
+      if (vItems.length) modelEl.appendChild(buildModelSection('Vitals', vItems));
+    }
+
+    // Meds section
+    if (ext.meds && ext.meds.length) {
+      var medItems = ext.meds.map(function(m) {
+        return modelItemWithConf(m.name, [
+          createEl('span', {className: 'fhir-code', textContent: 'RxNorm ' + m.rxnorm}),
+        ], m.conf);
+      });
+      modelEl.appendChild(buildModelSection('Medications', medItems));
+    }
+
+    // Summary
+    if (ext.summary) {
+      var sumSec = buildModelSection('Case Summary', [
+        createEl('div', {className: 'model-summary-text', textContent: ext.summary}),
+      ]);
+      modelEl.appendChild(sumSec);
+    }
+
+    // Metadata
+    var metaItems = [];
+    if (ext.reportable != null) metaItems.push(modelField('Reportable', ext.reportable ? 'Yes' : 'No'));
+    if (ext.jurisdiction) metaItems.push(modelField('Jurisdiction', ext.jurisdiction));
+    if (metaItems.length) modelEl.appendChild(buildModelSection('Metadata', metaItems));
+
+    modelEl.style.display = 'block';
+    modelEl.parentElement.querySelector('.placeholder').style.display = 'none';
+  }
+
+  // Entities tab
+  var entEl = document.getElementById('entities-content');
+  clearChildren(entEl);
+  var entities = [];
+  try { entities = JSON.parse(c.entities_json || '[]'); } catch(e) {}
+  if (entities.length) {
+    var tbl = createEl('table', {className: 'entity-table'});
+    var thead = createEl('tr', null, [
+      createEl('th', {textContent: 'Entity'}),
+      createEl('th', {textContent: 'Kind'}),
+      createEl('th', {textContent: 'System'}),
+      createEl('th', {textContent: 'Code'}),
+      createEl('th', {textContent: 'Conf'}),
+    ]);
+    tbl.appendChild(thead);
+    entities.forEach(function(e) {
+      var sys = e.system.split('/').pop();
+      var kindBase = e.kind.split(' ')[0].toLowerCase();
+      var badge = e.conf != null ? confBadge(e.conf) : createEl('span', {textContent: '--', style: 'color:#484f58'});
+      var row = createEl('tr', null, [
+        createEl('td', {textContent: e.display}),
+        createEl('td', null, [createEl('span', {className: 'cat-pill cat-' + kindBase, textContent: e.kind})]),
+        createEl('td', {textContent: sys}),
+        createEl('td', {style: 'font-family:monospace', textContent: e.code}),
+        createEl('td', null, [badge]),
+      ]);
+      tbl.appendChild(row);
+    });
+    entEl.appendChild(tbl);
+  } else {
+    entEl.appendChild(createEl('div', {className: 'placeholder', textContent: 'No entities extracted'}));
+  }
+  entEl.style.display = 'block';
+  entEl.parentElement.querySelector('.placeholder').style.display = 'none';
+
+  // FHIR tab — structured viewer + raw JSON toggle
+  var fhirViewerEl = document.getElementById('fhir-viewer');
+  var fhirRawEl = document.getElementById('fhir-content');
+  clearChildren(fhirViewerEl);
+  var fhirObj = {};
+  try { fhirObj = JSON.parse(c.fhir_bundle || '{}'); } catch(e) {}
+  fhirRawEl.textContent = JSON.stringify(fhirObj, null, 2);
+
+  var fhirEntries = fhirObj.entry || [];
+  var resourceCount = fhirEntries.length;
+
+  // Header with count + toggle
+  var fhirHeader = createEl('div', {className: 'fhir-header'}, [
+    createEl('div', null, [
+      createEl('span', {className: 'fhir-title', textContent: 'FHIR R4 Bundle '}),
+      createEl('span', {className: 'fhir-badge', textContent: resourceCount + ' resources'}),
+    ]),
+    createEl('button', {className: 'fhir-toggle', textContent: 'Show Raw JSON', onclick: function() {
+      var showing = fhirRawEl.style.display !== 'none';
+      fhirRawEl.style.display = showing ? 'none' : 'block';
+      fhirViewerEl.querySelector('.fhir-resources').style.display = showing ? 'block' : 'none';
+      this.textContent = showing ? 'Show Raw JSON' : 'Show Viewer';
+    }}),
+  ]);
+  fhirViewerEl.appendChild(fhirHeader);
+
+  var resourcesContainer = createEl('div', {className: 'fhir-resources'});
+
+  fhirEntries.forEach(function(entry) {
+    var res = entry.resource || {};
+    var rtype = res.resourceType || 'Unknown';
+    var card = createEl('div', {className: 'fhir-resource'});
+    var rtypeClass = rtype.toLowerCase();
+    if (rtypeClass === 'medicationstatement') rtypeClass = 'medication';
+
+    var header = createEl('div', {className: 'fhir-resource-header'}, [
+      createEl('span', {className: 'fhir-resource-type ' + rtypeClass, textContent: rtype}),
+    ]);
+    card.appendChild(header);
+
+    var body = createEl('div', {className: 'fhir-resource-body'});
+
+    if (rtype === 'Patient') {
+      var pname = (res.name || [{}])[0];
+      var given = (pname.given || []).join(' ');
+      var family = pname.family || '';
+      addField(body, 'Name', given + ' ' + family);
+      addField(body, 'Gender', res.gender || '--');
+      addField(body, 'DOB', res.birthDate || '--');
+      var addr = (res.address || [{}])[0];
+      if (addr.city) addField(body, 'Address', (addr.city || '') + ', ' + (addr.state || '') + ' ' + (addr.postalCode || ''));
+      var tel = (res.telecom || [{}])[0];
+      if (tel.value) addField(body, 'Phone', tel.value);
+    } else if (rtype === 'Condition') {
+      var codings = (res.code || {}).coding || [];
+      codings.forEach(function(cod) {
+        addCodeField(body, cod.display || '--', cod.system ? cod.system.split('/').pop() : '', cod.code || '');
+      });
+      var cstat = ((res.clinicalStatus || {}).coding || [{}])[0];
+      if (cstat.code) addField(body, 'Status', cstat.code);
+    } else if (rtype === 'Observation') {
+      var cat = ((res.category || [{}])[0].coding || [{}])[0].code || '';
+      var obsCodings = (res.code || {}).coding || [];
+      obsCodings.forEach(function(cod) {
+        addCodeField(body, cod.display || '--', cod.system ? cod.system.split('/').pop() : '', cod.code || '');
+      });
+      if (res.valueQuantity) {
+        addField(body, 'Value', res.valueQuantity.value + ' ' + (res.valueQuantity.unit || ''));
+      } else if (res.valueCodeableConcept) {
+        var vcc = (res.valueCodeableConcept.coding || [{}])[0];
+        addField(body, 'Result', vcc.display || '--');
+      }
+      if (cat) addField(body, 'Category', cat);
+      if (res.effectiveDateTime) addField(body, 'Date', res.effectiveDateTime);
+    } else if (rtype === 'MedicationStatement') {
+      var medCodings = ((res.medicationCodeableConcept || {}).coding || []);
+      medCodings.forEach(function(cod) {
+        addCodeField(body, cod.display || '--', cod.system ? cod.system.split('/').pop() : '', cod.code || '');
+      });
+      addField(body, 'Status', res.status || '--');
+    } else if (rtype === 'Encounter') {
+      var encClass = res['class'] || {};
+      addField(body, 'Class', encClass.display || encClass.code || '--');
+      if (res.period && res.period.start) addField(body, 'Date', res.period.start);
+      var reasons = res.reasonCode || [];
+      reasons.forEach(function(r) { if (r.text) addField(body, 'Reason', r.text); });
+    } else if (rtype === 'Organization') {
+      addField(body, 'Name', res.name || '--');
+      var ids = res.identifier || [];
+      ids.forEach(function(id) {
+        if (id.value) addField(body, 'NPI', id.value);
+      });
+    } else if (rtype === 'Composition') {
+      addField(body, 'Title', res.title || '--');
+      addField(body, 'Status', res.status || '--');
+      addField(body, 'Date', res.date || '--');
+      var sects = res.section || [];
+      sects.forEach(function(sec) {
+        var entryCount = (sec.entry || []).length;
+        addField(body, sec.title || 'Section', entryCount + ' entries');
+      });
+    }
+
+    card.appendChild(body);
+    resourcesContainer.appendChild(card);
+  });
+
+  if (!fhirEntries.length) {
+    resourcesContainer.appendChild(createEl('div', {className: 'placeholder', textContent: 'No FHIR resources in bundle'}));
+  }
+
+  fhirViewerEl.appendChild(resourcesContainer);
+  fhirViewerEl.style.display = 'block';
+  fhirRawEl.style.display = 'none';
+  fhirViewerEl.parentElement.querySelector('.placeholder').style.display = 'none';
+
+  // Timeline tab
+  var tlEl = document.getElementById('timeline-content');
+  clearChildren(tlEl);
+  tlEl.appendChild(buildTimelineItem(true, c.ingested_at, 'Case ingested (' + c.queue_status + ')'));
+  if (c.processed_at) tlEl.appendChild(buildTimelineItem(true, c.processed_at, 'Processed'));
+  if (c.queue_status === 'Graylist') tlEl.appendChild(buildTimelineItem(false, c.ingested_at, 'Duplicate detected (graylist)'));
+  if (c.queue_status === 'OutOfState') tlEl.appendChild(buildTimelineItem(false, c.ingested_at, 'Routed: out of state (' + c.patient_state + ')'));
+  if (c.queue_status === 'Flagged') tlEl.appendChild(buildTimelineItem(false, c.ingested_at, 'Flagged for review'));
+  tlEl.style.display = 'block';
+  tlEl.parentElement.querySelector('.placeholder').style.display = 'none';
+}
+
+function buildTimelineItem(active, time, text) {
+  var ts = time ? new Date(time).toLocaleString() : '--';
+  return createEl('div', {className: 'timeline-item'}, [
+    createEl('div', {className: 'timeline-dot' + (active ? ' active' : '')}),
+    createEl('div', {className: 'timeline-body'}, [
+      createEl('div', {className: 'timeline-time', textContent: ts}),
+      createEl('div', {className: 'timeline-text', textContent: text}),
+    ]),
+  ]);
+}
+
+async function refreshStats() {
+  try {
+    var resp = await fetch('/api/stats');
+    var s = await resp.json();
+
+    document.getElementById('q-all').textContent = s.total || 0;
+    var statusMap = {};
+    (s.by_status || []).forEach(function(x) { statusMap[x.status] = x.count; });
+    ['Processed','Flagged','Graylist','OutOfState','QA','Closed'].forEach(function(st) {
+      var el = document.getElementById('q-' + st);
+      if (el) el.textContent = statusMap[st] || 0;
+    });
+
+    document.getElementById('stat-p50').textContent = s.inference_p50_ms != null ? Math.round(s.inference_p50_ms) + 'ms' : '--';
+    document.getElementById('stat-p95').textContent = s.inference_p95_ms != null ? Math.round(s.inference_p95_ms) + 'ms' : '--';
+    document.getElementById('stat-tps').textContent = s.avg_tokens_per_second != null ? s.avg_tokens_per_second.toFixed(1) + ' tok/s' : '--';
+
+    // Conditions chart
+    var chartEl = document.getElementById('conditions-chart');
+    clearChildren(chartEl);
+    var conds = s.by_condition_7d || [];
+    var maxCount = conds.length ? conds[0].count : 1;
+    if (conds.length) {
+      conds.forEach(function(co) {
+        var pct = Math.round((co.count / maxCount) * 100);
+        var bar = createEl('div', {className: 'condition-bar'}, [
+          createEl('div', {className: 'label'}, [
+            createEl('span', {textContent: co.condition}),
+            createEl('span', {textContent: String(co.count)}),
+          ]),
+          createEl('div', {className: 'bar'}, [
+            createEl('div', {className: 'bar-fill', style: 'width:' + pct + '%'}),
+          ]),
+        ]);
+        chartEl.appendChild(bar);
+      });
+    } else {
+      chartEl.appendChild(createEl('span', {style: 'font-size:11px;color:#484f58', textContent: 'No data'}));
+    }
+
+    document.getElementById('poll-indicator').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch(e) {}
+}
+
+async function refreshInfo() {
+  try {
+    var resp = await fetch('/api/info');
+    var info = await resp.json();
+    document.getElementById('info-model').textContent = 'Model: ' + info.model_name;
+    document.getElementById('info-hardware').textContent = 'Hardware: ' + info.hardware;
+    document.getElementById('info-backend').textContent = 'Backend: ' + info.db_backend;
+    document.getElementById('badge-model').textContent = info.model_name;
+    document.getElementById('badge-hardware').textContent = info.hardware;
+  } catch(e) {}
+}
+
+// Initial load + polling
+refreshInfo();
+refreshCases();
+refreshStats();
+setInterval(function() { refreshCases(); refreshStats(); }, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "id": "patrickdeutsch/cliniq-gemma4-finetune",
+  "title": "cliniq-gemma4-finetune",
+  "code_file": "gemma4_eicr_fhir_finetune.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": ["patrickdeutsch/eicr-fhir-training-data"],
+  "competition_sources": [],
+  "kernel_sources": []
+}

@@ -1,0 +1,35 @@
+# llama-server for Jetson Orin Nano (ARM64 + Tegra CUDA)
+# Base image has real Tegra BSP libraries and CUDA toolkit
+FROM 192.168.25.201:5050/ollama-jetson:r36.4.0 AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake \
+    build-essential \
+    libcurl4-openssl-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+RUN git clone --depth 1 https://github.com/ggml-org/llama.cpp.git
+
+WORKDIR /build/llama.cpp
+RUN cmake -B build \
+    -DGGML_CUDA=OFF \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLLAMA_CURL=ON \
+    && cmake --build build --target llama-server -j$(nproc)
+
+# Runtime stage — same base for Tegra CUDA libs
+FROM 192.168.25.201:5050/ollama-jetson:r36.4.0
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcurl4-openssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /build/llama.cpp/build/bin/llama-server /usr/local/bin/llama-server
+RUN --mount=from=builder,source=/build/llama.cpp/build,target=/build \
+    find /build -name '*.so*' -exec cp -a {} /usr/local/lib/ \; && ldconfig
+
+EXPOSE 8080
+
+ENTRYPOINT ["llama-server"]

@@ -12,6 +12,13 @@ __pycache__/
 *.bin
 *.safetensors
 
+# Rust build artifacts
+target/
+Cargo.lock
+
+# Demo video recordings
+demo-video/
+
 # OS
 .DS_Store
 

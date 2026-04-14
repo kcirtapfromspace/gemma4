@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Generate synthetic eICR CDA → FHIR R4 training pairs for fine-tuning Gemma 4 E4B.
+Generate synthetic eICR training data for fine-tuning Gemma 4 E4B as an
+edge clinical NLP engine (ClinIQ).
 
 Produces a JSONL dataset where each row is a conversation:
-  user: <eICR XML>
-  assistant: <FHIR Bundle JSON>
+  user: structured text summary of eICR (matching server extract_key_data())
+  assistant: compact entity extraction JSON with codes + case summary
 
-Covers reportable conditions: COVID-19, Hepatitis A/B/C, Pertussis, Measles,
-Salmonella, Tuberculosis, Chlamydia, Gonorrhea, Mpox, Influenza (novel).
+Replaces the cloud NLP pipeline (Comprehend Medical + IMO) with a fine-tuned
+model that does entity extraction, ontology mapping, and case summarization.
 """
 
 import json
@@ -25,6 +26,8 @@ CONDITIONS = [
         "lab_name": "SARS-CoV-2 RNA NAA+probe Ql (Resp)",
         "lab_result_code": "260373001",
         "lab_result_display": "Detected",
+        "specimen": "Nasopharynx",
+        "lab_status": "final",
         "medications": [
             {"rxnorm": "2599543", "name": "nirmatrelvir 150 MG / ritonavir 100 MG"},
         ],
@@ -37,6 +40,8 @@ CONDITIONS = [
         "lab_name": "Hepatitis A virus IgM Ab [Presence] in Serum",
         "lab_result_code": "10828004",
         "lab_result_display": "Positive",
+        "specimen": "Serum",
+        "lab_status": "final",
         "medications": [],
     },
     {
@@ -47,6 +52,8 @@ CONDITIONS = [
         "lab_name": "Hepatitis C virus Ab [Presence] in Serum",
         "lab_result_code": "10828004",
         "lab_result_display": "Positive",
+        "specimen": "Serum",
+        "lab_status": "final",
         "medications": [
             {"rxnorm": "1940261", "name": "sofosbuvir 400 MG / velpatasvir 100 MG"},
         ],
@@ -59,6 +66,8 @@ CONDITIONS = [
         "lab_name": "Bordetella pertussis DNA [Presence] in Nasopharynx by NAA",
         "lab_result_code": "260373001",
         "lab_result_display": "Detected",
+        "specimen": "Nasopharynx",
+        "lab_status": "final",
         "medications": [
             {"rxnorm": "197650", "name": "azithromycin 250 MG Oral Tablet"},
         ],
@@ -71,6 +80,8 @@ CONDITIONS = [
         "lab_name": "Measles virus IgM Ab [Presence] in Serum",
         "lab_result_code": "10828004",
         "lab_result_display": "Positive",
+        "specimen": "Serum",
+        "lab_status": "final",
         "medications": [],
     },
     {
@@ -81,6 +92,8 @@ CONDITIONS = [
         "lab_name": "Bacteria identified in Stool by Culture",
         "lab_result_code": "27268008",
         "lab_result_display": "Salmonella",
+        "specimen": "Stool",
+        "lab_status": "final",
         "medications": [
             {"rxnorm": "197511", "name": "ciprofloxacin 500 MG Oral Tablet"},
         ],
@@ -93,6 +106,8 @@ CONDITIONS = [
         "lab_name": "Mycobacterium tuberculosis complex DNA [Presence] in Sputum by NAA",
         "lab_result_code": "260373001",
         "lab_result_display": "Detected",
+        "specimen": "Nasopharynx",
+        "lab_status": "final",
         "medications": [
             {"rxnorm": "197622", "name": "isoniazid 300 MG Oral Tablet"},
             {"rxnorm": "199279", "name": "rifampin 300 MG Oral Capsule"},
@@ -106,6 +121,8 @@ CONDITIONS = [
         "lab_name": "Chlamydia trachomatis DNA [Presence] in Specimen by NAA",
         "lab_result_code": "260373001",
         "lab_result_display": "Detected",
+        "specimen": "Blood",
+        "lab_status": "final",
         "medications": [
             {"rxnorm": "197650", "name": "azithromycin 250 MG Oral Tablet"},
         ],
@@ -118,6 +135,8 @@ CONDITIONS = [
         "lab_name": "Neisseria gonorrhoeae DNA [Presence] in Urethra by NAA",
         "lab_result_code": "260373001",
         "lab_result_display": "Detected",
+        "specimen": "Blood",
+        "lab_status": "final",
         "medications": [
             {"rxnorm": "1665021", "name": "ceftriaxone 500 MG Injection"},
         ],
@@ -130,8 +149,107 @@ CONDITIONS = [
         "lab_name": "Monkeypox virus DNA [Presence] in Specimen by NAA",
         "lab_result_code": "260373001",
         "lab_result_display": "Detected",
+        "specimen": "Blood",
+        "lab_status": "final",
         "medications": [
             {"rxnorm": "2469470", "name": "tecovirimat 200 MG Oral Capsule"},
+        ],
+    },
+    # --- Tier 2 conditions ---
+    {
+        "name": "Syphilis",
+        "snomed": "76272004",
+        "icd10": "A53.9",
+        "lab_loinc": "20507-0",
+        "lab_name": "Treponema pallidum Ab [Presence] in Serum by Immunoassay",
+        "lab_result_code": "10828004",
+        "lab_result_display": "Positive",
+        "specimen": "Serum",
+        "lab_status": "final",
+        "medications": [
+            {"rxnorm": "105220", "name": "penicillin G benzathine 2400000 UNT/injection"},
+        ],
+    },
+    {
+        "name": "HIV infection",
+        "snomed": "86406008",
+        "icd10": "B20",
+        "lab_loinc": "75622-1",
+        "lab_name": "HIV 1 and 2 Ag+Ab [Presence] in Serum by Immunoassay",
+        "lab_result_code": "10828004",
+        "lab_result_display": "Positive",
+        "specimen": "Serum",
+        "lab_status": "final",
+        "medications": [
+            {"rxnorm": "1999563", "name": "bictegravir 50 MG / emtricitabine 200 MG / tenofovir alafenamide 25 MG"},
+        ],
+    },
+    {
+        "name": "Influenza A virus infection (novel)",
+        "snomed": "442696006",
+        "icd10": "J09.X2",
+        "lab_loinc": "80382-5",
+        "lab_name": "Influenza virus A RNA [Presence] in Nasopharynx by NAA",
+        "lab_result_code": "260373001",
+        "lab_result_display": "Detected",
+        "specimen": "Nasopharynx",
+        "lab_status": "final",
+        "medications": [
+            {"rxnorm": "284635", "name": "oseltamivir 75 MG Oral Capsule"},
+        ],
+    },
+    {
+        "name": "Respiratory syncytial virus infection",
+        "snomed": "55735004",
+        "icd10": "J12.1",
+        "lab_loinc": "92131-2",
+        "lab_name": "Respiratory syncytial virus RNA [Presence] in Respiratory specimen by NAA",
+        "lab_result_code": "260373001",
+        "lab_result_display": "Detected",
+        "specimen": "Nasopharynx",
+        "lab_status": "final",
+        "medications": [],
+    },
+    {
+        "name": "Legionellosis",
+        "snomed": "5765008",
+        "icd10": "A48.1",
+        "lab_loinc": "32781-7",
+        "lab_name": "Legionella pneumophila Ag [Presence] in Urine by Immunoassay",
+        "lab_result_code": "10828004",
+        "lab_result_display": "Positive",
+        "specimen": "Serum",
+        "lab_status": "final",
+        "medications": [
+            {"rxnorm": "197650", "name": "azithromycin 250 MG Oral Tablet"},
+        ],
+    },
+    {
+        "name": "Meningococcal disease",
+        "snomed": "23511006",
+        "icd10": "A39.9",
+        "lab_loinc": "49672-8",
+        "lab_name": "Neisseria meningitidis DNA [Presence] in Specimen by NAA",
+        "lab_result_code": "260373001",
+        "lab_result_display": "Detected",
+        "specimen": "CSF",
+        "lab_status": "preliminary",
+        "medications": [
+            {"rxnorm": "1665021", "name": "ceftriaxone 500 MG Injection"},
+        ],
+    },
+    {
+        "name": "Botulism",
+        "snomed": "414488002",
+        "icd10": "A05.1",
+        "lab_loinc": "20703-5",
+        "lab_name": "Clostridium botulinum toxin [Presence] in Specimen",
+        "lab_result_code": "260373001",
+        "lab_result_display": "Detected",
+        "specimen": "Stool",
+        "lab_status": "final",
+        "medications": [
+            {"rxnorm": "1603564", "name": "botulism antitoxin heptavalent"},
         ],
     },
 ]
@@ -175,6 +293,13 @@ SYMPTOMS = {
     "Chlamydia trachomatis infection": "dysuria, abnormal discharge for {} days, lower abdominal pain",
     "Gonorrhea": "dysuria, purulent urethral discharge for {} days, pelvic pain",
     "Mpox": "vesicular/pustular rash for {} days, fever ({}C), lymphadenopathy, myalgia",
+    "Syphilis": "painless chancre for {} days, regional lymphadenopathy, maculopapular rash on palms and soles",
+    "HIV infection": "fever ({}C), weight loss, night sweats for {} weeks, lymphadenopathy, oral thrush",
+    "Influenza A virus infection (novel)": "high fever ({}C), myalgia, cough, sore throat for {} days, severe fatigue",
+    "Respiratory syncytial virus infection": "wheezing, nasal congestion, cough for {} days, low-grade fever ({}C), tachypnea",
+    "Legionellosis": "high fever ({}C), productive cough for {} days, confusion, diarrhea, myalgia",
+    "Meningococcal disease": "high fever ({}C), severe headache, stiff neck for {} days, petechial rash, photophobia",
+    "Botulism": "descending paralysis, diplopia, dysphagia for {} days, dry mouth, ptosis",
 }
 VITALS_LOINC = [
     ("8310-5", "Body temperature", "Cel"),
@@ -238,9 +363,33 @@ def generate_vitals():
     ]
 
 
-def generate_pair():
-    """Generate one eICR CDA → FHIR Bundle training pair."""
+SYSTEM_PROMPT = (
+    "Extract clinical entities from this eICR summary. Output JSON with: "
+    "patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), "
+    "medications (RxNorm), vitals, and a case summary. "
+    "Include confidence scores. Output valid JSON only."
+)
+
+
+def compute_age(birth_date, encounter_date):
+    age = encounter_date.year - birth_date.year
+    if (encounter_date.month, encounter_date.day) < (birth_date.month, birth_date.day):
+        age -= 1
+    return age
+
+
+def generate_sample(variation="normal"):
+    """Generate one training sample: user input text + extraction JSON.
+
+    variation: "normal", "missing", "negative_lab", "multi_condition"
+    """
     cond = random.choice(CONDITIONS)
+    # For multi-condition, pick a second different condition
+    cond2 = None
+    if variation == "multi_condition":
+        others = [c for c in CONDITIONS if c["name"] != cond["name"]]
+        cond2 = random.choice(others)
+
     gender_is_female = random.choice([True, False])
     first = random.choice(FIRST_NAMES_F if gender_is_female else FIRST_NAMES_M)
     last = random.choice(LAST_NAMES)
@@ -254,356 +403,189 @@ def generate_pair():
     birth_year = random.randint(1940, 2005)
     birth_date = datetime(birth_year, random.randint(1, 12), random.randint(1, 28))
 
-    doc_id = uid()
-    patient_id = f"PT-{random.randint(10000, 99999)}"
-    enc_id = f"ENC-{random.randint(100, 999)}"
     symptom_text = generate_symptom_text(cond["name"])
     vitals = generate_vitals()
-
     gender_code = "F" if gender_is_female else "M"
-    fhir_gender = "female" if gender_is_female else "male"
-    street = f"{random.randint(100, 9999)} {random.choice(['Main', 'Oak', 'Elm', 'Park', 'Cedar', 'Maple', 'Pine', 'Lake'])} {random.choice(['St', 'Ave', 'Blvd', 'Dr', 'Rd'])}"
     phone = f"+1-{random.randint(200,999)}-555-{random.randint(1000,9999)}"
+    age = compute_age(birth_date, encounter_date)
 
-    # Build CDA XML
-    meds_xml = ""
-    for med in cond.get("medications", []):
-        meds_xml += f"""
-          <entry>
-            <substanceAdministration classCode="SBADM" moodCode="EVN">
-              <consumable>
-                <manufacturedProduct>
-                  <manufacturedMaterial>
-                    <code code="{med['rxnorm']}" codeSystem="2.16.840.1.113883.6.88" displayName="{med['name']}"/>
-                  </manufacturedMaterial>
-                </manufacturedProduct>
-              </consumable>
-              <effectiveTime value="{fmt_cda_date(encounter_date, False)}"/>
-            </substanceAdministration>
-          </entry>"""
+    # Determine if lab is negative for this variation
+    lab_negative = variation == "negative_lab"
+    lab_result = "Not detected" if lab_negative else cond["lab_result_display"]
+    lab_result_snomed = "260415000" if lab_negative else cond["lab_result_code"]
 
-    vitals_xml = ""
-    for loinc, name, val, unit in vitals:
-        vitals_xml += f"""
-              <component>
-                <observation classCode="OBS" moodCode="EVN">
-                  <code code="{loinc}" codeSystem="2.16.840.1.113883.6.1" displayName="{name}"/>
-                  <statusCode code="completed"/>
-                  <effectiveTime value="{fmt_cda_date(encounter_date, False)}"/>
-                  <value xsi:type="PQ" value="{val}" unit="{unit}"/>
-                </observation>
-              </component>"""
+    # Decide which optional fields to include
+    include_vitals = variation != "missing" or random.random() > 0.5
+    include_meds = variation != "missing" or random.random() > 0.5
 
-    eicr_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<ClinicalDocument xmlns="urn:hl7-org:v3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <realmCode code="US"/>
-  <typeId root="2.16.840.1.113883.1.3" extension="POCD_HD000040"/>
-  <templateId root="2.16.840.1.113883.10.20.15.2" extension="2021-01-01"/>
-  <id root="{doc_id}"/>
-  <code code="55751-2" codeSystem="2.16.840.1.113883.6.1" displayName="Public Health Case Report"/>
-  <title>Initial Public Health Case Report - eICR</title>
-  <effectiveTime value="{fmt_cda_date(encounter_date)}"/>
-  <confidentialityCode code="N" codeSystem="2.16.840.1.113883.5.25"/>
-  <recordTarget>
-    <patientRole>
-      <id extension="{patient_id}" root="2.16.840.1.113883.19.5"/>
-      <addr use="H">
-        <streetAddressLine>{street}</streetAddressLine>
-        <city>{city}</city>
-        <state>{state}</state>
-        <postalCode>{zipcode}</postalCode>
-        <country>US</country>
-      </addr>
-      <telecom value="tel:{phone}" use="HP"/>
-      <patient>
-        <name use="L">
-          <given>{first}</given>
-          <family>{last}</family>
-        </name>
-        <administrativeGenderCode code="{gender_code}" codeSystem="2.16.840.1.113883.5.1"/>
-        <birthTime value="{birth_date.strftime('%Y%m%d')}"/>
-        <raceCode code="{race_code}" codeSystem="2.16.840.1.113883.6.238" displayName="{race_display}"/>
-        <ethnicGroupCode code="{eth_code}" codeSystem="2.16.840.1.113883.6.238" displayName="{eth_display}"/>
-      </patient>
-    </patientRole>
-  </recordTarget>
-  <author>
-    <time value="{fmt_cda_date(encounter_date)}"/>
-    <assignedAuthor>
-      <id root="2.16.840.1.113883.4.6" extension="{org_npi}"/>
-      <representedOrganization>
-        <name>{org_name}</name>
-      </representedOrganization>
-    </assignedAuthor>
-  </author>
-  <custodian>
-    <assignedCustodian>
-      <representedCustodianOrganization>
-        <id root="2.16.840.1.113883.4.6" extension="{org_npi}"/>
-        <name>{org_name}</name>
-      </representedCustodianOrganization>
-    </assignedCustodian>
-  </custodian>
-  <component>
-    <structuredBody>
-      <component>
-        <section>
-          <templateId root="2.16.840.1.113883.10.20.22.2.22.1"/>
-          <code code="46240-8" codeSystem="2.16.840.1.113883.6.1" displayName="History of encounters"/>
-          <entry>
-            <encounter classCode="ENC" moodCode="EVN">
-              <id root="2.16.840.1.113883.19" extension="{enc_id}"/>
-              <code code="99213" codeSystem="2.16.840.1.113883.6.12" displayName="Office visit, established patient"/>
-              <effectiveTime>
-                <low value="{fmt_cda_date(encounter_date)}"/>
-              </effectiveTime>
-            </encounter>
-          </entry>
-        </section>
-      </component>
-      <component>
-        <section>
-          <templateId root="2.16.840.1.113883.10.20.22.2.12"/>
-          <code code="29299-5" codeSystem="2.16.840.1.113883.6.1" displayName="Reason for visit"/>
-          <text>Patient presents with {symptom_text}.</text>
-        </section>
-      </component>
-      <component>
-        <section>
-          <templateId root="2.16.840.1.113883.10.20.22.2.5.1"/>
-          <code code="11450-4" codeSystem="2.16.840.1.113883.6.1" displayName="Problem list"/>
-          <entry>
-            <act classCode="ACT" moodCode="EVN">
-              <entryRelationship typeCode="SUBJ">
-                <observation classCode="OBS" moodCode="EVN">
-                  <code code="64572001" codeSystem="2.16.840.1.113883.6.96" displayName="Disease (disorder)"/>
-                  <value xsi:type="CD" code="{cond['snomed']}" codeSystem="2.16.840.1.113883.6.96" displayName="{cond['name']}"/>
-                  <effectiveTime><low value="{fmt_cda_date(onset_date, False)}"/></effectiveTime>
-                </observation>
-              </entryRelationship>
-            </act>
-          </entry>
-        </section>
-      </component>
-      <component>
-        <section>
-          <templateId root="2.16.840.1.113883.10.20.22.2.3.1"/>
-          <code code="30954-2" codeSystem="2.16.840.1.113883.6.1" displayName="Relevant diagnostic tests/laboratory data"/>
-          <entry>
-            <organizer classCode="BATTERY" moodCode="EVN">
-              <statusCode code="completed"/>
-              <component>
-                <observation classCode="OBS" moodCode="EVN">
-                  <code code="{cond['lab_loinc']}" codeSystem="2.16.840.1.113883.6.1" displayName="{cond['lab_name']}"/>
-                  <statusCode code="completed"/>
-                  <effectiveTime value="{fmt_cda_date(encounter_date, False)}"/>
-                  <value xsi:type="CD" code="{cond['lab_result_code']}" codeSystem="2.16.840.1.113883.6.96" displayName="{cond['lab_result_display']}"/>
-                </observation>
-              </component>
-            </organizer>
-          </entry>
-          <entry>
-            <organizer classCode="BATTERY" moodCode="EVN">
-              <statusCode code="completed"/>{vitals_xml}
-            </organizer>
-          </entry>
-        </section>
-      </component>
-      <component>
-        <section>
-          <templateId root="2.16.840.1.113883.10.20.22.2.1.1"/>
-          <code code="10160-0" codeSystem="2.16.840.1.113883.6.1" displayName="History of Medication use"/>{meds_xml}
-        </section>
-      </component>
-    </structuredBody>
-  </component>
-</ClinicalDocument>"""
+    meds = cond.get("medications", []) if include_meds else []
+    if cond2:
+        meds = meds + cond2.get("medications", [])
 
-    # Build FHIR Bundle
-    uuids = {k: uid() for k in ["composition", "patient", "encounter", "condition", "lab_obs", "org"]}
-    vital_uuids = [uid() for _ in vitals]
-    med_uuids = [uid() for _ in cond.get("medications", [])]
-
-    # Composition sections
-    results_entries = [{"reference": f"urn:uuid:{uuids['lab_obs']}"}]
-    results_entries.extend({"reference": f"urn:uuid:{vu}"} for vu in vital_uuids)
-
-    med_entries = [{"reference": f"urn:uuid:{mu}"} for mu in med_uuids]
-
-    sections = [
-        {
-            "title": "Reason for Visit",
-            "code": {"coding": [{"system": "http://loinc.org", "code": "29299-5", "display": "Reason for visit"}]},
-            "text": {"status": "generated", "div": f'<div xmlns="http://www.w3.org/1999/xhtml">Patient presents with {symptom_text}.</div>'},
-        },
-        {
-            "title": "Problems",
-            "code": {"coding": [{"system": "http://loinc.org", "code": "11450-4", "display": "Problem list"}]},
-            "entry": [{"reference": f"urn:uuid:{uuids['condition']}"}],
-        },
-        {
-            "title": "Results",
-            "code": {"coding": [{"system": "http://loinc.org", "code": "30954-2", "display": "Relevant diagnostic tests/laboratory data"}]},
-            "entry": results_entries,
-        },
+    # --- Build user input text (must match server extract_key_data format) ---
+    lines = [
+        f"Patient: {first} {last}",
+        f"Gender: {gender_code}",
+        f"DOB: {birth_date.strftime('%Y-%m-%d')}",
+        f"Race: {race_display}",
+        f"Ethnicity: {eth_display}",
+        f"Location: {city}, {state} {zipcode}",
+        f"Phone: {phone}",
+        f"Facility: {org_name} (NPI: {org_npi})",
+        f"Encounter: {fmt_fhir_date(encounter_date, False)}",
+        f"Reason: {symptom_text}",
+        f"Dx: {cond['name']} (SNOMED {cond['snomed']})",
+        f"Lab: {cond['lab_name']} (LOINC {cond['lab_loinc']}) - {lab_result} [{cond.get('specimen', 'Blood')}, {cond.get('lab_status', 'final')}]",
     ]
-    if med_entries:
-        sections.append({
-            "title": "Medications",
-            "code": {"coding": [{"system": "http://loinc.org", "code": "10160-0", "display": "History of Medication use"}]},
-            "entry": med_entries,
+    if cond2:
+        onset2 = encounter_date - timedelta(days=random.randint(1, 14))
+        lines.append(f"Dx: {cond2['name']} (SNOMED {cond2['snomed']})")
+        lines.append(f"Lab: {cond2['lab_name']} (LOINC {cond2['lab_loinc']}) - {cond2['lab_result_display']} [{cond2.get('specimen', 'Blood')}, {cond2.get('lab_status', 'final')}]")
+
+    if include_vitals:
+        v = vitals
+        lines.append(f"Vitals: Temp {v[0][2]}C, HR {v[1][2]}, RR {v[2][2]}, SpO2 {v[3][2]}%, BP {v[4][2]}")
+
+    for med in meds:
+        lines.append(f"Meds: {med['name']} (RxNorm {med['rxnorm']})")
+
+    user_input = "\n".join(lines)
+
+    # --- Build extraction JSON (model output) ---
+    def conf(low=0.88):
+        """Generate a confidence score, occasionally low."""
+        if random.random() < 0.05:
+            return round(random.uniform(0.70, 0.85), 2)
+        return round(random.uniform(low, 0.99), 2)
+
+    conditions_list = [{
+        "name": cond["name"],
+        "snomed": cond["snomed"],
+        "icd10": cond["icd10"],
+        "onset": fmt_fhir_date(onset_date, False),
+        "status": "suspected" if lab_negative else "active",
+        "conf": conf(),
+    }]
+    if cond2:
+        conditions_list.append({
+            "name": cond2["name"],
+            "snomed": cond2["snomed"],
+            "icd10": cond2["icd10"],
+            "onset": fmt_fhir_date(onset2, False),
+            "status": "active",
+            "conf": conf(),
         })
 
-    entries = [
-        {
-            "fullUrl": f"urn:uuid:{uuids['composition']}",
-            "resource": {
-                "resourceType": "Composition",
-                "status": "final",
-                "type": {"coding": [{"system": "http://loinc.org", "code": "55751-2", "display": "Public Health Case Report"}]},
-                "subject": {"reference": f"urn:uuid:{uuids['patient']}"},
-                "encounter": {"reference": f"urn:uuid:{uuids['encounter']}"},
-                "date": fmt_fhir_date(encounter_date),
-                "author": [{"reference": f"urn:uuid:{uuids['org']}"}],
-                "title": "Initial Public Health Case Report - eICR",
-                "section": sections,
-            },
-        },
-        {
-            "fullUrl": f"urn:uuid:{uuids['patient']}",
-            "resource": {
-                "resourceType": "Patient",
-                "identifier": [{"system": "urn:oid:2.16.840.1.113883.19.5", "value": patient_id}],
-                "name": [{"use": "official", "family": last, "given": [first]}],
-                "gender": fhir_gender,
-                "birthDate": birth_date.strftime("%Y-%m-%d"),
-                "address": [{"use": "home", "line": [street], "city": city, "state": state, "postalCode": zipcode, "country": "US"}],
-                "telecom": [{"system": "phone", "value": phone, "use": "home"}],
-                "extension": [
-                    {
-                        "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race",
-                        "extension": [{"url": "ombCategory", "valueCoding": {"system": "urn:oid:2.16.840.1.113883.6.238", "code": race_code, "display": race_display}}],
-                    },
-                    {
-                        "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity",
-                        "extension": [{"url": "ombCategory", "valueCoding": {"system": "urn:oid:2.16.840.1.113883.6.238", "code": eth_code, "display": eth_display}}],
-                    },
-                ],
-            },
-        },
-        {
-            "fullUrl": f"urn:uuid:{uuids['encounter']}",
-            "resource": {
-                "resourceType": "Encounter",
-                "status": "finished",
-                "class": {"system": "http://terminology.hl7.org/CodeSystem/v3-ActCode", "code": "AMB", "display": "ambulatory"},
-                "type": [{"coding": [{"system": "http://www.ama-assn.org/go/cpt", "code": "99213", "display": "Office visit, established patient"}]}],
-                "subject": {"reference": f"urn:uuid:{uuids['patient']}"},
-                "period": {"start": fmt_fhir_date(encounter_date)},
-            },
-        },
-        {
-            "fullUrl": f"urn:uuid:{uuids['condition']}",
-            "resource": {
-                "resourceType": "Condition",
-                "clinicalStatus": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/condition-clinical", "code": "active"}]},
-                "verificationStatus": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/condition-ver-status", "code": "confirmed"}]},
-                "category": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/condition-category", "code": "encounter-diagnosis"}]}],
-                "code": {"coding": [{"system": "http://snomed.info/sct", "code": cond["snomed"], "display": cond["name"]}]},
-                "subject": {"reference": f"urn:uuid:{uuids['patient']}"},
-                "onsetDateTime": fmt_fhir_date(onset_date, include_time=False),
-            },
-        },
-        {
-            "fullUrl": f"urn:uuid:{uuids['lab_obs']}",
-            "resource": {
-                "resourceType": "Observation",
-                "status": "final",
-                "category": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/observation-category", "code": "laboratory"}]}],
-                "code": {"coding": [{"system": "http://loinc.org", "code": cond["lab_loinc"], "display": cond["lab_name"]}]},
-                "subject": {"reference": f"urn:uuid:{uuids['patient']}"},
-                "effectiveDateTime": fmt_fhir_date(encounter_date, include_time=False),
-                "valueCodeableConcept": {"coding": [{"system": "http://snomed.info/sct", "code": cond["lab_result_code"], "display": cond["lab_result_display"]}]},
-            },
-        },
-    ]
-
-    # Vital signs observations
-    for i, (loinc, name, val, unit) in enumerate(vitals):
-        entries.append({
-            "fullUrl": f"urn:uuid:{vital_uuids[i]}",
-            "resource": {
-                "resourceType": "Observation",
-                "status": "final",
-                "category": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/observation-category", "code": "vital-signs"}]}],
-                "code": {"coding": [{"system": "http://loinc.org", "code": loinc, "display": name}]},
-                "subject": {"reference": f"urn:uuid:{uuids['patient']}"},
-                "effectiveDateTime": fmt_fhir_date(encounter_date, include_time=False),
-                "valueQuantity": {"value": val, "unit": unit, "system": "http://unitsofmeasure.org", "code": unit},
-            },
+    labs_list = [{
+        "name": cond["lab_name"],
+        "loinc": cond["lab_loinc"],
+        "result": lab_result,
+        "result_snomed": lab_result_snomed,
+        "specimen": cond.get("specimen", "Blood"),
+        "lab_status": cond.get("lab_status", "final"),
+        "date": fmt_fhir_date(encounter_date, False),
+        "conf": conf(0.90),
+    }]
+    if cond2:
+        labs_list.append({
+            "name": cond2["lab_name"],
+            "loinc": cond2["lab_loinc"],
+            "result": cond2["lab_result_display"],
+            "result_snomed": cond2["lab_result_code"],
+            "specimen": cond2.get("specimen", "Blood"),
+            "lab_status": cond2.get("lab_status", "final"),
+            "date": fmt_fhir_date(encounter_date, False),
+            "conf": conf(0.90),
         })
 
-    # Medications
-    for i, med in enumerate(cond.get("medications", [])):
-        entries.append({
-            "fullUrl": f"urn:uuid:{med_uuids[i]}",
-            "resource": {
-                "resourceType": "MedicationStatement",
-                "status": "active",
-                "medicationCodeableConcept": {"coding": [{"system": "http://www.nlm.nih.gov/research/umls/rxnorm", "code": med["rxnorm"], "display": med["name"]}]},
-                "subject": {"reference": f"urn:uuid:{uuids['patient']}"},
-                "effectiveDateTime": fmt_fhir_date(encounter_date, include_time=False),
-            },
-        })
+    meds_list = [{"name": m["name"], "rxnorm": m["rxnorm"], "conf": conf(0.85)} for m in meds]
 
-    # Organization
-    entries.append({
-        "fullUrl": f"urn:uuid:{uuids['org']}",
-        "resource": {
-            "resourceType": "Organization",
-            "identifier": [{"system": "http://hl7.org/fhir/sid/us-npi", "value": org_npi}],
-            "name": org_name,
+    vitals_obj = None
+    if include_vitals:
+        vitals_obj = {
+            "temp": vitals[0][2],
+            "hr": vitals[1][2],
+            "rr": vitals[2][2],
+            "spo2": vitals[3][2],
+            "sbp": vitals[4][2],
+        }
+
+    # Build summary
+    dx_text = cond["name"]
+    if lab_negative:
+        dx_text = f"{cond['name']} (suspected, lab negative)"
+    if cond2:
+        dx_text += f", {cond2['name']}"
+
+    med_text = ", ".join(m["name"].split(" ")[0] for m in meds) if meds else "supportive care"
+
+    summary = (
+        f"{first} {last}, {age}{gender_code}, {eth_display}, "
+        f"presents at {org_name} on {fmt_fhir_date(encounter_date, False)} "
+        f"with {symptom_text}. "
+        f"{cond['lab_name'].split('[')[0].strip()} {lab_result.lower()}. "
+        f"Dx: {dx_text}. Rx: {med_text}. "
+        f"Reportable condition per CSTE criteria."
+    )
+
+    extraction = {
+        "patient": {
+            "name": f"{first} {last}",
+            "dob": birth_date.strftime("%Y-%m-%d"),
+            "sex": gender_code,
+            "race": race_display,
+            "ethnicity": eth_display,
+            "addr": f"{city}, {state} {zipcode}",
+            "phone": phone,
         },
-    })
-
-    fhir_bundle = {
-        "resourceType": "Bundle",
-        "type": "document",
-        "timestamp": fmt_fhir_date(encounter_date),
-        "entry": entries,
+        "encounter": {
+            "date": fmt_fhir_date(encounter_date, False),
+            "type": "Office visit",
+            "facility": org_name,
+            "npi": org_npi,
+        },
+        "conditions": conditions_list,
+        "labs": labs_list,
+        "vitals": vitals_obj,
+        "meds": meds_list,
+        "summary": summary,
+        "reportable": True,
+        "jurisdiction": state,
     }
 
-    return eicr_xml.strip(), json.dumps(fhir_bundle, indent=2)
+    return user_input, json.dumps(extraction, separators=(",", ":"))
 
 
-def build_conversation(eicr_xml, fhir_json):
+def build_conversation(user_input, extraction_json):
     """Format as a chat conversation for Unsloth SFT."""
     return {
         "conversations": [
-            {
-                "role": "system",
-                "content": "You are a clinical informatics assistant. Convert the provided eICR (electronic Initial Case Report) CDA/XML document into a valid HL7 FHIR R4 Bundle JSON conforming to the eCR Implementation Guide. Extract all patient demographics, conditions, observations, encounters, and medications. Output valid JSON only.",
-            },
-            {
-                "role": "user",
-                "content": f"Convert this eICR to a FHIR R4 Bundle:\n\n{eicr_xml}",
-            },
-            {
-                "role": "assistant",
-                "content": fhir_json,
-            },
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_input},
+            {"role": "assistant", "content": extraction_json},
         ]
     }
 
 
 def main():
     random.seed(42)
-    num_samples = 500
+    num_samples = 1000
 
     dataset = []
     for i in range(num_samples):
-        eicr, fhir = generate_pair()
-        conv = build_conversation(eicr, fhir)
+        # Determine variation type
+        r = random.random()
+        if r < 0.10:
+            variation = "missing"
+        elif r < 0.15:
+            variation = "negative_lab"
+        elif r < 0.20:
+            variation = "multi_condition"
+        else:
+            variation = "normal"
+
+        user_input, extraction = generate_sample(variation)
+        conv = build_conversation(user_input, extraction)
         dataset.append(conv)
 
     # Write training set (80%) and validation set (20%)
@@ -619,10 +601,15 @@ def main():
         for item in val:
             f.write(json.dumps(item) + "\n")
 
+    # Show stats
     print(f"Generated {len(train)} training samples → data/train.jsonl")
     print(f"Generated {len(val)} validation samples → data/val.jsonl")
     print(f"Conditions covered: {len(CONDITIONS)}")
-    print(f"Sample conditions: {', '.join(c['name'] for c in CONDITIONS)}")
+
+    # Spot-check token estimate on first sample
+    sample = json.dumps(dataset[0])
+    est_tokens = len(sample) // 4  # rough char/token ratio
+    print(f"Estimated tokens per sample: ~{est_tokens}")
 
 
 if __name__ == "__main__":

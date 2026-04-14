@@ -1,0 +1,109 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: build-llama-server
+  namespace: gemma4
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: build-llama
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: talos-jetson-3
+      containers:
+        - name: builder
+          image: 192.168.25.201:5050/ollama-jetson:r36.4.0
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -e
+              echo "=== Building llama.cpp with CUDA on Jetson ==="
+              export LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/compat:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
+              # Verify CUDA
+              ls /usr/local/cuda/bin/nvcc && echo "CUDA toolkit found" || echo "NO CUDA"
+
+              # Install build deps
+              apt-get update && apt-get install -y --no-install-recommends \
+                cmake build-essential git libcurl4-openssl-dev cuda-toolkit-12-6 2>/dev/null || \
+              apt-get install -y --no-install-recommends \
+                cmake build-essential git libcurl4-openssl-dev
+
+              # Clone and build
+              cd /tmp
+              git clone --depth 1 https://github.com/ggml-org/llama.cpp.git
+              cd llama.cpp
+
+              cmake -B build \
+                -DGGML_CUDA=ON \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DLLAMA_CURL=ON \
+                -DCMAKE_CUDA_ARCHITECTURES="87"
+              cmake --build build --target llama-server -j4
+
+              # Copy binary + libs to the shared volume
+              mkdir -p /output/bin /output/lib
+              cp build/bin/llama-server /output/bin/
+              find build -name '*.so*' -exec cp -a {} /output/lib/ \;
+              ls -lh /output/bin/llama-server
+              echo "=== Build complete ==="
+          volumeMounts:
+            - name: output
+              mountPath: /output
+            - name: dev-nvgpu
+              mountPath: /dev/nvgpu
+            - name: dev-nvhost-gpu
+              mountPath: /dev/nvhost-gpu
+            - name: dev-nvhost-ctrl
+              mountPath: /dev/nvhost-ctrl
+            - name: dev-nvhost-ctrl-gpu
+              mountPath: /dev/nvhost-ctrl-gpu
+            - name: dev-nvhost-as-gpu
+              mountPath: /dev/nvhost-as-gpu
+            - name: dev-nvhost-dbg-gpu
+              mountPath: /dev/nvhost-dbg-gpu
+            - name: dev-nvhost-tsg-gpu
+              mountPath: /dev/nvhost-tsg-gpu
+            - name: dev-nvmap
+              mountPath: /dev/nvmap
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "2"
+            limits:
+              memory: "4Gi"
+              cpu: "4"
+          securityContext:
+            privileged: true
+      volumes:
+        - name: output
+          hostPath:
+            path: /var/lib/cliniq/llama-build
+            type: DirectoryOrCreate
+        - name: dev-nvgpu
+          hostPath:
+            path: /dev/nvgpu
+        - name: dev-nvhost-gpu
+          hostPath:
+            path: /dev/nvhost-gpu
+        - name: dev-nvhost-ctrl
+          hostPath:
+            path: /dev/nvhost-ctrl
+        - name: dev-nvhost-ctrl-gpu
+          hostPath:
+            path: /dev/nvhost-ctrl-gpu
+        - name: dev-nvhost-as-gpu
+          hostPath:
+            path: /dev/nvhost-as-gpu
+        - name: dev-nvhost-dbg-gpu
+          hostPath:
+            path: /dev/nvhost-dbg-gpu
+        - name: dev-nvhost-tsg-gpu
+          hostPath:
+            path: /dev/nvhost-tsg-gpu
+        - name: dev-nvmap
+          hostPath:
+            path: /dev/nvmap

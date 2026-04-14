@@ -1,0 +1,239 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cliniq-train-script
+  namespace: gemma4
+data:
+  train.py: |
+    #!/usr/bin/env python3
+    """ClinIQ: Fine-tune Gemma 4 E2B with Unsloth on Jetson Orin Nano."""
+    import os, sys, json
+
+    print("=== ClinIQ Training ===")
+
+    # Verify CUDA
+    import torch
+    print(f"PyTorch: {torch.__version__}")
+    print(f"CUDA: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        mem = torch.cuda.get_device_properties(0).total_mem / 1024**3
+        print(f"VRAM: {mem:.1f} GB")
+
+    # Verify data
+    DATA_DIR = "/data"
+    OUTPUT_DIR = "/output"
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    for f in ["train.jsonl", "val.jsonl"]:
+        p = os.path.join(DATA_DIR, f)
+        if not os.path.exists(p):
+            print(f"ERROR: {p} not found")
+            sys.exit(1)
+        lines = sum(1 for _ in open(p))
+        print(f"{f}: {lines} samples")
+
+    # Load model
+    print("\n=== Loading Gemma 4 E2B ===")
+    from unsloth import FastModel
+    model, tokenizer = FastModel.from_pretrained(
+        model_name="unsloth/gemma-4-E2B-it",
+        max_seq_length=1024,
+        dtype=None,
+        load_in_4bit=True,
+        full_finetuning=False,
+    )
+    print("Model loaded!")
+
+    # LoRA
+    print("\n=== Configuring LoRA ===")
+    model = FastModel.get_peft_model(
+        model,
+        finetune_vision_layers=False,
+        finetune_language_layers=True,
+        finetune_attention_modules=True,
+        finetune_mlp_modules=True,
+        r=16, lora_alpha=16, lora_dropout=0,
+        bias="none", random_state=3407,
+    )
+
+    # Load data
+    print("\n=== Loading data ===")
+    from datasets import load_dataset
+    dataset = load_dataset("json", data_files={
+        "train": f"{DATA_DIR}/train.jsonl",
+        "validation": f"{DATA_DIR}/val.jsonl",
+    })
+    print(f"Train: {len(dataset['train'])}  Val: {len(dataset['validation'])}")
+
+    # Format
+    from unsloth.chat_templates import get_chat_template
+    tokenizer = get_chat_template(tokenizer, chat_template="gemma-4")
+    def fmt(examples):
+        return {"text": [
+            tokenizer.apply_chat_template(c, tokenize=False, add_generation_prompt=False).removeprefix("<bos>")
+            for c in examples["conversations"]
+        ]}
+    dataset = dataset.map(fmt, batched=True)
+
+    # Train
+    print("\n=== Training ===")
+    from trl import SFTTrainer, SFTConfig
+    from unsloth.chat_templates import train_on_responses_only
+
+    trainer = SFTTrainer(
+        model=model, tokenizer=tokenizer,
+        train_dataset=dataset["train"],
+        eval_dataset=dataset["validation"],
+        args=SFTConfig(
+            dataset_text_field="text",
+            per_device_train_batch_size=1,
+            gradient_accumulation_steps=8,
+            warmup_steps=10,
+            num_train_epochs=5,
+            learning_rate=1e-4,
+            logging_steps=10,
+            eval_strategy="steps", eval_steps=50,
+            save_strategy="steps", save_steps=100,
+            optim="adamw_8bit",
+            weight_decay=0.01,
+            lr_scheduler_type="linear",
+            seed=3407,
+            output_dir=f"{OUTPUT_DIR}/checkpoints",
+            report_to="none",
+        ),
+    )
+    trainer = train_on_responses_only(
+        trainer,
+        instruction_part="<|turn>user\n",
+        response_part="<|turn>model\n",
+    )
+    stats = trainer.train()
+    print(f"\nLoss: {stats.training_loss:.4f}")
+    print(f"Time: {stats.metrics['train_runtime']:.1f}s")
+
+    # Export
+    print("\n=== Exporting ===")
+    model.save_pretrained(f"{OUTPUT_DIR}/cliniq-lora")
+    tokenizer.save_pretrained(f"{OUTPUT_DIR}/cliniq-lora")
+    model.save_pretrained_merged(f"{OUTPUT_DIR}/cliniq-merged", tokenizer)
+    model.save_pretrained_gguf(f"{OUTPUT_DIR}/cliniq-gguf", tokenizer, quantization_method="Q8_0")
+    print(f"\nDone! GGUF at {OUTPUT_DIR}/cliniq-gguf/")
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cliniq-train
+  namespace: gemma4
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: cliniq-train
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        node.kubernetes.io/instance-type: jetson-orin-nano
+      containers:
+        - name: train
+          image: dustynv/pytorch:2.6-r36.4.0-cu128-24.04
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -e
+              echo "=== Setup on $(hostname) ==="
+              export LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/compat:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+
+              # Use the image's existing venv which has torch+CUDA
+              export PATH="/opt/venv/bin:$PATH"
+              python3 -c "import torch; print(f'torch {torch.__version__} CUDA={torch.cuda.is_available()}')"
+
+              # Install uv into the venv
+              curl -LsSf https://astral.sh/uv/install.sh | sh
+              export PATH="$HOME/.local/bin:$PATH"
+
+              # Training deps — no-deps on unsloth to prevent overwriting torch
+              uv pip install -p /opt/venv/bin/python3 sentencepiece protobuf "datasets==4.3.0" "huggingface_hub>=0.34.0" hf_transfer
+              uv pip install -p /opt/venv/bin/python3 --no-deps unsloth_zoo bitsandbytes accelerate peft trl unsloth
+              uv pip install -p /opt/venv/bin/python3 --no-deps transformers==5.5.0
+
+              # Verify
+              python3 -c "import torch; print(f'CUDA: {torch.cuda.is_available()}, GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"N/A\"}')"
+              python3 -c "from unsloth import FastModel; print('Unsloth loaded OK')" || echo "Unsloth import failed — checking deps..."
+
+              echo "=== Starting training ==="
+              python3 /scripts/train.py
+          env:
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: HF_HOME
+              value: "/output/hf-cache"
+          volumeMounts:
+            - name: train-script
+              mountPath: /scripts
+            - name: training-data
+              mountPath: /data
+            - name: output
+              mountPath: /output
+            - name: dev-nvgpu
+              mountPath: /dev/nvgpu
+            - name: dev-nvhost-gpu
+              mountPath: /dev/nvhost-gpu
+            - name: dev-nvhost-ctrl
+              mountPath: /dev/nvhost-ctrl
+            - name: dev-nvhost-ctrl-gpu
+              mountPath: /dev/nvhost-ctrl-gpu
+            - name: dev-nvhost-as-gpu
+              mountPath: /dev/nvhost-as-gpu
+            - name: dev-nvhost-dbg-gpu
+              mountPath: /dev/nvhost-dbg-gpu
+            - name: dev-nvhost-tsg-gpu
+              mountPath: /dev/nvhost-tsg-gpu
+            - name: dev-nvmap
+              mountPath: /dev/nvmap
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "2"
+            limits:
+              memory: "6Gi"
+              cpu: "5"
+          securityContext:
+            privileged: true
+      volumes:
+        - name: train-script
+          configMap:
+            name: cliniq-train-script
+        - name: training-data
+          hostPath:
+            path: /var/lib/cliniq/data
+            type: DirectoryOrCreate
+        - name: output
+          hostPath:
+            path: /var/lib/cliniq/output
+            type: DirectoryOrCreate
+        - name: dev-nvgpu
+          hostPath:
+            path: /dev/nvgpu
+        - name: dev-nvhost-gpu
+          hostPath:
+            path: /dev/nvhost-gpu
+        - name: dev-nvhost-ctrl
+          hostPath:
+            path: /dev/nvhost-ctrl
+        - name: dev-nvhost-ctrl-gpu
+          hostPath:
+            path: /dev/nvhost-ctrl-gpu
+        - name: dev-nvhost-as-gpu
+          hostPath:
+            path: /dev/nvhost-as-gpu
+        - name: dev-nvhost-dbg-gpu
+          hostPath:
+            path: /dev/nvhost-dbg-gpu
+        - name: dev-nvhost-tsg-gpu
+          hostPath:
+            path: /dev/nvhost-tsg-gpu
+        - name: dev-nvmap
+          hostPath:
+            path: /dev/nvmap

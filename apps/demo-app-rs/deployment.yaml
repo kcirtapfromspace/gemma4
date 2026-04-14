@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cliniq
+  namespace: gemma4
+  labels:
+    app: cliniq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cliniq
+  template:
+    metadata:
+      labels:
+        app: cliniq
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - talos-jetson-1
+                      - talos-jetson-2
+                      - talos-jetson-3
+      containers:
+        - name: cliniq
+          image: 192.168.25.201:5050/cliniq-rs:latest
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: flight
+              containerPort: 8081
+          env:
+            - name: LLM_BACKEND
+              value: "ollama"
+            - name: LLM_URL
+              value: "http://llama-server.gemma4.svc:8080"
+            - name: MODEL_NAME
+              value: "gemma4-eicr-fhir"
+            - name: DB_PATH
+              value: "/data/cliniq.db"
+            - name: HTTP_PORT
+              value: "8080"
+            - name: FLIGHT_PORT
+              value: "8081"
+            - name: HARDWARE
+              value: "NVIDIA Jetson Orin Nano 8GB"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "10m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+      volumes:
+        - name: data
+          hostPath:
+            path: /var/lib/cliniq
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cliniq
+  namespace: gemma4
+spec:
+  selector:
+    app: cliniq
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      nodePort: 30081
+    - name: flight
+      port: 8081
+      targetPort: 8081
+      nodePort: 30082
+  type: NodePort
