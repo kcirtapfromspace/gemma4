@@ -27,6 +27,7 @@ def main():
     parser.add_argument("--lora-r", type=int, default=16, help="LoRA rank")
     parser.add_argument("--skip-gguf", action="store_true", help="Skip GGUF export")
     parser.add_argument("--dry-run", action="store_true", help="Load model and data but don't train")
+    parser.add_argument("--compact", action="store_true", help="Use compact training data (shorter output)")
     args = parser.parse_args()
 
     # Verify CUDA
@@ -41,8 +42,9 @@ def main():
         print("WARNING: No CUDA — training will be very slow on CPU")
 
     # Verify training data
-    train_path = os.path.join(args.data_dir, "train.jsonl")
-    val_path = os.path.join(args.data_dir, "val.jsonl")
+    suffix = "-compact" if args.compact else ""
+    train_path = os.path.join(args.data_dir, f"train{suffix}.jsonl")
+    val_path = os.path.join(args.data_dir, f"val{suffix}.jsonl")
     if not os.path.exists(train_path):
         print(f"ERROR: {train_path} not found")
         print(f"Contents of {args.data_dir}: {os.listdir(args.data_dir) if os.path.isdir(args.data_dir) else 'NOT A DIR'}")

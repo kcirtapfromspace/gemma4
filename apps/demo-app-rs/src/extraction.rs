@@ -121,9 +121,26 @@ pub struct ExtMed {
     pub conf: f64,
 }
 
+/// Parse compact string format like "Syphilis (SNOMED 76272004)" into (name, code).
+/// Handles: "Name (PREFIX code)", "Name (code)", "Name"
+fn parse_name_code(s: &str, prefix: &str) -> (String, String) {
+    if let Some(paren_start) = s.rfind('(') {
+        let name = s[..paren_start].trim().to_string();
+        let inner = s[paren_start + 1..].trim_end_matches(')').trim();
+        let code = inner
+            .strip_prefix(prefix)
+            .map(|c| c.trim())
+            .unwrap_or(inner)
+            .to_string();
+        (name, code)
+    } else {
+        (s.to_string(), String::new())
+    }
+}
+
 /// Parse the model's raw output into a typed Extraction.
 /// Handles markdown fences, trailing prose, and alternative JSON schemas
-/// (the base model uses different field names than the fine-tuned training format).
+/// including compact format (flat strings) and verbose format (nested dicts).
 pub fn parse(raw: &str) -> Result<Extraction> {
     let cleaned = strip_fences(raw);
 
@@ -143,61 +160,69 @@ pub fn parse(raw: &str) -> Result<Extraction> {
 
     let mut ext = Extraction::default();
 
-    // Patient: try "patient" then "patient_demographics"
+    // Patient: handle dict {"name": ..., "dob": ...} or plain string "Name"
     let pd = v.get("patient").or(v.get("patient_demographics"));
     if let Some(p) = pd {
-        ext.patient.name = p
-            .get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        ext.patient.dob = p
-            .get("dob")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        ext.patient.sex = p
-            .get("sex")
-            .or(p.get("gender"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        ext.patient.race = p.get("race").and_then(|v| v.as_str()).map(|s| s.to_string());
-        ext.patient.ethnicity = p
-            .get("ethnicity")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-        ext.patient.addr = p
-            .get("addr")
-            .or(p.get("location"))
-            .or(p.get("address"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        ext.patient.phone = p
-            .get("phone")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+        if let Some(name_str) = p.as_str() {
+            // Compact format: patient is a plain string
+            ext.patient.name = name_str.to_string();
+        } else {
+            ext.patient.name = p
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            ext.patient.dob = p
+                .get("dob")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            ext.patient.sex = p
+                .get("sex")
+                .or(p.get("gender"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            ext.patient.race = p.get("race").and_then(|v| v.as_str()).map(|s| s.to_string());
+            ext.patient.ethnicity = p
+                .get("ethnicity")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            ext.patient.addr = p
+                .get("addr")
+                .or(p.get("location"))
+                .or(p.get("address"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            ext.patient.phone = p
+                .get("phone")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+        }
     }
 
-    // Encounter
-    let enc = v.get("encounter");
-    if let Some(e) = enc {
-        ext.encounter.date = e
-            .get("date")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        ext.encounter.facility = e
-            .get("facility")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        ext.encounter.npi = e
-            .get("npi")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+    // Encounter: handle dict {"date": ..., "facility": ...} or plain string "2026-12-05"
+    if let Some(e) = v.get("encounter") {
+        if let Some(date_str) = e.as_str() {
+            ext.encounter.date = date_str.to_string();
+        } else {
+            ext.encounter.date = e
+                .get("date")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            ext.encounter.facility = e
+                .get("facility")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            ext.encounter.npi = e
+                .get("npi")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+        }
     }
     // If no encounter block, try to pull facility from patient_demographics
     if ext.encounter.facility.is_empty() {
@@ -209,134 +234,165 @@ pub fn parse(raw: &str) -> Result<Extraction> {
         }
     }
 
-    // Conditions: handle [{name, snomed, ...}] and [{condition, code, ...}]
+    // Conditions: handle [{name, snomed, ...}], [{condition, code, ...}], or ["Name (SNOMED code)"]
     if let Some(conds) = v.get("conditions").and_then(|v| v.as_array()) {
         for c in conds {
-            let name = c
-                .get("name")
-                .or(c.get("condition"))
-                .or(c.get("description"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let raw_code = c
-                .get("snomed")
-                .or(c.get("code"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            // Strip "SNOMED " prefix if present
-            let snomed = raw_code
-                .strip_prefix("SNOMED ")
-                .unwrap_or(raw_code)
-                .trim()
-                .to_string();
-            let icd10 = c
-                .get("icd10")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let conf = c
-                .get("conf")
-                .or(c.get("confidence"))
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.9);
-            ext.conditions.push(ExtCondition {
-                name,
-                snomed,
-                icd10,
-                onset: c
-                    .get("onset")
+            if let Some(s) = c.as_str() {
+                // Compact format: "Syphilis (SNOMED 76272004)" or "Syphilis (76272004)"
+                let (name, snomed) = parse_name_code(s, "SNOMED");
+                ext.conditions.push(ExtCondition {
+                    name,
+                    snomed,
+                    icd10: String::new(),
+                    onset: String::new(),
+                    status: "active".into(),
+                    conf: 0.9,
+                });
+            } else {
+                let name = c
+                    .get("name")
+                    .or(c.get("condition"))
+                    .or(c.get("description"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
-                    .to_string(),
-                status: c
-                    .get("status")
+                    .to_string();
+                let raw_code = c
+                    .get("snomed")
+                    .or(c.get("code"))
                     .and_then(|v| v.as_str())
-                    .unwrap_or("active")
-                    .to_string(),
-                conf,
-            });
+                    .unwrap_or("");
+                let snomed = raw_code
+                    .strip_prefix("SNOMED ")
+                    .unwrap_or(raw_code)
+                    .trim()
+                    .to_string();
+                let icd10 = c
+                    .get("icd10")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let conf = c
+                    .get("conf")
+                    .or(c.get("confidence"))
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.9);
+                ext.conditions.push(ExtCondition {
+                    name,
+                    snomed,
+                    icd10,
+                    onset: c
+                        .get("onset")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    status: c
+                        .get("status")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("active")
+                        .to_string(),
+                    conf,
+                });
+            }
         }
     }
 
-    // Labs: handle [{name, loinc, ...}] and [{test, code, ...}]
+    // Labs: handle [{name, loinc, ...}], [{test, code, ...}], or ["Name (LOINC code)"]
     if let Some(labs) = v.get("labs").and_then(|v| v.as_array()) {
         for l in labs {
-            let name = l
-                .get("name")
-                .or(l.get("test"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let loinc = l
-                .get("loinc")
-                .or(l.get("code"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let conf = l
-                .get("conf")
-                .or(l.get("confidence"))
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.9);
-            ext.labs.push(ExtLab {
-                name,
-                loinc,
-                result: l
-                    .get("result")
+            if let Some(s) = l.as_str() {
+                let (name, loinc) = parse_name_code(s, "LOINC");
+                ext.labs.push(ExtLab {
+                    name,
+                    loinc,
+                    result: String::new(),
+                    result_snomed: String::new(),
+                    specimen: String::new(),
+                    lab_status: "final".into(),
+                    date: String::new(),
+                    conf: 0.9,
+                });
+            } else {
+                let name = l
+                    .get("name")
+                    .or(l.get("test"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
-                    .to_string(),
-                result_snomed: l
-                    .get("result_snomed")
+                    .to_string();
+                let loinc = l
+                    .get("loinc")
+                    .or(l.get("code"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
-                    .to_string(),
-                specimen: l
-                    .get("specimen")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                lab_status: l
-                    .get("lab_status")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("final")
-                    .to_string(),
-                date: l
-                    .get("date")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                conf,
-            });
+                    .to_string();
+                let conf = l
+                    .get("conf")
+                    .or(l.get("confidence"))
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.9);
+                ext.labs.push(ExtLab {
+                    name,
+                    loinc,
+                    result: l
+                        .get("result")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    result_snomed: l
+                        .get("result_snomed")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    specimen: l
+                        .get("specimen")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    lab_status: l
+                        .get("lab_status")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("final")
+                        .to_string(),
+                    date: l
+                        .get("date")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    conf,
+                });
+            }
         }
     }
 
-    // Meds: handle [{name, rxnorm, ...}] and [{medication, code, ...}]
+    // Meds: handle [{name, rxnorm, ...}], [{medication, code, ...}], or ["Name (RxNorm code)"]
     if let Some(meds) = v
         .get("meds")
         .or(v.get("medications"))
         .and_then(|v| v.as_array())
     {
         for m in meds {
-            let name = m
-                .get("name")
-                .or(m.get("medication"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let rxnorm = m
-                .get("rxnorm")
-                .or(m.get("code"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let conf = m
-                .get("conf")
-                .or(m.get("confidence"))
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.9);
-            ext.meds.push(ExtMed { name, rxnorm, conf });
+            if let Some(s) = m.as_str() {
+                let (name, rxnorm) = parse_name_code(s, "RxNorm");
+                ext.meds.push(ExtMed { name, rxnorm, conf: 0.9 });
+            } else {
+                let name = m
+                    .get("name")
+                    .or(m.get("medication"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let rxnorm = m
+                    .get("rxnorm")
+                    .or(m.get("code"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let conf = m
+                    .get("conf")
+                    .or(m.get("confidence"))
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.9);
+                ext.meds.push(ExtMed { name, rxnorm, conf });
+            }
         }
     }
 

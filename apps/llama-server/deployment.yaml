@@ -20,17 +20,20 @@ spec:
       containers:
         - name: llama-server
           image: 192.168.25.201:5050/llama-server:latest
+          command: ["/cuda-build/bin/llama-server"]
           args:
             - "-m"
-            - "/models/cliniq-gemma4-e2b-Q4_K_M.gguf"
+            - "/models/gemma-4-E2B-it-Q3_K_M.gguf"
+            - "--lora"
+            - "/models/cliniq-compact-lora.gguf"
             - "--port"
             - "8080"
-            - "--ctx-size"
-            - "2048"
-            - "--n-gpu-layers"
-            - "99"
             - "--host"
             - "0.0.0.0"
+            - "--ctx-size"
+            - "1024"
+            - "--n-gpu-layers"
+            - "99"
           ports:
             - containerPort: 8080
               name: api
@@ -39,23 +42,30 @@ spec:
           resources:
             requests:
               memory: "2Gi"
-              cpu: "2"
+              cpu: "1"
             limits:
-              memory: "5Gi"
-              cpu: "6"
+              memory: "7Gi"
+              cpu: "4"
           readinessProbe:
             httpGet:
               path: /health
               port: 8080
-            initialDelaySeconds: 10
-            periodSeconds: 5
+            initialDelaySeconds: 30
+            periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /health
               port: 8080
-            initialDelaySeconds: 30
-            periodSeconds: 15
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 5
+          env:
+            - name: LD_LIBRARY_PATH
+              value: "/cuda-build/lib:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/compat:/usr/local/cuda/lib64"
           volumeMounts:
+            - mountPath: /cuda-build
+              name: cuda-build
+              readOnly: true
             - mountPath: /models
               name: models
             - mountPath: /dev/nvgpu
@@ -75,6 +85,10 @@ spec:
             - mountPath: /dev/nvmap
               name: dev-nvmap
       volumes:
+        - name: cuda-build
+          hostPath:
+            path: /var/lib/cliniq/llama-build
+            type: Directory
         - name: models
           hostPath:
             path: /var/lib/ollama/models

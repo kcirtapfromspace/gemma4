@@ -370,6 +370,12 @@ SYSTEM_PROMPT = (
     "Include confidence scores. Output valid JSON only."
 )
 
+SYSTEM_PROMPT_COMPACT = (
+    "Extract clinical entities from this eICR. Output compact JSON with: "
+    "patient, encounter, conditions (SNOMED/ICD-10), labs (LOINC), "
+    "meds (RxNorm), vitals. No summary. Valid JSON only."
+)
+
 
 def compute_age(birth_date, encounter_date):
     age = encounter_date.year - birth_date.year
@@ -378,10 +384,11 @@ def compute_age(birth_date, encounter_date):
     return age
 
 
-def generate_sample(variation="normal"):
+def generate_sample(variation="normal", compact=False):
     """Generate one training sample: user input text + extraction JSON.
 
     variation: "normal", "missing", "negative_lab", "multi_condition"
+    compact: if True, produce shorter output (no summary, no conf, fewer fields)
     """
     cond = random.choice(CONDITIONS)
     # For multi-condition, pick a second different condition
@@ -458,47 +465,80 @@ def generate_sample(variation="normal"):
             return round(random.uniform(0.70, 0.85), 2)
         return round(random.uniform(low, 0.99), 2)
 
-    conditions_list = [{
-        "name": cond["name"],
-        "snomed": cond["snomed"],
-        "icd10": cond["icd10"],
-        "onset": fmt_fhir_date(onset_date, False),
-        "status": "suspected" if lab_negative else "active",
-        "conf": conf(),
-    }]
-    if cond2:
-        conditions_list.append({
-            "name": cond2["name"],
-            "snomed": cond2["snomed"],
-            "icd10": cond2["icd10"],
-            "onset": fmt_fhir_date(onset2, False),
-            "status": "active",
-            "conf": conf(),
-        })
+    if compact:
+        conditions_list = [{
+            "name": cond["name"],
+            "snomed": cond["snomed"],
+            "icd10": cond["icd10"],
+            "onset": fmt_fhir_date(onset_date, False),
+            "status": "suspected" if lab_negative else "active",
+        }]
+        if cond2:
+            conditions_list.append({
+                "name": cond2["name"],
+                "snomed": cond2["snomed"],
+                "icd10": cond2["icd10"],
+                "onset": fmt_fhir_date(onset2, False),
+                "status": "active",
+            })
 
-    labs_list = [{
-        "name": cond["lab_name"],
-        "loinc": cond["lab_loinc"],
-        "result": lab_result,
-        "result_snomed": lab_result_snomed,
-        "specimen": cond.get("specimen", "Blood"),
-        "lab_status": cond.get("lab_status", "final"),
-        "date": fmt_fhir_date(encounter_date, False),
-        "conf": conf(0.90),
-    }]
-    if cond2:
-        labs_list.append({
-            "name": cond2["lab_name"],
-            "loinc": cond2["lab_loinc"],
-            "result": cond2["lab_result_display"],
-            "result_snomed": cond2["lab_result_code"],
-            "specimen": cond2.get("specimen", "Blood"),
-            "lab_status": cond2.get("lab_status", "final"),
+        labs_list = [{
+            "name": cond["lab_name"],
+            "loinc": cond["lab_loinc"],
+            "result": lab_result,
+            "date": fmt_fhir_date(encounter_date, False),
+        }]
+        if cond2:
+            labs_list.append({
+                "name": cond2["lab_name"],
+                "loinc": cond2["lab_loinc"],
+                "result": cond2["lab_result_display"],
+                "date": fmt_fhir_date(encounter_date, False),
+            })
+
+        meds_list = [{"name": m["name"], "rxnorm": m["rxnorm"]} for m in meds]
+    else:
+        conditions_list = [{
+            "name": cond["name"],
+            "snomed": cond["snomed"],
+            "icd10": cond["icd10"],
+            "onset": fmt_fhir_date(onset_date, False),
+            "status": "suspected" if lab_negative else "active",
+            "conf": conf(),
+        }]
+        if cond2:
+            conditions_list.append({
+                "name": cond2["name"],
+                "snomed": cond2["snomed"],
+                "icd10": cond2["icd10"],
+                "onset": fmt_fhir_date(onset2, False),
+                "status": "active",
+                "conf": conf(),
+            })
+
+        labs_list = [{
+            "name": cond["lab_name"],
+            "loinc": cond["lab_loinc"],
+            "result": lab_result,
+            "result_snomed": lab_result_snomed,
+            "specimen": cond.get("specimen", "Blood"),
+            "lab_status": cond.get("lab_status", "final"),
             "date": fmt_fhir_date(encounter_date, False),
             "conf": conf(0.90),
-        })
+        }]
+        if cond2:
+            labs_list.append({
+                "name": cond2["lab_name"],
+                "loinc": cond2["lab_loinc"],
+                "result": cond2["lab_result_display"],
+                "result_snomed": cond2["lab_result_code"],
+                "specimen": cond2.get("specimen", "Blood"),
+                "lab_status": cond2.get("lab_status", "final"),
+                "date": fmt_fhir_date(encounter_date, False),
+                "conf": conf(0.90),
+            })
 
-    meds_list = [{"name": m["name"], "rxnorm": m["rxnorm"], "conf": conf(0.85)} for m in meds]
+        meds_list = [{"name": m["name"], "rxnorm": m["rxnorm"], "conf": conf(0.85)} for m in meds]
 
     vitals_obj = None
     if include_vitals:
@@ -528,6 +568,28 @@ def generate_sample(variation="normal"):
         f"Reportable condition per CSTE criteria."
     )
 
+    if compact:
+        extraction = {
+            "patient": {
+                "name": f"{first} {last}",
+                "dob": birth_date.strftime("%Y-%m-%d"),
+                "sex": gender_code,
+                "race": race_display,
+                "ethnicity": eth_display,
+                "addr": f"{city}, {state} {zipcode}",
+            },
+            "encounter": {
+                "date": fmt_fhir_date(encounter_date, False),
+                "facility": org_name,
+                "npi": org_npi,
+            },
+            "conditions": conditions_list,
+            "labs": labs_list,
+            "vitals": vitals_obj,
+            "meds": meds_list,
+        }
+        return user_input, json.dumps(extraction, separators=(",", ":"))
+
     extraction = {
         "patient": {
             "name": f"{first} {last}",
@@ -556,11 +618,12 @@ def generate_sample(variation="normal"):
     return user_input, json.dumps(extraction, separators=(",", ":"))
 
 
-def build_conversation(user_input, extraction_json):
+def build_conversation(user_input, extraction_json, compact=False):
     """Format as a chat conversation for Unsloth SFT."""
+    prompt = SYSTEM_PROMPT_COMPACT if compact else SYSTEM_PROMPT
     return {
         "conversations": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": prompt},
             {"role": "user", "content": user_input},
             {"role": "assistant", "content": extraction_json},
         ]
@@ -568,8 +631,20 @@ def build_conversation(user_input, extraction_json):
 
 
 def main():
-    random.seed(42)
-    num_samples = 1000
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate ClinIQ training data")
+    parser.add_argument("--compact", action="store_true",
+                        help="Generate compact output (no summary, no conf, fewer fields)")
+    parser.add_argument("--samples", type=int, default=1000, help="Number of samples")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    args = parser.parse_args()
+
+    random.seed(args.seed)
+    num_samples = args.samples
+    compact = args.compact
+
+    suffix = "-compact" if compact else ""
+    print(f"Generating {num_samples} {'compact' if compact else 'verbose'} samples...")
 
     dataset = []
     for i in range(num_samples):
@@ -584,8 +659,8 @@ def main():
         else:
             variation = "normal"
 
-        user_input, extraction = generate_sample(variation)
-        conv = build_conversation(user_input, extraction)
+        user_input, extraction = generate_sample(variation, compact=compact)
+        conv = build_conversation(user_input, extraction, compact=compact)
         dataset.append(conv)
 
     # Write training set (80%) and validation set (20%)
@@ -593,17 +668,20 @@ def main():
     train = dataset[:split]
     val = dataset[split:]
 
-    with open("data/train.jsonl", "w") as f:
+    train_path = f"data/train{suffix}.jsonl"
+    val_path = f"data/val{suffix}.jsonl"
+
+    with open(train_path, "w") as f:
         for item in train:
             f.write(json.dumps(item) + "\n")
 
-    with open("data/val.jsonl", "w") as f:
+    with open(val_path, "w") as f:
         for item in val:
             f.write(json.dumps(item) + "\n")
 
     # Show stats
-    print(f"Generated {len(train)} training samples → data/train.jsonl")
-    print(f"Generated {len(val)} validation samples → data/val.jsonl")
+    print(f"Generated {len(train)} training samples → {train_path}")
+    print(f"Generated {len(val)} validation samples → {val_path}")
     print(f"Conditions covered: {len(CONDITIONS)}")
 
     # Spot-check token estimate on first sample

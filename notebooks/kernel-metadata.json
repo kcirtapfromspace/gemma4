@@ -7,7 +7,10 @@
   "is_private": true,
   "enable_gpu": true,
   "enable_internet": true,
-  "dataset_sources": ["patrickdeutsch/eicr-fhir-training-data"],
+  "dataset_sources": [
+    "patrickdeutsch/eicr-fhir-training-data"
+  ],
   "competition_sources": [],
-  "kernel_sources": []
+  "kernel_sources": [],
+  "model_sources": []
 }

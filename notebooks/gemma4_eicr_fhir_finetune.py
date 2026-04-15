@@ -16,6 +16,8 @@ Upload training data (train.jsonl, val.jsonl) as a Kaggle dataset first.
 """
 
 # %%
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Force single GPU to avoid batch doubling
 # !pip install unsloth
 # !pip install --no-deps trl peft accelerate bitsandbytes
 
@@ -26,12 +28,12 @@ Upload training data (train.jsonl, val.jsonl) as a Kaggle dataset first.
 from unsloth import FastLanguageModel
 import torch
 
-max_seq_length = 1024  # Extraction JSON samples are ~600 tokens
+max_seq_length = 512  # Compact output ~150 tokens + prompt ~150 = ~300 total
 dtype = None  # auto-detect (bfloat16 on A100)
 load_in_4bit = True  # QLoRA for memory efficiency
 
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name="unsloth/gemma-4-E4B-it",
+    model_name="unsloth/gemma-4-E2B-it",
     max_seq_length=max_seq_length,
     dtype=dtype,
     load_in_4bit=load_in_4bit,
@@ -61,17 +63,50 @@ model = FastLanguageModel.get_peft_model(
 # %%
 from datasets import load_dataset
 
-# If running on Kaggle, upload train.jsonl and val.jsonl as a dataset
-# and update the path below
+import os
+
+COMPACT = True  # Set to True for compact output (fewer tokens, faster inference)
 DATASET_PATH = "/kaggle/input/eicr-fhir-training-data"
 
+# Debug: list all available Kaggle inputs
+input_dir = "/kaggle/input"
+if os.path.exists(input_dir):
+    print(f"Kaggle inputs: {os.listdir(input_dir)}")
+    for d in os.listdir(input_dir):
+        full = os.path.join(input_dir, d)
+        if os.path.isdir(full):
+            print(f"  {d}/: {os.listdir(full)}")
+
+# Fallback: try alternative Kaggle mount paths
+if not os.path.exists(DATASET_PATH):
+    for alt in ["/kaggle/input/datasets/patrickdeutsch/eicr-fhir-training-data",
+                "/kaggle/input/datasets"]:
+        if os.path.exists(alt):
+            DATASET_PATH = alt
+            print(f"Using alternative path: {DATASET_PATH}")
+            break
+
+suffix = "-compact" if COMPACT else ""
+train_file = f"{DATASET_PATH}/train{suffix}.jsonl"
+val_file = f"{DATASET_PATH}/val{suffix}.jsonl"
+if not os.path.exists(train_file):
+    print(f"WARNING: {train_file} not found, trying verbose")
+    COMPACT = False
+    suffix = ""
+    train_file = f"{DATASET_PATH}/train.jsonl"
+    val_file = f"{DATASET_PATH}/val.jsonl"
+
 dataset = load_dataset("json", data_files={
-    "train": f"{DATASET_PATH}/train.jsonl",
-    "validation": f"{DATASET_PATH}/val.jsonl",
+    "train": train_file,
+    "validation": val_file,
 })
 
-print(f"Train: {len(dataset['train'])} samples")
-print(f"Val: {len(dataset['validation'])} samples")
+print(f"Dataset: {DATASET_PATH}")
+print(f"Train: {len(dataset['train'])}  Val: {len(dataset['validation'])}")
+# Verify we loaded the right data
+sample_prompt = dataset['train'][0]['conversations'][0]['content']
+print(f"System prompt: {sample_prompt[:80]}...")
+assert "No summary" in sample_prompt or not COMPACT, "COMPACT=True but loaded verbose data!"
 
 # %% [markdown]
 # ## 5. Format Dataset for Chat Template
@@ -115,10 +150,10 @@ trainer = SFTTrainer(
     dataset_text_field="text",
     max_seq_length=max_seq_length,
     dataset_num_proc=2,
-    packing=True,  # Pack short sequences for throughput
+    packing=True,
     args=TrainingArguments(
-        per_device_train_batch_size=4,
-        gradient_accumulation_steps=4,
+        per_device_train_batch_size=1,
+        gradient_accumulation_steps=8,
         warmup_steps=10,
         num_train_epochs=5,
         learning_rate=1e-4,
@@ -139,99 +174,57 @@ trainer = SFTTrainer(
 )
 
 # %%
+import torch
+props = torch.cuda.get_device_properties(0)
+total_mem = getattr(props, 'total_memory', None) or getattr(props, 'total_mem', 0)
+print(f"GPU = {torch.cuda.get_device_name(0)}. Max memory = {total_mem / 1024**3:.3f} GB.")
+print(f"{torch.cuda.memory_reserved() / 1024**3:.3f} GB of memory reserved.")
+
 trainer_stats = trainer.train()
-print(f"Training loss: {trainer_stats.training_loss:.4f}")
-print(f"Training time: {trainer_stats.metrics['train_runtime']:.1f}s")
+runtime = trainer_stats.metrics['train_runtime']
+print(f"{runtime:.0f}s training time")
+peak = torch.cuda.max_memory_reserved() / 1024**3
+used = (torch.cuda.max_memory_reserved() - torch.cuda.memory_reserved()) / 1024**3
+print(f"Peak memory = {peak:.3f} GB (training used {used:.3f} GB)")
+print(f"Loss: {trainer_stats.training_loss:.4f}")
+if runtime < 600:
+    print("Quick proof complete — increase max_steps for full training")
 
 # %% [markdown]
 # ## 7. Test Inference
 
 # %%
-FastLanguageModel.for_inference(model)
-
-test_input = """Patient: Maria Garcia
-Gender: F
-DOB: 1985-06-14
-Race: White
-Ethnicity: Hispanic or Latino
-Location: Denver, CO 80202
-Phone: +1-303-555-0142
-Facility: Denver Health Medical Center (NPI: 1234567800)
-Encounter: 2026-03-15
-Reason: fever (39.2C), dry cough for 5 days, shortness of breath
-Dx: COVID-19 (SNOMED 840539006)
-Lab: SARS-CoV-2 RNA NAA+probe Ql (Resp) (LOINC 94500-6) - Detected
-Vitals: Temp 39.2C, HR 92, RR 20, SpO2 95%, BP 128
-Meds: nirmatrelvir 150 MG / ritonavir 100 MG (RxNorm 2599543)"""
-
-messages = [
-    {"role": "system", "content": "Extract clinical entities from this eICR summary. Output JSON with: patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), medications (RxNorm), vitals, and a case summary. Include confidence scores. Output valid JSON only."},
-    {"role": "user", "content": test_input},
-]
-
-inputs = tokenizer.apply_chat_template(
-    messages,
-    tokenize=True,
-    add_generation_prompt=True,
-    return_tensors="pt",
-).to("cuda")
-
-outputs = model.generate(
-    input_ids=inputs,
-    max_new_tokens=512,
-    temperature=0.1,
-    top_p=0.9,
-)
-
-response = tokenizer.decode(outputs[0][inputs.shape[-1]:], skip_special_tokens=True)
-print("=== Raw response ===")
-print(response)
-
-# Validate JSON
-import json
+# Quick inference test (wrapped in try/except so save always runs)
 try:
-    extraction = json.loads(response)
-    print("\n=== Parsed extraction ===")
-    print(json.dumps(extraction, indent=2))
-    print(f"\nConditions: {[c['name'] for c in extraction.get('conditions', [])]}")
-    print(f"Summary: {extraction.get('summary', 'N/A')}")
-except json.JSONDecodeError as e:
-    print(f"\nJSON parse error: {e}")
+    FastLanguageModel.for_inference(model)
+    test_input = "Patient: Maria Garcia\nGender: F\nDOB: 1985-06-14\nLocation: Denver, CO 80202\nDx: COVID-19 (SNOMED 840539006)\nLab: SARS-CoV-2 RNA (LOINC 94500-6) - Detected\nMeds: nirmatrelvir (RxNorm 2599543)"
+    sys_prompt = "Extract clinical entities from this eICR. Output compact JSON with: patient, encounter, conditions (SNOMED), labs (LOINC), meds (RxNorm), vitals. No summary. Valid JSON only." if COMPACT else "Extract clinical entities from this eICR summary. Output JSON with: patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), medications (RxNorm), vitals, and a case summary. Include confidence scores. Output valid JSON only."
+    inputs = tokenizer.apply_chat_template([{"role": "system", "content": sys_prompt}, {"role": "user", "content": test_input}], tokenize=True, add_generation_prompt=True, return_tensors="pt").to("cuda")
+    outputs = model.generate(input_ids=inputs, max_new_tokens=512, temperature=0.1, top_p=0.9)
+    response = tokenizer.decode(outputs[0][inputs.shape[-1]:], skip_special_tokens=True)
+    print("=== Model output ===")
+    print(response[:500])
+except Exception as e:
+    print(f"Inference test failed: {e}")
 
 # %% [markdown]
 # ## 8. Save & Export
 
 # %%
 # Save LoRA adapter
-model.save_pretrained("gemma4-eicr-fhir-lora")
-tokenizer.save_pretrained("gemma4-eicr-fhir-lora")
+import os
+tag = "-compact" if COMPACT else ""
+lora_dir = "cliniq_lora"
+model.save_pretrained(lora_dir)
+tokenizer.save_pretrained(lora_dir)
+lora_size = sum(os.path.getsize(os.path.join(lora_dir, f)) for f in os.listdir(lora_dir) if os.path.isfile(os.path.join(lora_dir, f)))
+print(f"LoRA saved to {lora_dir}/ — {lora_size / 1024 / 1024:.1f} MB ({len(os.listdir(lora_dir))} files)")
 
-# Merge and save full model
-model.save_pretrained_merged(
-    "gemma4-eicr-fhir-merged",
-    tokenizer,
-    save_method="merged_16bit",
-)
-
-# Export to GGUF for Ollama/llama.cpp deployment on Jetson
-# Q4_K_M is ~3GB, fits well in 8GB Jetson Orin Nano
-model.save_pretrained_gguf(
-    "gemma4-eicr-fhir-gguf",
-    tokenizer,
-    quantization_method="q4_k_m",
-)
-
-# Also export Q8_0 for higher quality if memory permits
-model.save_pretrained_gguf(
-    "gemma4-eicr-fhir-gguf-q8",
-    tokenizer,
-    quantization_method="q8_0",
-)
-
-print("Export complete!")
-print("Files ready for deployment:")
-print("  - gemma4-eicr-fhir-gguf/  (Q4_K_M, ~3GB, recommended for Jetson)")
-print("  - gemma4-eicr-fhir-gguf-q8/  (Q8_0, ~4.5GB, higher quality)")
+# GGUF export skipped — T4 doesn't have enough disk space for merge+export.
+# Use convert_lora_to_gguf.py locally with the downloaded LoRA adapter:
+#   python /tmp/llama-cpp-tools/convert_lora_to_gguf.py cliniq_lora/ --outfile model.gguf --base-model-id unsloth/gemma-4-E2B-it
+# Then apply at runtime: llama-server -m base.gguf --lora model.gguf
+print("Download cliniq_lora/ from Output tab for local GGUF conversion")
 
 # %% [markdown]
 # ## 9. Upload to HuggingFace (optional)

@@ -14,9 +14,11 @@ RUN git clone --depth 1 https://github.com/ggml-org/llama.cpp.git
 
 WORKDIR /build/llama.cpp
 RUN cmake -B build \
-    -DGGML_CUDA=OFF \
+    -DGGML_CUDA=ON \
+    -DCMAKE_CUDA_ARCHITECTURES="87" \
     -DCMAKE_BUILD_TYPE=Release \
     -DLLAMA_CURL=ON \
+    -DGGML_CUDA_FA_ALL_QUANTS=ON \
     && cmake --build build --target llama-server -j$(nproc)
 
 # Runtime stage — same base for Tegra CUDA libs
@@ -25,6 +27,8 @@ FROM 192.168.25.201:5050/ollama-jetson:r36.4.0
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libcurl4-openssl-dev \
     && rm -rf /var/lib/apt/lists/*
+
+ENV LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/compat:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
 
 COPY --from=builder /build/llama.cpp/build/bin/llama-server /usr/local/bin/llama-server
 RUN --mount=from=builder,source=/build/llama.cpp/build,target=/build \

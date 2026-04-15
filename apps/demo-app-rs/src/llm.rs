@@ -5,10 +5,9 @@ use serde_json::json;
 
 use crate::config::{Config, LlmBackend};
 
-const SYSTEM_PROMPT: &str = "Extract clinical entities from this eICR summary. Output JSON with: \
-    patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), \
-    medications (RxNorm), vitals, and a case summary. \
-    Include confidence scores. Output valid JSON only.";
+const SYSTEM_PROMPT: &str = "Extract clinical entities from this eICR. Output compact JSON with: \
+    patient, encounter, conditions (SNOMED), labs (LOINC), \
+    meds (RxNorm), vitals. No summary. Valid JSON only.";
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct LlmResponse {
