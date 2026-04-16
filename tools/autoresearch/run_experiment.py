@@ -33,8 +33,10 @@ TEST_CASES = REPO_ROOT / "scripts" / "test_cases.jsonl"
 # To apply these, the agent must kubectl delete/apply the deployment
 # with updated args. Set to None to skip server restart.
 SERVER_ARGS = {
-    "ctx_size": 2048,
+    "ctx_size": 1024,
     "n_gpu_layers": 99,
+    "batch_size": 256,
+    "ubatch_size": 128,
     "reasoning_budget": 0,
     "lora": "/models/cliniq-compact-lora.gguf",
 }
