@@ -35,12 +35,10 @@ TEST_CASES = REPO_ROOT / "scripts" / "test_cases.jsonl"
 SERVER_ARGS = {
     "ctx_size": 1536,
     "n_gpu_layers": 99,
-    "reasoning_budget": 0,
-    "lora": "/models/cliniq-compact-lora.gguf",
 }
 
 # Model file on Jetson (under /var/lib/ollama/models/)
-MODEL_FILE = "gemma-4-E2B-it-Q3_K_M.gguf"
+MODEL_FILE = "cliniq-gemma4-e2b-Q3_K_M.gguf"
 
 # Client-side params (no server restart needed)
 SYSTEM_PROMPT = (

@@ -12,3 +12,4 @@ commit	gen_tok_s	extraction_score	prompt_tok_s	status	description
 cec3cde	1.323	0.80	27.0	discard	batch256/ubatch128 + noreasoning: hurt gen AND prompt speed
 e58d93c	1.436	0.33	40.9	discard	compact prompt + max_tokens=512: prompt too terse, killed quality
 653437c	1.443	1.00	30.5	keep	nostream + noreasoning + ctx1024: 4/5 cases perfect, complex case timeout (ctx limit)
+bc56e07	1.413	1.00	41.2	keep	ctx1536 + nostream + noreasoning: ALL 5 CASES PERFECT, 3.5% faster than baseline
