@@ -35,8 +35,6 @@ TEST_CASES = REPO_ROOT / "scripts" / "test_cases.jsonl"
 SERVER_ARGS = {
     "ctx_size": 1024,
     "n_gpu_layers": 99,
-    "batch_size": 256,
-    "ubatch_size": 128,
     "reasoning_budget": 0,
     "lora": "/models/cliniq-compact-lora.gguf",
 }
@@ -46,12 +44,10 @@ MODEL_FILE = "gemma-4-E2B-it-Q3_K_M.gguf"
 
 # Client-side params (no server restart needed)
 SYSTEM_PROMPT = (
-    "Extract clinical entities from this eICR summary. Output JSON with: "
-    "patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), "
-    "medications (RxNorm), vitals, and a case summary. "
-    "Output valid JSON only."
+    "Extract: patient, conditions(snomed,icd10), labs(loinc), "
+    "meds(rxnorm), vitals from this eICR. JSON only."
 )
-MAX_TOKENS = 1024
+MAX_TOKENS = 512
 RUNS_PER_CASE = 1          # keep at 1 for fast iteration, increase for final validation
 WARMUP = 0                 # set to 1 for more stable results
 
