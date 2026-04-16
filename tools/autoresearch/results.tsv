@@ -1,0 +1,7 @@
+commit	gen_tok_s	extraction_score	prompt_tok_s	status	description
+8070289	1.331	1.00	43.4	keep	baseline Q4_K_M (3.2GB)
+8070289	1.453	1.00	44.0	keep	Q3_K_M + no-confidence prompt (current best)
+8070289	1.336	0.38	43.6	discard	Q3_K_S (quality dropped to 0.38)
+8070289	1.290	1.00	40.1	discard	IQ4_XS (slower gen than Q4_K_M)
+8070289	0.390	1.00	1.2	discard	CUDA binary with 0 GPU layers (3.6x slower)
+8070289	0.850	1.00	22.6	discard	flash-attn + kv-cache quant (HURT on unified memory)
