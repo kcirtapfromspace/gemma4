@@ -36,6 +36,7 @@ SERVER_ARGS = {
     "ctx_size": 1024,
     "n_gpu_layers": 99,
     "threads": 1,
+    "lora": "/models/cliniq-compact-lora.gguf",
 }
 
 # Model file on Jetson (under /var/lib/ollama/models/)
@@ -79,6 +80,8 @@ def build_server_command_args() -> list[str]:
         args += ["--ubatch-size", str(SERVER_ARGS["ubatch_size"])]
     if SERVER_ARGS.get("flash_attn"):
         args += ["--flash-attn"]
+    if SERVER_ARGS.get("lora"):
+        args += ["--lora", SERVER_ARGS["lora"]]
     if SERVER_ARGS.get("model_draft"):
         args += ["--model-draft", SERVER_ARGS["model_draft"]]
     return args
