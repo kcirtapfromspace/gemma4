@@ -34,6 +34,8 @@ spec:
             - "1024"
             - "--n-gpu-layers"
             - "99"
+            - "--reasoning-budget"
+            - "0"
           ports:
             - containerPort: 8080
               name: api

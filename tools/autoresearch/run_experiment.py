@@ -35,8 +35,7 @@ TEST_CASES = REPO_ROOT / "scripts" / "test_cases.jsonl"
 SERVER_ARGS = {
     "ctx_size": 1024,
     "n_gpu_layers": 99,
-    "batch_size": 256,
-    "ubatch_size": 128,
+    "reasoning_budget": 0,
     "lora": "/models/cliniq-compact-lora.gguf",
 }
 
@@ -81,6 +80,8 @@ def build_server_command_args() -> list[str]:
         args += ["--ubatch-size", str(SERVER_ARGS["ubatch_size"])]
     if SERVER_ARGS.get("flash_attn"):
         args += ["--flash-attn"]
+    if SERVER_ARGS.get("reasoning_budget") is not None:
+        args += ["--reasoning-budget", str(SERVER_ARGS["reasoning_budget"])]
     if SERVER_ARGS.get("lora"):
         args += ["--lora", SERVER_ARGS["lora"]]
     if SERVER_ARGS.get("model_draft"):
