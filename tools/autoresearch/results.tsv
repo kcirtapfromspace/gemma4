@@ -7,3 +7,4 @@ commit	gen_tok_s	extraction_score	prompt_tok_s	status	description
 8070289	0.850	1.00	22.6	discard	flash-attn + kv-cache quant (HURT on unified memory)
 4bf0566	1.365	1.00	44.4	keep	ctx1024 + Q3_K_M + LoRA baseline (actual deployment config)
 3089c26	1.389	0.00	44.4	discard	threads=1 broke output assembly (truncated JSON)
+337c999	1.421	0.85	37.0	keep	reasoning-budget=0: all valid JSON, 32% faster wall-clock, 1 case low score
