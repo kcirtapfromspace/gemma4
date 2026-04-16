@@ -10,3 +10,4 @@ commit	gen_tok_s	extraction_score	prompt_tok_s	status	description
 337c999	1.421	0.85	37.0	keep	reasoning-budget=0: all valid JSON, 32% faster wall-clock, 1 case low score
 3d67ad7	1.329	0.98	39.5	keep	ctx2048 + reasoning-budget=0: fixed complex case (0.98 score) but 6.5% slower gen
 cec3cde	1.323	0.80	27.0	discard	batch256/ubatch128 + noreasoning: hurt gen AND prompt speed
+e58d93c	1.436	0.33	40.9	discard	compact prompt + max_tokens=512: prompt too terse, killed quality

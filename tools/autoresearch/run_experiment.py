@@ -44,10 +44,13 @@ MODEL_FILE = "gemma-4-E2B-it-Q3_K_M.gguf"
 
 # Client-side params (no server restart needed)
 SYSTEM_PROMPT = (
-    "Extract: patient, conditions(snomed,icd10), labs(loinc), "
-    "meds(rxnorm), vitals from this eICR. JSON only."
+    "Extract clinical entities from this eICR summary. Output JSON with: "
+    "patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), "
+    "medications (RxNorm), vitals, and a case summary. "
+    "Output valid JSON only."
 )
-MAX_TOKENS = 512
+MAX_TOKENS = 1024
+USE_STREAMING = False       # non-streaming avoids chunk loss
 RUNS_PER_CASE = 1          # keep at 1 for fast iteration, increase for final validation
 WARMUP = 0                 # set to 1 for more stable results
 
@@ -198,6 +201,9 @@ def run_benchmark(endpoint: str, name: str) -> dict:
 
     if SYSTEM_PROMPT:
         cmd += ["--system-prompt", SYSTEM_PROMPT]
+
+    if not USE_STREAMING:
+        cmd += ["--no-stream"]
 
     print(f"\nRunning benchmark: {' '.join(cmd[:6])}...")
     t_start = time.time()
