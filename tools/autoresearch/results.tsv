@@ -6,3 +6,4 @@ commit	gen_tok_s	extraction_score	prompt_tok_s	status	description
 8070289	0.390	1.00	1.2	discard	CUDA binary with 0 GPU layers (3.6x slower)
 8070289	0.850	1.00	22.6	discard	flash-attn + kv-cache quant (HURT on unified memory)
 4bf0566	1.365	1.00	44.4	keep	ctx1024 + Q3_K_M + LoRA baseline (actual deployment config)
+3089c26	1.389	0.00	44.4	discard	threads=1 broke output assembly (truncated JSON)
