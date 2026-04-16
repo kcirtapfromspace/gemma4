@@ -37,7 +37,6 @@ SERVER_ARGS = {
     "n_gpu_layers": 99,
     "reasoning_budget": 0,
     "lora": "/models/cliniq-compact-lora.gguf",
-    "mlock": True,
     "cache_type_k": "q4_0",
     "cache_type_v": "q4_0",
 }
