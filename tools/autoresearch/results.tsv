@@ -13,3 +13,4 @@ cec3cde	1.323	0.80	27.0	discard	batch256/ubatch128 + noreasoning: hurt gen AND p
 e58d93c	1.436	0.33	40.9	discard	compact prompt + max_tokens=512: prompt too terse, killed quality
 653437c	1.443	1.00	30.5	keep	nostream + noreasoning + ctx1024: 4/5 cases perfect, complex case timeout (ctx limit)
 bc56e07	1.413	1.00	41.2	keep	ctx1536 + nostream + noreasoning: ALL 5 CASES PERFECT, 3.5% faster than baseline
+af2dc83	1.323	1.00	44.1	discard	fine-tuned Q3_K_M (3.0GB no LoRA): 6.4% slower than base+LoRA (2.5GB)

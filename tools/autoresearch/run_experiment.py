@@ -35,10 +35,15 @@ TEST_CASES = REPO_ROOT / "scripts" / "test_cases.jsonl"
 SERVER_ARGS = {
     "ctx_size": 1536,
     "n_gpu_layers": 99,
+    "reasoning_budget": 0,
+    "lora": "/models/cliniq-compact-lora.gguf",
+    "mlock": True,
+    "cache_type_k": "q4_0",
+    "cache_type_v": "q4_0",
 }
 
 # Model file on Jetson (under /var/lib/ollama/models/)
-MODEL_FILE = "cliniq-gemma4-e2b-Q3_K_M.gguf"
+MODEL_FILE = "gemma-4-E2B-it-Q3_K_M.gguf"
 
 # Client-side params (no server restart needed)
 SYSTEM_PROMPT = (
@@ -81,6 +86,12 @@ def build_server_command_args() -> list[str]:
         args += ["--flash-attn"]
     if SERVER_ARGS.get("reasoning_budget") is not None:
         args += ["--reasoning-budget", str(SERVER_ARGS["reasoning_budget"])]
+    if SERVER_ARGS.get("mlock"):
+        args += ["--mlock"]
+    if SERVER_ARGS.get("cache_type_k"):
+        args += ["--cache-type-k", SERVER_ARGS["cache_type_k"]]
+    if SERVER_ARGS.get("cache_type_v"):
+        args += ["--cache-type-v", SERVER_ARGS["cache_type_v"]]
     if SERVER_ARGS.get("lora"):
         args += ["--lora", SERVER_ARGS["lora"]]
     if SERVER_ARGS.get("model_draft"):
