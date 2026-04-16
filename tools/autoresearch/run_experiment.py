@@ -35,6 +35,7 @@ TEST_CASES = REPO_ROOT / "scripts" / "test_cases.jsonl"
 SERVER_ARGS = {
     "ctx_size": 1024,
     "n_gpu_layers": 99,
+    "threads": 1,
 }
 
 # Model file on Jetson (under /var/lib/ollama/models/)
