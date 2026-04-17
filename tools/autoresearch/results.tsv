@@ -22,3 +22,4 @@ bf02c86	1.135	0.80	39.7	keep	post-cooldown retest: sustained gen ~1.14 (thermal)
 c961862	0.000	0.00	0.0	crash	ctx768: too small, all cases failed (prompts 287-435 tokens)
 966c41c	1.494	1.00	57.0	keep	pre-LTO baseline parallel=1: only 1/5 case (build competing), but 1.494 gen tok/s BEST EVER
 966c41c	1.179	0.80	39.8	discard	LTO + ARMv8.6a build: no gen improvement (1.179 vs 1.166), bandwidth-limited not compute-limited
+cbadde6	0.000	0.00	0.0	crash	speculative decoding: SKIPPED — Gemma family doesn't speculate well (models not distilled)
