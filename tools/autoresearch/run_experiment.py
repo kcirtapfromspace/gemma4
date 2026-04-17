@@ -37,8 +37,6 @@ SERVER_ARGS = {
     "n_gpu_layers": 99,
     "reasoning_budget": 0,
     "lora": "/models/cliniq-compact-lora.gguf",
-    "cache_type_k": "q4_0",
-    "cache_type_v": "q4_0",
 }
 
 # Model file on Jetson (under /var/lib/ollama/models/)
@@ -53,8 +51,8 @@ SYSTEM_PROMPT = (
 )
 MAX_TOKENS = 1024
 USE_STREAMING = False       # non-streaming avoids chunk loss
-RUNS_PER_CASE = 1          # keep at 1 for fast iteration, increase for final validation
-WARMUP = 0                 # set to 1 for more stable results
+RUNS_PER_CASE = 3          # validation run: 3 reps for stable numbers
+WARMUP = 1                 # 1 warmup for stable results
 
 # Quantization label for tracking
 QUANTIZATION = "Q3_K_M"
