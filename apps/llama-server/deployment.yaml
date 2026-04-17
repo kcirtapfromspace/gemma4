@@ -36,6 +36,8 @@ spec:
             - "99"
             - "--reasoning-budget"
             - "0"
+            - "--parallel"
+            - "1"
           ports:
             - containerPort: 8080
               name: api
