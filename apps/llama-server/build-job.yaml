@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: build-llama-server
+  name: build-llama-server-lto
   namespace: gemma4
 spec:
   backoffLimit: 0
@@ -41,7 +41,10 @@ spec:
                 -DGGML_CUDA=ON \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DLLAMA_CURL=ON \
-                -DCMAKE_CUDA_ARCHITECTURES="87"
+                -DCMAKE_CUDA_ARCHITECTURES="87" \
+                -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+                -DCMAKE_C_FLAGS="-march=armv8.6-a+dotprod+fp16+i8mm" \
+                -DCMAKE_CXX_FLAGS="-march=armv8.6-a+dotprod+fp16+i8mm"
               cmake --build build --target llama-server -j4
 
               # Copy binary + libs to the shared volume

@@ -19,3 +19,4 @@ a7106c2	1.190	0.78	1.2	discard	validation 3x: gen=1.19 (thermal throttle?), scor
 bf02c86	1.135	0.80	39.7	keep	post-cooldown retest: sustained gen ~1.14 (thermal), score 0.80 (complex case markdown fenced)
 4c58bf8	1.156	0.33	37.1	discard	anti-markdown prompt: made things worse, only 3/5 cases, truncated outputs
 5e14f06	1.166	0.99	31.2	keep	parallel=1: fixed 4-slot KV bloat, 3/5 cases, score 0.99
+c961862	0.000	0.00	0.0	crash	ctx768: too small, all cases failed (prompts 287-435 tokens)
