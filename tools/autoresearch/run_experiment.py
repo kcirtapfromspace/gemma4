@@ -37,6 +37,7 @@ SERVER_ARGS = {
     "n_gpu_layers": 99,
     "reasoning_budget": 0,
     "parallel": 1,
+    "poll": 0,
     "lora": "/models/cliniq-compact-lora.gguf",
 }
 
@@ -86,6 +87,8 @@ def build_server_command_args() -> list[str]:
         args += ["--reasoning-budget", str(SERVER_ARGS["reasoning_budget"])]
     if SERVER_ARGS.get("parallel"):
         args += ["--parallel", str(SERVER_ARGS["parallel"])]
+    if SERVER_ARGS.get("poll") is not None:
+        args += ["--poll", str(SERVER_ARGS["poll"])]
     if SERVER_ARGS.get("mlock"):
         args += ["--mlock"]
     if SERVER_ARGS.get("cache_type_k"):
