@@ -47,7 +47,7 @@ SYSTEM_PROMPT = (
     "Extract clinical entities from this eICR summary. Output JSON with: "
     "patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), "
     "medications (RxNorm), vitals, and a case summary. "
-    "Output raw JSON only. No markdown, no code fences, no explanation."
+    "Output valid JSON only."
 )
 MAX_TOKENS = 1024
 USE_STREAMING = False       # non-streaming avoids chunk loss
