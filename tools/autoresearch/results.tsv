@@ -15,3 +15,4 @@ e58d93c	1.436	0.33	40.9	discard	compact prompt + max_tokens=512: prompt too ters
 bc56e07	1.413	1.00	41.2	keep	ctx1536 + nostream + noreasoning: ALL 5 CASES PERFECT, 3.5% faster than baseline
 af2dc83	1.323	1.00	44.1	discard	fine-tuned Q3_K_M (3.0GB no LoRA): 6.4% slower than base+LoRA (2.5GB)
 0bc8fc7	0.830	0.67	34.2	discard	KV cache q4_0: 41% SLOWER, dequant overhead kills perf on unified memory
+a7106c2	1.190	0.78	1.2	discard	validation 3x: gen=1.19 (thermal throttle?), score=0.78 (intermittent quality)

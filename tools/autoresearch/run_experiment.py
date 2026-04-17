@@ -51,8 +51,8 @@ SYSTEM_PROMPT = (
 )
 MAX_TOKENS = 1024
 USE_STREAMING = False       # non-streaming avoids chunk loss
-RUNS_PER_CASE = 3          # validation run: 3 reps for stable numbers
-WARMUP = 1                 # 1 warmup for stable results
+RUNS_PER_CASE = 1          # keep at 1 for fast iteration
+WARMUP = 0                 # set to 1 for more stable results
 
 # Quantization label for tracking
 QUANTIZATION = "Q3_K_M"
