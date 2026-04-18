@@ -101,3 +101,22 @@ gen_tok_s:          1.09
 extraction_score:   0.00
 status:             discard
 description:        Q2_K quantization degrades model beyond usefulness — garbled repetitive output, invalid JSON. File is 2.8GB (bigger than base+LoRA at 2.45GB due to merged weights).
+
+---
+exp25: compact output prompt (no summary, minified JSON, all-arrays)
+gen_tok_s:          1.15
+extraction_score:   1.00
+avg_latency_ms:     220265
+status:             keep
+description:        Compact prompt: no summary, minified JSON, array emphasis, max_tokens=512. Reduces output from ~436 to ~164 tokens (62% fewer). Avg latency 220s vs 351s baseline (37% faster). Quality 1.00 (5/5). Prompt: "Extract clinical entities from this eICR. Return minified JSON: {...}. All sections are arrays. Include SNOMED/LOINC/RxNorm. No summary. No markdown. JSON only."
+
+---
+exp26: clock investigation — Jetson in 7W power mode
+status:             diagnostic
+description:        MAJOR FINDING via debugfs/bpmp: Jetson running in 7W power mode.
+  EMC (memory): 2133 MHz (max 3200 MHz in 15W = +50% bandwidth)
+  GPU: 625 MHz (max 1020 MHz in 15W = +63% compute)
+  EMC bandwidth at 2133 MHz: ~34 GB/s (vs 68 GB/s at 3200 MHz)
+  Theoretical max at current clocks: 34/2.4 = ~14 tok/s (still 10x above actual)
+  max_rate is firmware-locked by BPMP, needs nvpmodel to unlock.
+  nvpmodel not available on Talos Linux — requires extension or init container.

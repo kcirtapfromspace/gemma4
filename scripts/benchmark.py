@@ -251,12 +251,15 @@ def run_inference_sync(endpoint: str, user_prompt: str, system_prompt: str, max_
 
 
 def _strip_markdown_fences(text: str) -> str:
-    """Remove markdown code block wrappers if present."""
+    """Remove markdown code block wrappers and trailing artifacts if present."""
     text = text.strip()
     if text.startswith("```"):
         lines = text.split("\n")
         lines = [l for l in lines if not l.strip().startswith("```")]
         text = "\n".join(lines).strip()
+    # Strip trailing non-JSON characters (tokenizer artifacts like "-", "<|turn>")
+    while text and text[-1] not in ']}"0123456789trufalsen':
+        text = text[:-1]
     return text
 
 
