@@ -1,0 +1,78 @@
+name: jetson-nvpmodel
+container:
+  entrypoint: ./run-nvpmodel.sh
+  mounts:
+    # System libraries (libc, ld-linux)
+    - source: /lib
+      destination: /lib
+      type: bind
+      options:
+        - bind
+        - ro
+    - source: /usr/lib
+      destination: /usr/lib
+      type: bind
+      options:
+        - bind
+        - ro
+    # GPU device nodes for nvpmodel
+    - source: /dev/nvgpu
+      destination: /dev/nvgpu
+      type: bind
+      options:
+        - bind
+        - rw
+    - source: /dev/nvhost-ctrl-gpu
+      destination: /dev/nvhost-ctrl-gpu
+      type: bind
+      options:
+        - bind
+        - rw
+    - source: /dev/nvhost-gpu
+      destination: /dev/nvhost-gpu
+      type: bind
+      options:
+        - bind
+        - rw
+    # GPU sysfs for power gating and clock control
+    - source: /sys/devices/platform/gpu.0
+      destination: /sys/devices/platform/gpu.0
+      type: bind
+      options:
+        - bind
+        - rw
+    - source: /sys/devices/platform/17000000.gpu
+      destination: /sys/devices/platform/17000000.gpu
+      type: bind
+      options:
+        - bind
+        - rw
+    # CPU sysfs for online/frequency control
+    - source: /sys/devices/system/cpu
+      destination: /sys/devices/system/cpu
+      type: bind
+      options:
+        - bind
+        - rw
+    # BPMP debugfs for clock verification
+    - source: /sys/kernel/debug
+      destination: /sys/kernel/debug
+      type: bind
+      options:
+        - bind
+        - rw
+    # nvpmodel clk cap (created by nvpmodel kernel module if loaded)
+    - source: /sys/kernel
+      destination: /sys/kernel
+      type: bind
+      options:
+        - bind
+        - rw
+    # Persistent state across reboots
+    - source: /var/lib/nvpmodel
+      destination: /var/lib/nvpmodel
+      type: bind
+      options:
+        - bind
+        - rw
+restart: always

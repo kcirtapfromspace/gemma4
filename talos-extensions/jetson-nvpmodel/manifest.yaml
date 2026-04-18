@@ -1,0 +1,12 @@
+version: v1alpha1
+metadata:
+  name: jetson-nvpmodel
+  version: "36.4.7"
+  author: ClinIQ
+  description: |
+    Sets Jetson Orin power mode at boot via nvpmodel.
+    Defaults to 15W (mode 2) for Orin NX 8GB (p3767_0001).
+    Must run before GPU workloads to apply clock constraints.
+  compatibility:
+    talos:
+      version: ">= v1.9.0"

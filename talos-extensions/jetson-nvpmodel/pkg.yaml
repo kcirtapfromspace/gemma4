@@ -1,0 +1,76 @@
+name: jetson-nvpmodel
+variant: scratch
+shell: /bin/bash
+install:
+  - bash
+  - curl
+  - xz
+dependencies:
+  - image: cgr.dev/chainguard/wolfi-base@{{ .WOLFI_BASE_REF }}
+steps:
+  - prepare:
+      - |
+        sed -i 's#$VERSION#{{ .VERSION }}#' /pkg/manifest.yaml
+      - |
+        # Download nvpmodel deb and its dependencies from NVIDIA repos
+        REPO="https://repo.download.nvidia.com/jetson/t234"
+        POOL="${REPO}/pool/main/n"
+        L4T_VER="{{ .L4T_VERSION }}"
+
+        mkdir -p /tmp/debs
+        cd /tmp/debs
+
+        # nvpmodel binary
+        curl -sSL -o nvpmodel.deb "${POOL}/nvidia-l4t-nvpmodel/nvidia-l4t-nvpmodel_${L4T_VER}_arm64.deb"
+        # l4t-init (dependency)
+        curl -sSL -o l4t-init.deb "${POOL}/nvidia-l4t-init/nvidia-l4t-init_${L4T_VER}_arm64.deb"
+        # l4t-core (dependency)
+        curl -sSL -o l4t-core.deb "${POOL}/../c/nvidia-l4t-core/nvidia-l4t-core_${L4T_VER}_arm64.deb" || \
+        curl -sSL -o l4t-core.deb "${REPO}/pool/main/n/nvidia-l4t-core/nvidia-l4t-core_${L4T_VER}_arm64.deb" || true
+    build:
+      - |
+        cd /tmp/debs
+
+        # Extract nvpmodel binary and config files
+        mkdir -p extract
+        for deb in nvpmodel.deb l4t-init.deb; do
+          ar x "$deb"
+          if [ -f data.tar.zst ]; then
+            zstd -d data.tar.zst -o data.tar
+          elif [ -f data.tar.xz ]; then
+            xz -d data.tar.xz
+          fi
+          tar xf data.tar -C extract/ 2>/dev/null || true
+          rm -f data.tar* control.tar* debian-binary
+        done
+    install:
+      - |
+        cd /tmp/debs/extract
+
+        # Container root for the nvpmodel system service
+        containerRoot=/rootfs/usr/local/lib/containers/jetson-nvpmodel
+
+        mkdir -p "$containerRoot"/{usr/sbin,usr/lib/aarch64-linux-gnu/tegra,etc/nvpmodel}
+
+        # nvpmodel binary
+        cp usr/sbin/nvpmodel "$containerRoot/usr/sbin/" 2>/dev/null || true
+
+        # Required shared libraries (libnvsocsys, libnvos)
+        cp -a usr/lib/aarch64-linux-gnu/tegra/libnvsocsys.so* "$containerRoot/usr/lib/aarch64-linux-gnu/tegra/" 2>/dev/null || true
+        cp -a usr/lib/aarch64-linux-gnu/tegra/libnvos.so* "$containerRoot/usr/lib/aarch64-linux-gnu/tegra/" 2>/dev/null || true
+
+        # Power model config for Orin NX 8GB
+        cp /pkg/nvpmodel_p3767_0001.conf "$containerRoot/etc/nvpmodel/"
+
+        # Boot script
+        cp /pkg/run-nvpmodel.sh "$containerRoot/run-nvpmodel.sh"
+        chmod +x "$containerRoot/run-nvpmodel.sh"
+
+        # Container spec for Talos system services
+        mkdir -p /rootfs/usr/local/etc/containers
+        cp /pkg/jetson-nvpmodel.yaml /rootfs/usr/local/etc/containers/
+finalize:
+  - from: /rootfs
+    to: /rootfs
+  - from: /pkg/manifest.yaml
+    to: /
