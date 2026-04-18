@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: jetson-power-mode
+  namespace: gemma4
+  labels:
+    app: jetson-power-mode
+spec:
+  selector:
+    matchLabels:
+      app: jetson-power-mode
+  template:
+    metadata:
+      labels:
+        app: jetson-power-mode
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: talos-jetson-3
+      hostPID: true
+      containers:
+        - name: nvpmodel
+          image: 192.168.25.201:5050/llama-server:latest
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              FLAG_FILE="/state/nvpmodel-rebooted"
+              CONF="/etc/nvpmodel/nvpmodel_p3767_0001.conf"
+
+              mount -t debugfs none /sys/kernel/debug 2>/dev/null || true
+
+              echo "=== Jetson Power Mode Bootstrap ==="
+              echo "EMC: $(cat /sys/kernel/debug/bpmp/debug/clk/emc/rate 2>/dev/null) (max: $(cat /sys/kernel/debug/bpmp/debug/clk/emc/max_rate 2>/dev/null))"
+              echo "GPU: $(cat /sys/kernel/debug/bpmp/debug/clk/gpc0clk/rate 2>/dev/null) (max: $(cat /sys/kernel/debug/bpmp/debug/clk/gpc0clk/max_rate 2>/dev/null))"
+
+              EMC_MAX=$(cat /sys/kernel/debug/bpmp/debug/clk/emc/max_rate 2>/dev/null || echo 0)
+              if [ "$EMC_MAX" -gt 2200000000 ] 2>/dev/null; then
+                echo "Already at 15W+ (EMC max: $EMC_MAX). Sleeping."
+                exec sleep infinity
+              fi
+
+              # Install nvpmodel
+              if ! command -v nvpmodel >/dev/null 2>&1; then
+                echo "Installing nvpmodel..."
+                apt-get update -qq 2>/dev/null
+                apt-get install -y -qq --no-install-recommends nvidia-l4t-nvpmodel nvidia-l4t-init 2>&1 | tail -5
+                if ! command -v nvpmodel >/dev/null 2>&1; then
+                  echo "FATAL: nvpmodel install failed"
+                  exec sleep infinity
+                fi
+                echo "nvpmodel installed: $(which nvpmodel)"
+              fi
+
+              # Set 15W mode
+              echo "Setting power mode 2 (15W)..."
+              mkdir -p /state/nvpmodel
+              nvpmodel -f "$CONF" -m 2 -u /state/nvpmodel/status --force 2>&1 || true
+
+              if [ ! -f "$FLAG_FILE" ]; then
+                echo "First run — triggering host reboot..."
+                touch "$FLAG_FILE"
+                # Try nsenter to host PID namespace for reboot
+                nsenter --target 1 --mount --uts --ipc --pid -- reboot 2>&1 || \
+                  echo "nsenter reboot failed — please run: talosctl -n 192.168.150.41 reboot"
+              else
+                echo "Post-reboot run. Re-applying..."
+                nvpmodel -f "$CONF" -m 2 -u /state/nvpmodel/status --force 2>&1 || true
+                echo "EMC: $(cat /sys/kernel/debug/bpmp/debug/clk/emc/rate 2>/dev/null) (max: $(cat /sys/kernel/debug/bpmp/debug/clk/emc/max_rate 2>/dev/null))"
+                echo "GPU: $(cat /sys/kernel/debug/bpmp/debug/clk/gpc0clk/rate 2>/dev/null) (max: $(cat /sys/kernel/debug/bpmp/debug/clk/gpc0clk/max_rate 2>/dev/null))"
+              fi
+
+              echo "Done. Sleeping."
+              exec sleep infinity
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - mountPath: /state
+              name: state
+            - mountPath: /dev/nvgpu
+              name: dev-nvgpu
+            - mountPath: /dev/nvhost-gpu
+              name: dev-nvhost-gpu
+            - mountPath: /dev/nvhost-ctrl
+              name: dev-nvhost-ctrl
+            - mountPath: /dev/nvhost-ctrl-gpu
+              name: dev-nvhost-ctrl-gpu
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: state
+          hostPath:
+            path: /var/lib/cliniq/nvpmodel-state
+            type: DirectoryOrCreate
+        - name: dev-nvgpu
+          hostPath:
+            path: /dev/nvgpu
+        - name: dev-nvhost-gpu
+          hostPath:
+            path: /dev/nvhost-gpu
+        - name: dev-nvhost-ctrl
+          hostPath:
+            path: /dev/nvhost-ctrl
+        - name: dev-nvhost-ctrl-gpu
+          hostPath:
+            path: /dev/nvhost-ctrl-gpu
