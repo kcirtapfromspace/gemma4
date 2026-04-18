@@ -1,0 +1,79 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: set-15w-power-mode
+  namespace: gemma4
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: talos-jetson-3
+      restartPolicy: Never
+      containers:
+        - name: nvpmodel
+          image: 192.168.25.201:5050/llama-server:latest
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -e
+              echo "=== Before ==="
+
+              # Mount debugfs if not mounted
+              mount -t debugfs none /sys/kernel/debug 2>/dev/null || true
+
+              echo "EMC rate: $(cat /sys/kernel/debug/bpmp/debug/clk/emc/rate)"
+              echo "EMC max:  $(cat /sys/kernel/debug/bpmp/debug/clk/emc/max_rate)"
+              echo "GPU rate: $(cat /sys/kernel/debug/bpmp/debug/clk/gpc0clk/rate)"
+              echo "GPU max:  $(cat /sys/kernel/debug/bpmp/debug/clk/gpc0clk/max_rate)"
+
+              # Check if nvpmodel exists
+              if command -v nvpmodel &>/dev/null; then
+                echo ""
+                echo "=== Running nvpmodel ==="
+                nvpmodel -q || true
+                nvpmodel -m 0 && echo "Set to 15W MAXN mode" || echo "nvpmodel -m 0 failed"
+                sleep 2
+                nvpmodel -q || true
+              else
+                echo "nvpmodel not found, trying manual clock set"
+
+                # Try jetson_clocks approach: set governors and max rates
+                # Set EMC to max
+                echo 3200000000 > /sys/kernel/debug/bpmp/debug/clk/emc/rate 2>/dev/null || true
+
+                # Set GPU to max
+                echo 1020000000 > /sys/kernel/debug/bpmp/debug/clk/nafll_gpc0/rate 2>/dev/null || true
+                echo 1020000000 > /sys/kernel/debug/bpmp/debug/clk/gpc0clk/rate 2>/dev/null || true
+              fi
+
+              echo ""
+              echo "=== After ==="
+              echo "EMC rate: $(cat /sys/kernel/debug/bpmp/debug/clk/emc/rate)"
+              echo "EMC max:  $(cat /sys/kernel/debug/bpmp/debug/clk/emc/max_rate)"
+              echo "GPU rate: $(cat /sys/kernel/debug/bpmp/debug/clk/gpc0clk/rate)"
+              echo "GPU max:  $(cat /sys/kernel/debug/bpmp/debug/clk/gpc0clk/max_rate)"
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - mountPath: /dev/nvgpu
+              name: dev-nvgpu
+            - mountPath: /dev/nvhost-gpu
+              name: dev-nvhost-gpu
+            - mountPath: /dev/nvhost-ctrl
+              name: dev-nvhost-ctrl
+            - mountPath: /dev/nvhost-ctrl-gpu
+              name: dev-nvhost-ctrl-gpu
+      volumes:
+        - name: dev-nvgpu
+          hostPath:
+            path: /dev/nvgpu
+        - name: dev-nvhost-gpu
+          hostPath:
+            path: /dev/nvhost-gpu
+        - name: dev-nvhost-ctrl
+          hostPath:
+            path: /dev/nvhost-ctrl
+        - name: dev-nvhost-ctrl-gpu
+          hostPath:
+            path: /dev/nvhost-ctrl-gpu

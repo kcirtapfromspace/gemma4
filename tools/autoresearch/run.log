@@ -120,3 +120,7 @@ description:        MAJOR FINDING via debugfs/bpmp: Jetson running in 7W power m
   Theoretical max at current clocks: 34/2.4 = ~14 tok/s (still 10x above actual)
   max_rate is firmware-locked by BPMP, needs nvpmodel to unlock.
   nvpmodel not available on Talos Linux — requires extension or init container.
+  Board is actually Orin NX 8GB (p3767_0001), not Nano.
+  Update: installed nvpmodel, set mode 2 (15W), but requires reboot.
+  After reboot, clocks reverted — nvpmodel setting doesn't persist on Talos.
+  Needs: Talos machine config extension with nvpmodel service, or UEFI boot variable.

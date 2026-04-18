@@ -92,7 +92,6 @@ spec:
         - name: cuda-build
           hostPath:
             path: /var/lib/cliniq/llama-build
-            type: Directory
         - name: models
           hostPath:
             path: /var/lib/ollama/models
