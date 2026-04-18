@@ -1,0 +1,103 @@
+============================================================
+  ClinIQ Autoresearch Experiment: ctx1024-q3km-lora-baseline
+============================================================
+  Model:       gemma-4-E2B-it-Q3_K_M.gguf
+  Quant:       Q3_K_M
+  Ctx size:    1024
+  GPU layers:  99
+  Threads:     default
+  Max tokens:  1024
+  Runs/case:   1
+  Prompt:      Extract clinical entities from this eICR summary. Output JSO...
+
+Skipping server restart (--skip-restart)
+
+Running benchmark: /Users/thinkstudio/.venv-vllm-metal/bin/python /Users/thinkstudio/gemma4/scripts/benchmark.py --endpoint http://192.168.150.41:30083 --experiment-name ctx1024-q3km-lora-baseline...
+Benchmark: ctx1024-q3km-lora-baseline
+  Endpoint:    http://192.168.150.41:30083
+  Experiment:  bedd2871-915
+  Test cases:  5
+  Runs/case:   1
+  Warmup:      0
+  Max tokens:  1024
+  Streaming:   True
+  Prompt:      Extract clinical entities from this eICR summary. Output JSO...
+
+  [bench_minimal] Minimal: single condition, no vitals
+    run 1/1... 270209ms | 1.4 tok/s | json=ok | score=1.00
+
+  [bench_typical_covid] Typical: COVID case with vitals, labs, meds
+    run 1/1... 332430ms | 1.4 tok/s | json=ok | score=1.00
+
+  [bench_complex_multi] Complex: multi-condition, multi-lab, multi-med
+    run 1/1... 470784ms | 1.4 tok/s | json=ok | score=1.00
+
+  [bench_meningitis] Urgent: meningococcal with CSF results
+    run 1/1... 307290ms | 1.4 tok/s | json=ok | score=1.00
+
+  [bench_negative_lab] Edge case: negative lab result with condition suspected
+    run 1/1... 372460ms | 1.4 tok/s | json=ok | score=1.00
+
+==============================================================================
+  Experiment: ctx1024-q3km-lora-baseline (bedd2871-915)
+==============================================================================
+  Case                       Runs    Avg ms    Tok/s   Score  Valid%
+  ------------------------- ----- --------- -------- ------- -------
+  bench_complex_multi           1    470784      1.4    1.00    100%
+  bench_meningitis              1    307290      1.4    1.00    100%
+  bench_minimal                 1    270209      1.4    1.00    100%
+  bench_negative_lab            1    372460      1.4    1.00    100%
+  bench_typical_covid           1    332430      1.4    1.00    100%
+
+  Overall: avg=1.4 tok/s | p50=1.4 tok/s | avg_latency=350635ms | extraction_score=1.00
+
+  extraction quality: 1.00
+
+  Results saved to: /Users/thinkstudio/gemma4/scripts/benchmarks.duckdb
+  Experiment ID: bedd2871-915
+
+
+---
+gen_tok_s:          1.365
+extraction_score:   1.00
+prompt_tok_s:       44.390
+total_seconds:      1754.3
+model_file:         gemma-4-E2B-it-Q3_K_M.gguf
+server_args:        --ctx-size 1024 --n-gpu-layers 99
+status:             keep
+description:        ctx1024-q3km-lora-baseline
+
+---
+exp20: --flash-attn on
+gen_tok_s:          1.30
+extraction_score:   0.40
+status:             discard
+description:        flash-attn adds overhead on Orin, quality collapsed (2/5 JSON failures). Also crashed node (OOM during attention computation on 8GB unified memory).
+
+---
+exp21: --no-mmap
+gen_tok_s:          N/A
+extraction_score:   N/A
+status:             crash
+description:        OOM during tensor loading. Without mmap, model needs 2569 MiB upfront (1425 CPU + 1144 GPU) — too much for 8GB after OS/kubelet/CUDA overhead.
+
+---
+exp22: KV cache q8_0
+gen_tok_s:          0.80
+extraction_score:   1.00
+status:             discard
+description:        KV cache quantize/dequantize overhead costs more than bandwidth savings at ctx1536. Consistent with exp10 (q4_0 also hurt).
+
+---
+exp23: --threads 1 (with --parallel 1)
+gen_tok_s:          1.10
+extraction_score:   0.96
+status:             discard
+description:        CPU threads help with tensor ops. Reducing from 6 to 1 hurts throughput. Confirms exp2 earlier finding.
+
+---
+exp24: Q2_K fine-tuned (no LoRA)
+gen_tok_s:          1.09
+extraction_score:   0.00
+status:             discard
+description:        Q2_K quantization degrades model beyond usefulness — garbled repetitive output, invalid JSON. File is 2.8GB (bigger than base+LoRA at 2.45GB due to merged weights).
