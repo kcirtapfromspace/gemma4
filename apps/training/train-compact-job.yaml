@@ -1,0 +1,106 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cliniq-train-compact
+  namespace: gemma4
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: talos-jetson-3
+      restartPolicy: Never
+      containers:
+        - name: train
+          image: 192.168.25.201:5050/cliniq-train:latest
+          command: ["python3", "/workspace/train.py"]
+          args:
+            - "--data-dir"
+            - "/data"
+            - "--output-dir"
+            - "/output"
+            - "--compact"
+            - "--model"
+            - "unsloth/gemma-4-E2B-it-unsloth-bnb-4bit"
+            - "--epochs"
+            - "3"
+            - "--batch-size"
+            - "1"
+            - "--grad-accum"
+            - "8"
+            - "--lr"
+            - "1e-4"
+            - "--max-seq-len"
+            - "768"
+            - "--lora-r"
+            - "16"
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "2"
+            limits:
+              memory: "7Gi"
+              cpu: "6"
+          env:
+            - name: LD_LIBRARY_PATH
+              value: "/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/compat:/usr/local/cuda/lib64"
+            - name: TRANSFORMERS_CACHE
+              value: "/output/hf-cache"
+            - name: HF_HOME
+              value: "/output/hf-cache"
+          volumeMounts:
+            - mountPath: /data
+              name: training-data
+            - mountPath: /output
+              name: output
+            - mountPath: /dev/nvgpu
+              name: dev-nvgpu
+            - mountPath: /dev/nvhost-gpu
+              name: dev-nvhost-gpu
+            - mountPath: /dev/nvhost-ctrl
+              name: dev-nvhost-ctrl
+            - mountPath: /dev/nvhost-ctrl-gpu
+              name: dev-nvhost-ctrl-gpu
+            - mountPath: /dev/nvhost-as-gpu
+              name: dev-nvhost-as-gpu
+            - mountPath: /dev/nvhost-dbg-gpu
+              name: dev-nvhost-dbg-gpu
+            - mountPath: /dev/nvhost-tsg-gpu
+              name: dev-nvhost-tsg-gpu
+            - mountPath: /dev/nvmap
+              name: dev-nvmap
+      volumes:
+        - name: training-data
+          hostPath:
+            path: /var/lib/cliniq/data
+        - name: output
+          hostPath:
+            path: /var/lib/cliniq/output
+            type: DirectoryOrCreate
+        - name: dev-nvgpu
+          hostPath:
+            path: /dev/nvgpu
+        - name: dev-nvhost-gpu
+          hostPath:
+            path: /dev/nvhost-gpu
+        - name: dev-nvhost-ctrl
+          hostPath:
+            path: /dev/nvhost-ctrl
+        - name: dev-nvhost-ctrl-gpu
+          hostPath:
+            path: /dev/nvhost-ctrl-gpu
+        - name: dev-nvhost-as-gpu
+          hostPath:
+            path: /dev/nvhost-as-gpu
+        - name: dev-nvhost-dbg-gpu
+          hostPath:
+            path: /dev/nvhost-dbg-gpu
+        - name: dev-nvhost-tsg-gpu
+          hostPath:
+            path: /dev/nvhost-tsg-gpu
+        - name: dev-nvmap
+          hostPath:
+            path: /dev/nvmap

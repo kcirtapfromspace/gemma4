@@ -8,6 +8,17 @@ Usage:
   python3 train.py --data-dir /data --output-dir /output --epochs 3 --batch-size 1
 """
 
+# Jetson PyTorch 2.5 compat: stub missing attrs that torchao/transformers 5.x expect
+import torch
+# Stub missing dtypes
+for _dtype in ('int1', 'int2', 'int3', 'int4', 'int5', 'int6', 'int7'):
+    if not hasattr(torch, _dtype):
+        setattr(torch, _dtype, torch.int8)
+# Stub missing pytree function
+import torch.utils._pytree as _pytree
+if not hasattr(_pytree, 'register_constant'):
+    _pytree.register_constant = lambda cls: cls
+
 import argparse
 import json
 import os
@@ -36,7 +47,7 @@ def main():
     print(f"CUDA available: {torch.cuda.is_available()}")
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
-        mem = torch.cuda.get_device_properties(0).total_mem / 1024**3
+        mem = torch.cuda.get_device_properties(0).total_memory / 1024**3
         print(f"GPU Memory: {mem:.1f} GB")
     else:
         print("WARNING: No CUDA — training will be very slow on CPU")
