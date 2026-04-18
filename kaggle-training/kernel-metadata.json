@@ -1,0 +1,14 @@
+{
+  "id": "patrickdeutsch/cliniq-compact-lora-training",
+  "title": "ClinIQ Compact LoRA Training",
+  "code_file": "train-compact.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": ["patrickdeutsch/cliniq-training-data"],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
