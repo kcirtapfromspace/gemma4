@@ -1,111 +1,128 @@
 #!/usr/bin/env python3
 """
-ClinIQ: Fine-tune Gemma 4 E2B on compact eICR extraction format.
-Runs on Kaggle GPU (T4/P100) with Unsloth for fast LoRA training.
-
-Outputs: LoRA adapter + merged GGUF (Q3_K_M, Q8_0) for llama.cpp deployment.
+ClinIQ: Fine-tune Gemma 4 E2B LoRA on compact eICR extraction.
+Uses Kaggle's pre-installed env (PyTorch 2.10, transformers 5.x).
+REQUIRES T4 GPU — P100 is not compatible.
 """
 
-import json
-import os
-import subprocess
-import sys
-
-# Install dependencies
-subprocess.check_call([sys.executable, "-m", "pip", "install", "-q",
-    "unsloth", "datasets", "trl", "peft", "accelerate",
-    "bitsandbytes", "sentencepiece", "protobuf"])
-
+import json, os, subprocess, sys, glob
+# Force single GPU to avoid multi-GPU CUBLAS issues
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import torch
-print(f"PyTorch: {torch.__version__}")
-print(f"CUDA: {torch.cuda.is_available()}")
+
+# Fail fast on P100
 if torch.cuda.is_available():
-    print(f"GPU: {torch.cuda.get_device_name(0)}")
+    cc = torch.cuda.get_device_capability(0)
+    name = torch.cuda.get_device_name(0)
+    print(f"GPU: {name} (sm_{cc[0]}{cc[1]})")
+    if cc < (7, 0):
+        print(f"\nERROR: {name} (sm_{cc[0]}{cc[1]}) is not supported.")
+        print("This kernel requires a T4 or better GPU.")
+        print("In the Kaggle UI: Settings → Accelerator → GPU T4 x2")
+        print("Or retry — Kaggle sometimes assigns T4 instead of P100.")
+        sys.exit(1)
     print(f"Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
 
+print(f"PyTorch: {torch.__version__}")
+
+# Upgrade transformers + peft for Gemma 4 support (ClippableLinear)
+subprocess.check_call([sys.executable, "-m", "pip", "install", "-q",
+    "transformers>=5.5", "peft>=0.15", "trl>=0.15",
+    "bitsandbytes", "sentencepiece", "datasets",
+    "git+https://github.com/huggingface/peft.git"])
+
 # ============================================================
-# Training data (embedded — no external files needed)
+# Find training data
 # ============================================================
 
-SYSTEM_PROMPT = (
-    'Extract clinical entities from this eICR. Return minified JSON: '
-    '{"patient":{...},"conditions":[...],"labs":[...],"meds":[...],"vitals":[...]}. '
-    'All sections are arrays. Include SNOMED for conditions, LOINC for labs, '
-    'RxNorm for meds. No summary. No markdown. JSON only.'
-)
+TRAIN_PATH = VAL_PATH = None
+for base in glob.glob("/kaggle/input/**/train-compact.jsonl", recursive=True):
+    TRAIN_PATH = base
+    VAL_PATH = base.replace("train-compact", "val-compact")
+    break
 
-# Load training data from the dataset attached to this kernel
-TRAIN_PATH = "/kaggle/input/cliniq-training-data/train-compact.jsonl"
-VAL_PATH = "/kaggle/input/cliniq-training-data/val-compact.jsonl"
+if not TRAIN_PATH:
+    print("Downloading training data...")
+    os.makedirs("/kaggle/working/data", exist_ok=True)
+    subprocess.check_call(["kaggle", "datasets", "download",
+        "patrickdeutsch/cliniq-training-data",
+        "-p", "/kaggle/working/data", "--unzip"])
+    TRAIN_PATH = "/kaggle/working/data/train-compact.jsonl"
+    VAL_PATH = "/kaggle/working/data/val-compact.jsonl"
 
-if not os.path.exists(TRAIN_PATH):
-    print(f"ERROR: Training data not found at {TRAIN_PATH}")
-    print("Please attach the 'cliniq-training-data' dataset to this kernel.")
-    print("Or upload train-compact.jsonl and val-compact.jsonl as a dataset.")
-    sys.exit(1)
+assert os.path.exists(TRAIN_PATH), f"Not found: {TRAIN_PATH}"
+print(f"Train: {TRAIN_PATH}\nVal: {VAL_PATH}")
 
 # ============================================================
 # Load model
 # ============================================================
 
-print("\n=== Loading Gemma 4 E2B with Unsloth ===")
-from unsloth import FastModel
+print("\n=== Loading Gemma 4 E2B in 4-bit ===")
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-model, tokenizer = FastModel.from_pretrained(
-    model_name="unsloth/gemma-4-E2B-it-unsloth-bnb-4bit",
-    max_seq_length=768,
-    dtype=None,
+bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,
-    full_finetuning=False,
+    bnb_4bit_quant_type="nf4",
+    bnb_4bit_compute_dtype=torch.bfloat16,
+    bnb_4bit_use_double_quant=True,
 )
-print("Model loaded!")
+
+model_name = "google/gemma-4-E2B-it"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    quantization_config=bnb_config,
+    device_map={"": 0},
+    torch_dtype=torch.bfloat16,
+)
+print(f"Model loaded! Params: {sum(p.numel() for p in model.parameters()) / 1e6:.1f}M")
 
 # ============================================================
-# Configure LoRA
+# LoRA
 # ============================================================
 
 print("\n=== Configuring LoRA (r=16) ===")
-model = FastModel.get_peft_model(
-    model,
-    finetune_vision_layers=False,
-    finetune_language_layers=True,
-    finetune_attention_modules=True,
-    finetune_mlp_modules=True,
-    r=16,
-    lora_alpha=16,
-    lora_dropout=0,
-    bias="none",
-    random_state=3407,
-)
+from peft import LoraConfig, get_peft_model
+
+# Gemma 4 uses ClippableLinear wrappers that PEFT doesn't recognize.
+# Unwrap them to expose the inner Linear4bit modules.
+from torch import nn
+for name, module in list(model.named_modules()):
+    if type(module).__name__ == "Gemma4ClippableLinear":
+        # Replace wrapper with its inner linear
+        parts = name.split(".")
+        parent = model
+        for p in parts[:-1]:
+            parent = getattr(parent, p)
+        setattr(parent, parts[-1], module.linear)
+print("Unwrapped Gemma4ClippableLinear → Linear4bit")
+
+model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+model.enable_input_require_grads()
+
+model = get_peft_model(model, LoraConfig(
+    r=16, lora_alpha=16,
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                     "gate_proj", "up_proj", "down_proj"],
+    lora_dropout=0.0, bias="none", task_type="CAUSAL_LM",
+))
+model.print_trainable_parameters()
 
 # ============================================================
-# Load and format data
+# Data
 # ============================================================
 
-print("\n=== Loading training data ===")
+print("\n=== Loading data ===")
 from datasets import load_dataset
-from unsloth.chat_templates import get_chat_template
 
-dataset = load_dataset("json", data_files={
-    "train": TRAIN_PATH,
-    "validation": VAL_PATH,
-})
+dataset = load_dataset("json", data_files={"train": TRAIN_PATH, "validation": VAL_PATH})
 print(f"Train: {len(dataset['train'])} | Val: {len(dataset['validation'])}")
 
-tokenizer = get_chat_template(tokenizer, chat_template="gemma-4")
+def fmt(examples):
+    return {"text": [tokenizer.apply_chat_template(c, tokenize=False, add_generation_prompt=False)
+                     for c in examples["conversations"]]}
 
-def formatting_prompts_func(examples):
-    convos = examples["conversations"]
-    texts = [
-        tokenizer.apply_chat_template(
-            convo, tokenize=False, add_generation_prompt=False
-        ).removeprefix("<bos>")
-        for convo in convos
-    ]
-    return {"text": texts}
-
-dataset = dataset.map(formatting_prompts_func, batched=True)
-print(f"Sample length: {len(dataset['train'][0]['text'])} chars")
+dataset = dataset.map(fmt, batched=True, remove_columns=["conversations"])
 
 # ============================================================
 # Train
@@ -113,121 +130,69 @@ print(f"Sample length: {len(dataset['train'][0]['text'])} chars")
 
 print("\n=== Training: 3 epochs ===")
 from trl import SFTTrainer, SFTConfig
-from unsloth.chat_templates import train_on_responses_only
 
 trainer = SFTTrainer(
-    model=model,
-    tokenizer=tokenizer,
-    train_dataset=dataset["train"],
-    eval_dataset=dataset["validation"],
+    model=model, processing_class=tokenizer,
+    train_dataset=dataset["train"], eval_dataset=dataset["validation"],
     args=SFTConfig(
         dataset_text_field="text",
-        per_device_train_batch_size=2,
-        gradient_accumulation_steps=4,
-        warmup_steps=10,
-        num_train_epochs=3,
-        learning_rate=1e-4,
-        logging_steps=20,
-        eval_strategy="steps",
-        eval_steps=100,
-        save_strategy="steps",
-        save_steps=200,
-        optim="adamw_8bit",
-        weight_decay=0.01,
-        lr_scheduler_type="linear",
-        seed=3407,
-        output_dir="/kaggle/working/checkpoints",
-        report_to="none",
-        fp16=not torch.cuda.is_bf16_supported(),
-        bf16=torch.cuda.is_bf16_supported(),
+        per_device_train_batch_size=1, gradient_accumulation_steps=8,
+        warmup_steps=10, num_train_epochs=3, learning_rate=1e-4,
+        logging_steps=20, eval_strategy="no",
+        save_strategy="no", optim="adamw_8bit", weight_decay=0.01,
+        lr_scheduler_type="linear", seed=3407,
+        output_dir="/kaggle/working/checkpoints", report_to="none",
+        bf16=True, packing=False,
     ),
 )
 
-trainer = train_on_responses_only(
-    trainer,
-    instruction_part="<|turn>user\n",
-    response_part="<|turn>model\n",
-)
-
 stats = trainer.train()
-print(f"\nTraining loss: {stats.training_loss:.4f}")
-print(f"Training time: {stats.metrics['train_runtime']:.1f}s")
+print(f"\nLoss: {stats.training_loss:.4f} | Time: {stats.metrics['train_runtime']:.0f}s")
 
 # ============================================================
-# Test inference
+# Test
 # ============================================================
 
 print("\n=== Test inference ===")
-tokenizer = get_chat_template(tokenizer, chat_template="gemma-4")
-
-test_input = (
-    "Patient: Test Patient\nGender: M\nDOB: 1990-01-01\n"
-    "Location: Denver, CO 80202\nEncounter: 2026-03-15\n"
-    "Dx: COVID-19 (SNOMED 840539006)\n"
-    "Lab: SARS-CoV-2 RNA (LOINC 94500-6) - Detected\n"
-    "Meds: nirmatrelvir 150 MG / ritonavir 100 MG (RxNorm 2599543)"
+SYSTEM_PROMPT = (
+    'Extract clinical entities from this eICR. Return minified JSON: '
+    '{"patient":{...},"conditions":[...],"labs":[...],"meds":[...],"vitals":[...]}. '
+    'All sections are arrays. Include SNOMED for conditions, LOINC for labs, '
+    'RxNorm for meds. No summary. No markdown. JSON only.'
 )
-messages = [
-    {"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
-    {"role": "user", "content": [{"type": "text", "text": test_input}]},
+test_msgs = [
+    {"role": "system", "content": SYSTEM_PROMPT},
+    {"role": "user", "content": "Patient: Test Patient\nGender: M\nDOB: 1990-01-01\n"
+     "Dx: COVID-19 (SNOMED 840539006)\nLab: SARS-CoV-2 RNA (LOINC 94500-6) - Detected\n"
+     "Meds: nirmatrelvir 150 MG / ritonavir 100 MG (RxNorm 2599543)"},
 ]
-inputs = tokenizer.apply_chat_template(
-    messages, add_generation_prompt=True, return_tensors="pt",
-    tokenize=True, return_dict=True,
-).to("cuda")
-
-outputs = model.generate(**inputs, max_new_tokens=256, use_cache=True,
-                          temperature=0.1, top_p=0.95, top_k=64)
-response = tokenizer.decode(outputs[0][inputs["input_ids"].shape[-1]:],
-                             skip_special_tokens=True)
-print("Response:")
-print(response[:500])
-
-# Validate JSON
+inputs = tokenizer.apply_chat_template(test_msgs, add_generation_prompt=True,
+                                        return_tensors="pt", return_dict=True).to(model.device)
+with torch.no_grad():
+    out = model.generate(**inputs, max_new_tokens=256, temperature=0.1, do_sample=True)
+resp = tokenizer.decode(out[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
+print(resp[:500])
 try:
-    parsed = json.loads(response.strip())
-    print(f"\nJSON valid: True")
-    print(f"Keys: {list(parsed.keys())}")
-except json.JSONDecodeError as e:
-    print(f"\nJSON valid: False ({e})")
+    print(f"JSON valid: {bool(json.loads(resp.strip()))}")
+except:
+    print("JSON valid: False")
 
 # ============================================================
-# Save outputs
+# Save
 # ============================================================
 
-OUTPUT_DIR = "/kaggle/working"
+print("\n=== Saving LoRA ===")
+model.save_pretrained("/kaggle/working/cliniq-compact-lora")
+tokenizer.save_pretrained("/kaggle/working/cliniq-compact-lora")
 
-# Save LoRA adapter
-print("\n=== Saving LoRA adapter ===")
-lora_dir = f"{OUTPUT_DIR}/cliniq-compact-lora"
-model.save_pretrained(lora_dir)
-tokenizer.save_pretrained(lora_dir)
-print(f"LoRA saved to {lora_dir}")
-
-# Save merged model
-print("\n=== Saving merged model ===")
-merged_dir = f"{OUTPUT_DIR}/cliniq-compact-merged"
-model.save_pretrained_merged(merged_dir, tokenizer)
-print(f"Merged model saved to {merged_dir}")
-
-# Export GGUF for llama.cpp
-print("\n=== Exporting GGUF (Q8_0 + Q3_K_M) ===")
-gguf_dir = f"{OUTPUT_DIR}/cliniq-compact-gguf"
-
-# Q8_0 for LoRA adapter
-model.save_pretrained_gguf(gguf_dir, tokenizer, quantization_method="q8_0")
-print(f"Q8_0 GGUF saved to {gguf_dir}")
-
-# Q3_K_M for standalone deployment
-gguf_q3_dir = f"{OUTPUT_DIR}/cliniq-compact-gguf-q3km"
-model.save_pretrained_gguf(gguf_q3_dir, tokenizer, quantization_method="q3_k_m")
-print(f"Q3_K_M GGUF saved to {gguf_q3_dir}")
+print("\n=== Merging ===")
+merged = model.merge_and_unload()
+merged.save_pretrained("/kaggle/working/cliniq-compact-merged")
+tokenizer.save_pretrained("/kaggle/working/cliniq-compact-merged")
 
 print("\n=== DONE ===")
-print(f"Files at {OUTPUT_DIR}:")
-for root, dirs, files in os.walk(OUTPUT_DIR):
+for root, _, files in os.walk("/kaggle/working"):
     for f in files:
-        path = os.path.join(root, f)
-        size = os.path.getsize(path) / 1e6
-        if size > 1:
-            print(f"  {os.path.relpath(path, OUTPUT_DIR)}: {size:.1f} MB")
+        p = os.path.join(root, f)
+        s = os.path.getsize(p) / 1e6
+        if s > 1: print(f"  {os.path.relpath(p, '/kaggle/working')}: {s:.0f} MB")
