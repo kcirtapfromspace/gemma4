@@ -20,6 +20,7 @@ spec:
       containers:
         - name: llama-server
           image: 192.168.25.201:5050/llama-server:latest
+          imagePullPolicy: IfNotPresent
           command: ["/cuda-build/bin/llama-server"]
           args:
             - "-m"
