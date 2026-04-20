@@ -77,9 +77,35 @@ if (await submitBtn.isVisible().catch(() => false)) {
   await submitBtn.click({ force: true });
 }
 
-// Wait for inference result
+// Wait for inference result — poll until modal closes or timeout
 console.log('   Waiting for model response...');
-await sleep(180000); // 3 minutes max
+const inferenceStart = Date.now();
+const maxWait = 240000; // 4 minutes max
+while (Date.now() - inferenceStart < maxWait) {
+  const modalOpen = await page.locator('#convert-modal.open').isVisible().catch(() => false);
+  if (!modalOpen) {
+    console.log('   Modal closed — inference complete.');
+    break;
+  }
+  await sleep(5000);
+}
+
+// If modal is still open, close it (click overlay or press Escape)
+const stillOpen = await page.locator('#convert-modal.open').isVisible().catch(() => false);
+if (stillOpen) {
+  console.log('   Modal still open after wait — closing manually...');
+  await page.keyboard.press('Escape');
+  await sleep(1000);
+  // If still open, click the overlay background
+  const stillOpen2 = await page.locator('#convert-modal.open').isVisible().catch(() => false);
+  if (stillOpen2) {
+    await page.evaluate(() => {
+      const modal = document.getElementById('convert-modal');
+      if (modal) modal.classList.remove('open');
+    });
+    await sleep(500);
+  }
+}
 
 // Scroll to see results
 await page.evaluate(() => window.scrollTo(0, 0));
@@ -88,7 +114,7 @@ await sleep(2000);
 // Click on the new case if it appears
 const newCase = page.locator('.case-row, tr, [class*="case"]').first();
 if (await newCase.isVisible().catch(() => false)) {
-  await newCase.click();
+  await newCase.click({ force: true });
   await sleep(3000);
 }
 
@@ -96,7 +122,7 @@ if (await newCase.isVisible().catch(() => false)) {
 const fhirTab = page.locator('text="FHIR"').first();
 if (await fhirTab.isVisible().catch(() => false)) {
   console.log('7. Showing FHIR Bundle output...');
-  await fhirTab.click();
+  await fhirTab.click({ force: true });
   await sleep(3000);
 }
 
