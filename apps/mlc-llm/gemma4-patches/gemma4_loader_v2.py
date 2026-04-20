@@ -62,11 +62,15 @@ def huggingface(model_config: Gemma4Config, quantization: Quantization) -> Exter
             functools.partial(lambda x, d: (x + 1).astype(d),
                               d=named_parameters[mlc_name].dtype))
 
-    # Main embed_tokens — map unquantized name; pipeline applies quantization
+    # Main embed_tokens: pre-multiply by sqrt(hidden_size) to fold the scale
+    # into quantized weights. Gemma multiplies embed output by this factor;
+    # folding it here avoids a separate multiply at runtime.
+    embed_scale = model_config.text_config.hidden_size ** 0.5
     mlc_name = "model.embed_tokens.weight"
     if mlc_name in named_parameters:
         mapping.add_mapping(mlc_name, [_mlc_to_hf(mlc_name)],
-            functools.partial(lambda x, d: x.astype(d), d=named_parameters[mlc_name].dtype))
+            functools.partial(lambda x, sc=embed_scale, d=_dtype:
+                (x.astype("float32") * sc).astype(d)))
 
     # Per-layer embeddings: split single HF tensor into shards
     # Map using unquantized names — pipeline handles quantization
@@ -78,11 +82,12 @@ def huggingface(model_config: Gemma4Config, quantization: Quantization) -> Exter
         for d in shard_dims:
             offsets.append(offsets[-1] + d)
         hf_source = "model.language_model.embed_tokens_per_layer.weight"
+        per_layer_scale = model_config.text_config.hidden_size_per_layer_input ** 0.5
         for idx, mlc_name in enumerate(shard_names):
             start, end = offsets[idx], offsets[idx + 1]
             mapping.add_mapping(mlc_name, [hf_source],
-                functools.partial(lambda w, s=start, e=end, d=_dtype:
-                    w[:, s:e].astype(d)))
+                functools.partial(lambda w, s=start, e=end, sc=per_layer_scale, d=_dtype:
+                    (w[:, s:e].astype("float32") * sc).astype(d)))
 
     # Per-layer projection norm: +1
     mlc_name = "model.per_layer_projection_norm.weight"
