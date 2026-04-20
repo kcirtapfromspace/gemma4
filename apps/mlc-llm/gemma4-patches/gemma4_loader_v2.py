@@ -38,14 +38,15 @@ def huggingface(model_config: Gemma4Config, quantization: Quantization) -> Exter
                 functools.partial(lambda g, u, d: np.concatenate([g, u], axis=0).astype(d),
                                   d=named_parameters[mlc_name].dtype))
 
-        # RMS norms: Gemma adds 1 to weights
+        # RMS norms: Gemma 4 stores actual weights (NOT w-1 like Gemma 2/3)
+        # No +1 offset needed — pass through as-is
         for suffix in ["input_layernorm.weight", "post_attention_layernorm.weight",
                        "pre_feedforward_layernorm.weight", "post_feedforward_layernorm.weight",
                        "self_attn.k_norm.weight", "self_attn.q_norm.weight"]:
             mlc_name = f"model.layers.{i}.{suffix}"
             if mlc_name in named_parameters:
                 mapping.add_mapping(mlc_name, [_mlc_to_hf(mlc_name)],
-                    functools.partial(lambda x, d: (x + 1).astype(d),
+                    functools.partial(lambda x, d: x.astype(d),
                                       d=named_parameters[mlc_name].dtype))
 
         # Layer scalar: zero-pad to 2 elements
@@ -55,11 +56,11 @@ def huggingface(model_config: Gemma4Config, quantization: Quantization) -> Exter
                 functools.partial(lambda w, dt=_dtype: np.concatenate(
                     [w.astype(dt), np.zeros((1,), dtype=dt)])))
 
-    # Final norm
+    # Final norm — no +1 for Gemma 4
     mlc_name = "model.norm.weight"
     if mlc_name in named_parameters:
         mapping.add_mapping(mlc_name, [_mlc_to_hf(mlc_name)],
-            functools.partial(lambda x, d: (x + 1).astype(d),
+            functools.partial(lambda x, d: x.astype(d),
                               d=named_parameters[mlc_name].dtype))
 
     # Main embed_tokens: pre-multiply by sqrt(hidden_size) to fold the scale
@@ -89,11 +90,11 @@ def huggingface(model_config: Gemma4Config, quantization: Quantization) -> Exter
                 functools.partial(lambda w, s=start, e=end, sc=per_layer_scale, d=_dtype:
                     (w[:, s:e].astype("float32") * sc).astype(d)))
 
-    # Per-layer projection norm: +1
+    # Per-layer projection norm — no +1 for Gemma 4
     mlc_name = "model.per_layer_projection_norm.weight"
     if mlc_name in named_parameters:
         mapping.add_mapping(mlc_name, [_mlc_to_hf(mlc_name)],
-            functools.partial(lambda x, d: (x + 1).astype(d),
+            functools.partial(lambda x, d: x.astype(d),
                               d=named_parameters[mlc_name].dtype))
 
     # All remaining: direct mapping
