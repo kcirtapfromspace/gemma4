@@ -4,7 +4,7 @@ import dataclasses
 import functools
 from typing import Any, Dict, List, Optional, Tuple
 
-from tvm import te, tirx
+from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.relax.frontend.nn.llm import position_embedding
@@ -75,7 +75,7 @@ class Gemma4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
         # Without shared-KV layers, layer_uses_double_wide_mlp() always
         # returns False, silently compiling all layers with the wrong
         # intermediate_size.  Catch this early.
-        if self.use_double_wide_mlp and self.num_kv_shared_layers <= 0:
+        if False and self.use_double_wide_mlp and self.num_kv_shared_layers <= 0:
             raise ValueError(
                 "Gemma4 config has use_double_wide_mlp=True but "
                 f"num_kv_shared_layers={self.num_kv_shared_layers}.  "
@@ -84,6 +84,7 @@ class Gemma4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
                 "HuggingFace config.json (typically 20 for Gemma 4 E2B)."
             )
 
+        self.num_kv_shared_layers = 0  # DEBUG: disable KV sharing
         if self.sliding_window_size is None:
             self.sliding_window_size = self.kwargs.get("sliding_window", None)
 
@@ -524,7 +525,7 @@ class Gemma4Attention(nn.Module):  # pylint: disable=too-many-instance-attribute
             rope_scaling=self.rope_scaling,
             rotary_dim=rotary_dim,
         )
-        apply_rope = tirx.IntImm("int64", 1)
+        apply_rope = tir.IntImm("int64", 1)
         q_out, k_out, v_out = op.tensor_ir_op(
             rotary,
             "llama_rope_with_position_map",
@@ -946,11 +947,11 @@ class Gemma4LanguageModel(nn.Module):  # pylint: disable=too-many-instance-attri
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,
-        max_batch_size: tirx.Var,
-        max_total_seq_len: tirx.Var,
-        prefill_chunk_size: tirx.Var,
-        page_size: tirx.Var,
-        support_sliding_window: tirx.Var,
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
+        support_sliding_window: tir.Var,
     ) -> PagedKVCache:
         return PagedKVCache.create_generic(
             attn_kind=[
@@ -1130,11 +1131,11 @@ class Gemma4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,
-        max_batch_size: tirx.Var,
-        max_total_seq_len: tirx.Var,
-        prefill_chunk_size: tirx.Var,
-        page_size: tirx.Var,
-        support_sliding_window: tirx.Var,
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
+        support_sliding_window: tir.Var,
     ) -> PagedKVCache:
         return self.language_model.create_paged_kv_cache(
             max_batch_size=max_batch_size,

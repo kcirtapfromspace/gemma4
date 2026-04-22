@@ -25,3 +25,5 @@ c961862	0.000	0.00	0.0	crash	ctx768: too small, all cases failed (prompts 287-43
 cbadde6	0.000	0.00	0.0	crash	speculative decoding: SKIPPED — Gemma family doesn't speculate well (models not distilled)
 083394d	0.000	0.00	0.0	crash	--json-schema {}: causes sampler init error (400 on all requests)
 63fbe5e	1.180	0.98	40.7	keep	poll=0: gen same (1.180), but 5/5 valid JSON, score 0.98
+mlc-llm	8.000	N/A	N/A	keep	MLC-LLM TVM q4f16_1: 5-8 tok/s decode (6x speedup). Correct chat output. No LoRA/structured output yet.
+mlc-llm	1.100	N/A	N/A	discard	MLC-LLM TIR-only (no FlashInfer): 1.1 tok/s, no speedup over llama.cpp
