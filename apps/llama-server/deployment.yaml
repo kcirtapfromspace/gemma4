@@ -24,15 +24,13 @@ spec:
           command: ["/cuda-build/bin/llama-server"]
           args:
             - "-m"
-            - "/models/gemma-4-E2B-it-Q3_K_M.gguf"
-            - "--lora"
-            - "/models/cliniq-compact-lora.gguf"
+            - "/models/cliniq-gemma4-e2b-Q3_K_M.gguf"
             - "--port"
             - "8080"
             - "--host"
             - "0.0.0.0"
             - "--ctx-size"
-            - "1536"
+            - "2048"
             - "--n-gpu-layers"
             - "99"
             - "--reasoning-budget"

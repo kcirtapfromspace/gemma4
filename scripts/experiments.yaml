@@ -1,73 +1,97 @@
 # Systematic optimization sweep: quantization, prompt engineering, max_tokens.
 # Run with: uv run python optimize.py --endpoint http://192.168.150.41:30083
+#
+# All experiments pin reasoning_budget=0 (required to suppress Gemma 4 thinking tokens
+# that destroy extraction quality) and parallel=1 (to keep single-request latency low).
 
 experiments:
   # ============================================================
-  # QUANTIZATION EXPERIMENTS (require server restart + model swap)
+  # BASELINE: production-equivalent (base + compact LoRA)
+  # This represents the "current demo" config. Primary LoRA path.
+  # ============================================================
+
+  - name: "lora-baseline"
+    description: "Base Q3_K_M + compact LoRA (production default)"
+    model_override: "/models/gemma-4-E2B-it-Q3_K_M.gguf"
+    lora: "/models/cliniq-compact-lora.gguf"
+    server_args:
+      ctx_size: 1536
+      n_gpu_layers: 99
+      parallel: 1
+      reasoning_budget: 0
+
+  # ============================================================
+  # QUANTIZATION EXPERIMENTS (merged fine-tune, no LoRA needed)
+  # All swap the model and require a pod restart.
   # ============================================================
 
   - name: "quant-q4km-baseline"
-    description: "Q4_K_M baseline (3.2GB, current production)"
+    description: "Merged fine-tune Q4_K_M (3.2GB)"
     model_override: "/models/cliniq-gemma4-e2b-Q4_K_M.gguf"
     server_args:
-      ctx_size: 2048
+      ctx_size: 1536
       n_gpu_layers: 99
+      parallel: 1
+      reasoning_budget: 0
 
   - name: "quant-iq4xs"
-    description: "IQ4_XS importance quants (~3.0GB)"
+    description: "Merged fine-tune IQ4_XS importance quants (~3.0GB)"
     model_override: "/models/cliniq-gemma4-e2b-IQ4_XS.gguf"
     server_args:
-      ctx_size: 2048
+      ctx_size: 1536
       n_gpu_layers: 99
+      parallel: 1
+      reasoning_budget: 0
 
   - name: "quant-q3km"
-    description: "Q3_K_M quantization (~2.5GB, 18% smaller)"
+    description: "Merged fine-tune Q3_K_M (~2.5GB, 18% smaller)"
     model_override: "/models/cliniq-gemma4-e2b-Q3_K_M.gguf"
     server_args:
-      ctx_size: 2048
+      ctx_size: 1536
       n_gpu_layers: 99
+      parallel: 1
+      reasoning_budget: 0
 
   - name: "quant-q3ks"
-    description: "Q3_K_S quantization (~2.4GB, 21% smaller)"
+    description: "Merged fine-tune Q3_K_S (~2.4GB, 21% smaller)"
     model_override: "/models/cliniq-gemma4-e2b-Q3_K_S.gguf"
     server_args:
-      ctx_size: 2048
+      ctx_size: 1536
       n_gpu_layers: 99
+      parallel: 1
+      reasoning_budget: 0
 
   - name: "quant-q2k"
-    description: "Q2_K quantization (~2.3GB, aggressive, quality risk)"
+    description: "Merged fine-tune Q2_K (~2.3GB, aggressive, quality risk)"
     model_override: "/models/cliniq-gemma4-e2b-Q2_K.gguf"
     server_args:
-      ctx_size: 2048
+      ctx_size: 1536
       n_gpu_layers: 99
+      parallel: 1
+      reasoning_budget: 0
 
   # ============================================================
-  # PROMPT ENGINEERING (client-side only, no server restart)
+  # PROMPT ENGINEERING (client-side only, reuses last server)
+  # These skip restart and layer on top of whatever quant was just tested.
   # ============================================================
 
   - name: "prompt-no-confidence"
     description: "Remove confidence score instruction"
     skip_restart: true
     system_prompt: "Extract clinical entities from this eICR summary. Output JSON with: patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), medications (RxNorm), vitals, and a case summary. Output valid JSON only."
-    server_args:
-      ctx_size: 2048
-      n_gpu_layers: 99
+    server_args: {}
 
   - name: "prompt-compact"
     description: "Compact JSON, no summary, abbreviated keys"
     skip_restart: true
     system_prompt: "Extract entities from this eICR. Output compact JSON with keys: patient, conditions (SNOMED), labs (LOINC), meds (RxNorm), vitals. No summary. Valid JSON only."
-    server_args:
-      ctx_size: 2048
-      n_gpu_layers: 99
+    server_args: {}
 
   - name: "prompt-minimal"
     description: "Minimal prompt, extreme compression"
     skip_restart: true
     system_prompt: "Extract: patient, conditions(snomed,icd10), labs(loinc), meds(rxnorm), vitals from this eICR. JSON only, no summary, no confidence."
-    server_args:
-      ctx_size: 2048
-      n_gpu_layers: 99
+    server_args: {}
 
   # ============================================================
   # MAX_TOKENS EXPERIMENTS (client-side only)
@@ -77,35 +101,34 @@ experiments:
     description: "max_tokens=512 (vs 1024 baseline)"
     skip_restart: true
     max_tokens: 512
-    server_args:
-      ctx_size: 2048
-      n_gpu_layers: 99
+    server_args: {}
 
   - name: "maxtok-384"
     description: "max_tokens=384"
     skip_restart: true
     max_tokens: 384
-    server_args:
-      ctx_size: 2048
-      n_gpu_layers: 99
+    server_args: {}
 
   - name: "maxtok-256"
     description: "max_tokens=256 (tight, may truncate)"
     skip_restart: true
     max_tokens: 256
-    server_args:
-      ctx_size: 2048
-      n_gpu_layers: 99
+    server_args: {}
 
   # ============================================================
-  # COMBINED BEST (fill in after individual results)
+  # COMBINED BEST CANDIDATES (prompt+max_tokens, skip restart)
   # ============================================================
 
-  # - name: "combined-best"
-  #   description: "Best quant + best prompt + best max_tokens"
-  #   model_override: "/models/cliniq-gemma4-e2b-Q3_K_M.gguf"
-  #   system_prompt: "TBD"
-  #   max_tokens: 384
-  #   server_args:
-  #     ctx_size: 2048
-  #     n_gpu_layers: 99
+  - name: "combined-compact-mt384"
+    description: "Compact prompt + max_tokens=384"
+    skip_restart: true
+    system_prompt: "Extract entities from this eICR. Output compact JSON with keys: patient, conditions (SNOMED), labs (LOINC), meds (RxNorm), vitals. No summary. Valid JSON only."
+    max_tokens: 384
+    server_args: {}
+
+  - name: "combined-nconf-mt512"
+    description: "No-confidence prompt + max_tokens=512"
+    skip_restart: true
+    system_prompt: "Extract clinical entities from this eICR summary. Output JSON with: patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), medications (RxNorm), vitals, and a case summary. Output valid JSON only."
+    max_tokens: 512
+    server_args: {}

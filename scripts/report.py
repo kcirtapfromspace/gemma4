@@ -94,6 +94,68 @@ def waterfall(conn: duckdb.DuckDBPyConnection) -> list:
     return result
 
 
+def pareto(conn: duckdb.DuckDBPyConnection, since_runs: int = 3, only_after: str | None = None) -> list:
+    """Return Pareto-optimal experiments (speed vs quality), each point (name, tok/s, score, valid%, model).
+
+    An experiment is Pareto-optimal if no other experiment has both higher tok/s
+    and higher extraction_score.
+    """
+    query = """
+        SELECT experiment_name, avg_gen_tok_s, avg_extraction_score,
+               success_rate, model_file, created_at, total_runs
+        FROM experiments
+        WHERE avg_gen_tok_s IS NOT NULL
+          AND avg_extraction_score IS NOT NULL
+          AND total_runs >= ?
+    """
+    params = [since_runs]
+    if only_after:
+        query += " AND created_at >= ?"
+        params.append(only_after)
+    query += " ORDER BY avg_gen_tok_s DESC"
+
+    rows = conn.execute(query, params).fetchall()
+    if not rows:
+        return []
+
+    # Find Pareto frontier: keep each row if no other row has both higher tok/s AND higher score
+    frontier = []
+    for row in rows:
+        name, toks, score, valid, model, ts, runs = row
+        dominated = False
+        for other in rows:
+            oname, otoks, oscore, ovalid, omodel, ots, oruns = other
+            if oname == name:
+                continue
+            if otoks >= toks and oscore >= score and (otoks > toks or oscore > score):
+                dominated = True
+                break
+        if not dominated:
+            frontier.append(row)
+
+    return frontier
+
+
+def recommend(conn: duckdb.DuckDBPyConnection, min_quality: float = 0.8,
+              min_valid: float = 0.8, only_after: str | None = None) -> list:
+    """Recommend demo-viable configs. Filter by quality/validity, sort by speed."""
+    query = """
+        SELECT experiment_name, avg_gen_tok_s, avg_extraction_score,
+               success_rate, model_file, created_at, total_runs
+        FROM experiments
+        WHERE avg_gen_tok_s IS NOT NULL
+          AND avg_extraction_score >= ?
+          AND success_rate >= ?
+          AND total_runs >= 3
+    """
+    params = [min_quality, min_valid]
+    if only_after:
+        query += " AND created_at >= ?"
+        params.append(only_after)
+    query += " ORDER BY avg_gen_tok_s DESC LIMIT 10"
+    return conn.execute(query, params).fetchall()
+
+
 def main():
     parser = argparse.ArgumentParser(description="ClinIQ benchmark report generator")
     parser.add_argument("--db", default=str(DEFAULT_DB), help="DuckDB file path")
@@ -101,6 +163,13 @@ def main():
     parser.add_argument("--latest", type=int, default=None, help="Show only N latest experiments")
     parser.add_argument("--detail", default=None, help="Show per-case detail for experiment name")
     parser.add_argument("--waterfall", action="store_true", help="Show improvement waterfall")
+    parser.add_argument("--pareto", action="store_true", help="Show Pareto frontier (tok/s vs extraction_score)")
+    parser.add_argument("--recommend", action="store_true",
+                        help="Show demo-viable configs (score>=0.8, valid>=80%%), sorted by speed")
+    parser.add_argument("--since", default=None,
+                        help="Filter experiments by ISO timestamp (e.g. 2026-04-23T00:00:00)")
+    parser.add_argument("--markdown", default=None,
+                        help="Write full report to this markdown file")
     args = parser.parse_args()
 
     if not Path(args.db).exists():
@@ -159,6 +228,40 @@ def main():
                 tablefmt="github",
             ))
 
+    # Pareto frontier (speed vs quality)
+    pareto_rows = []
+    if args.pareto or args.markdown:
+        pareto_rows = pareto(conn, only_after=args.since)
+        if pareto_rows:
+            print("\n## Pareto Frontier (tok/s vs extraction_score)\n")
+            table = [
+                (name, f"{toks:.2f}", f"{score:.2f}", f"{valid*100:.0f}%",
+                 (model or "").split("/")[-1][:30], runs)
+                for name, toks, score, valid, model, _, runs in pareto_rows
+            ]
+            print(tabulate(
+                table,
+                headers=["Experiment", "Tok/s", "Score", "Valid%", "Model", "Runs"],
+                tablefmt="github",
+            ))
+
+    # Recommendations (demo-viable)
+    recommend_rows = []
+    if args.recommend or args.markdown:
+        recommend_rows = recommend(conn, only_after=args.since)
+        if recommend_rows:
+            print("\n## Demo-Viable Configs (score >= 0.8, valid >= 80%) - by speed\n")
+            table = [
+                (name, f"{toks:.2f}", f"{score:.2f}", f"{valid*100:.0f}%",
+                 (model or "").split("/")[-1][:30], runs)
+                for name, toks, score, valid, model, _, runs in recommend_rows
+            ]
+            print(tabulate(
+                table,
+                headers=["Experiment", "Tok/s", "Score", "Valid%", "Model", "Runs"],
+                tablefmt="github",
+            ))
+
     # Quick stats
     best = conn.execute("""
         SELECT experiment_name, avg_gen_tok_s
@@ -180,6 +283,39 @@ def main():
         print(f"Worst: {worst[0]} ({worst[1]:.1f} tok/s)")
         if worst[1] > 0:
             print(f"Range: {best[1] / worst[1]:.1f}x improvement\n")
+
+    # Markdown export
+    if args.markdown:
+        with open(args.markdown, "w") as f:
+            f.write("# llama-server Optimization Sweep Results\n\n")
+            f.write(f"Generated from `{args.db}`. Filter: since={args.since or 'all'}\n\n")
+            f.write("## Full Experiment Comparison\n\n")
+            f.write(tabulate(rows, headers=headers, tablefmt="github"))
+            f.write("\n\n")
+            if pareto_rows:
+                f.write("## Pareto Frontier (tok/s vs extraction_score)\n\n")
+                f.write("These are the experiments where no other config beats them on *both* speed and quality.\n\n")
+                f.write(tabulate(
+                    [(n, f"{t:.2f}", f"{s:.2f}", f"{v*100:.0f}%",
+                      (m or "").split("/")[-1][:40], r)
+                     for n, t, s, v, m, _, r in pareto_rows],
+                    headers=["Experiment", "Tok/s", "Score", "Valid%", "Model", "Runs"],
+                    tablefmt="github",
+                ))
+                f.write("\n\n")
+            if recommend_rows:
+                f.write("## Demo-Viable (score >= 0.8, valid >= 80%) - sorted by speed\n\n")
+                f.write(tabulate(
+                    [(n, f"{t:.2f}", f"{s:.2f}", f"{v*100:.0f}%",
+                      (m or "").split("/")[-1][:40], r)
+                     for n, t, s, v, m, _, r in recommend_rows],
+                    headers=["Experiment", "Tok/s", "Score", "Valid%", "Model", "Runs"],
+                    tablefmt="github",
+                ))
+                f.write("\n\n")
+            if best:
+                f.write(f"Best tok/s: **{best[0]}** ({best[1]:.2f} tok/s)\n\n")
+        print(f"\nMarkdown report written to: {args.markdown}")
 
     conn.close()
 

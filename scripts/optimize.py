@@ -41,6 +41,11 @@ def build_server_args(experiment: dict) -> list[str]:
     sa = experiment.get("server_args", {})
     args = ["-m", model, "--port", "8080", "--host", "0.0.0.0"]
 
+    # Optional LoRA adapter (top-level, since compact LoRA is the primary demo path)
+    lora = experiment.get("lora")
+    if lora:
+        args.extend(["--lora", lora])
+
     flag_map = {
         "ctx_size": "--ctx-size",
         "n_gpu_layers": "--n-gpu-layers",
@@ -50,12 +55,14 @@ def build_server_args(experiment: dict) -> list[str]:
         "cache_type_k": "--cache-type-k",
         "cache_type_v": "--cache-type-v",
         "parallel": "--parallel",
+        "reasoning_budget": "--reasoning-budget",
     }
 
     bool_flags = {
         "flash_attn": "--flash-attn",
         "mlock": "--mlock",
         "no_mmap": "--no-mmap",
+        "cont_batching": "--cont-batching",
     }
 
     for key, flag in flag_map.items():
@@ -164,6 +171,7 @@ def run_benchmark_subprocess(
     baseline_id: str | None,
     system_prompt: str | None = None,
     max_tokens: int | None = None,
+    test_cases: str | None = None,
 ) -> str | None:
     """Run benchmark.py as a subprocess and return the experiment_id."""
     cmd = [
@@ -182,6 +190,8 @@ def run_benchmark_subprocess(
         cmd.extend(["--system-prompt", system_prompt])
     if max_tokens:
         cmd.extend(["--max-tokens", str(max_tokens)])
+    if test_cases:
+        cmd.extend(["--test-cases", test_cases])
 
     result = subprocess.run(cmd, capture_output=False, text=True, timeout=7200)
     if result.returncode != 0:
@@ -229,6 +239,8 @@ def main():
                         help="Run only this experiment name")
     parser.add_argument("--health-timeout", type=int, default=300,
                         help="Seconds to wait for health after restart")
+    parser.add_argument("--test-cases", default=None,
+                        help="Override test cases JSONL file")
     args = parser.parse_args()
 
     experiments = load_experiments(args.experiments)
@@ -246,6 +258,7 @@ def main():
 
     baseline_id = None
     results = []
+    last_deployed = None  # Track last deployed config for skip_restart labeling
 
     for i, exp in enumerate(experiments):
         name = exp["name"]
@@ -266,9 +279,18 @@ def main():
         system_prompt = exp.get("system_prompt")
         max_tokens = exp.get("max_tokens")
 
-        # Build server args
-        server_args = build_server_args(exp)
-        config_json = build_config_json(exp)
+        # Build server args. For skip_restart, inherit model from last_deployed.
+        if skip_restart and last_deployed:
+            # Merge: use last_deployed model/lora but allow this experiment to
+            # override server_args if provided (usually empty).
+            eff_exp = dict(last_deployed)
+            if exp.get("server_args"):
+                eff_exp.setdefault("server_args", {}).update(exp["server_args"])
+            server_args = build_server_args(eff_exp)
+            config_json = build_config_json(eff_exp)
+        else:
+            server_args = build_server_args(exp)
+            config_json = build_config_json(exp)
 
         if not skip_restart:
             print(f"  Server args: {' '.join(server_args[6:])}")
@@ -291,10 +313,16 @@ def main():
                 print("  FAILED health check, skipping")
                 continue
 
+            # Record the deployed state so skip_restart experiments inherit
+            last_deployed = exp
+
             # Extra settle time after restart
             time.sleep(5)
         else:
             print("  Client-side only (skip_restart=true)")
+            if last_deployed:
+                print(f"  On server: {last_deployed.get('name')} "
+                      f"(model={last_deployed.get('model_override', DEFAULT_MODEL)})")
             if system_prompt:
                 print(f"  Prompt: {system_prompt[:60]}...")
             if max_tokens:
@@ -311,6 +339,7 @@ def main():
             baseline_id=baseline_id,
             system_prompt=system_prompt,
             max_tokens=max_tokens,
+            test_cases=args.test_cases,
         )
 
         if exp_id:
