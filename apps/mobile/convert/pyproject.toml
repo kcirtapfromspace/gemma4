@@ -1,0 +1,37 @@
+[project]
+name = "cliniq-mobile-convert"
+version = "0.1.0"
+description = "Merge compact LoRA into Gemma 4 E2B and bundle as .litertlm for iOS/Android deployment via google-ai-edge/gallery."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    # Core conversion pipeline
+    "litert-torch==0.9.0",       # was: ai-edge-torch — renamed April 2026 alongside litert_torch module move
+    "ai-edge-litert-nightly[model-utils]>=2.2.0.dev20260420",   # provides litertlm_builder internals
+    "ai-edge-quantizer-nightly>=0.6.0.dev20260420",
+    "litert-converter>=0.1.0",
+    # HF / LoRA
+    "transformers>=4.55",
+    "peft>=0.12",
+    "safetensors>=0.4.5",
+    "accelerate>=1.0",
+    "torch==2.11.0",             # pinned by litert-torch requirements.txt
+    "torchvision==0.26.0",
+    # Runtime validation
+    "litert-lm==0.10.1",         # .litertlm loader for validation harness
+    # Misc
+    "fire",
+    "gguf>=0.19",                # reverse-parse the GGUF LoRA header if needed
+    "huggingface-hub>=0.27",
+    "tabulate",
+    "rich",
+    "tqdm",
+    "numpy",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["convert"]
