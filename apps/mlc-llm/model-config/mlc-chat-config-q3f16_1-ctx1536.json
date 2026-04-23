@@ -1,7 +1,7 @@
 {
   "model_type": "gemma4",
-  "quantization": "q4f16_1",
-  "context_window_size": 2048,
+  "quantization": "q3f16_1",
+  "context_window_size": 1536,
   "prefill_chunk_size": 512,
   "sliding_window_size": 512,
   "tensor_parallel_shards": 1,

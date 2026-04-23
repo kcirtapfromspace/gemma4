@@ -1,20 +1,18 @@
 #!/bin/bash
-# Inner script — runs inside Docker container for weight conversion
-# Mounts:
-#   /patches     -> repo dir (read-only)
-#   /output      -> build-output dir (read-write)
-#   /hf-model    -> HF safetensors (read-only)
+# Cross-compile model lib inside Docker — targets Jetson sm_87
+# Runs in dustynv/mlc:0.20.0-r36.4.0 on Mac Studio
 set -e
 
-echo "=== Phase 0: Create CUDA stubs (no real GPU needed for weight conversion) ==="
-# Extract undefined CUDA symbols from the pre-built TVM and create stub .so
+QUANT="${1:-q4f16_1}"
+MODEL_DIR="/output/gemma4-weights-merged-${QUANT}"
+
+echo "=== Phase 0: CUDA stubs ==="
 NEEDED=$(nm -D /output/libtvm.so 2>/dev/null | grep " U " | grep "^.*cu[A-Z]" | awk "{print \$2}" | sort -u)
-echo "// cuda stub for weight conversion" > /tmp/s.c
+echo "// cuda stub" > /tmp/s.c
 echo "$NEEDED" | while read sym; do [ -n "$sym" ] && echo "int $sym() { return 0; }" >> /tmp/s.c; done
 mkdir -p /usr/lib/aarch64-linux-gnu/nvidia
 gcc -shared -o /usr/lib/aarch64-linux-gnu/nvidia/libcuda.so.1 /tmp/s.c
 ln -sf libcuda.so.1 /usr/lib/aarch64-linux-gnu/nvidia/libcuda.so
-# Replace any broken/tiny stub libs with a valid empty .so
 gcc -shared -o /tmp/libstub.so -x c /dev/null
 for lib in /usr/lib/aarch64-linux-gnu/nvidia/lib*.so*; do
     [[ "$lib" == *libcuda* ]] && continue
@@ -22,19 +20,17 @@ for lib in /usr/lib/aarch64-linux-gnu/nvidia/lib*.so*; do
     [ "$size" -lt 1000 ] && [ -f "$lib" ] && cp /tmp/libstub.so "$lib"
 done
 export LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/nvidia:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/lib/python3.10/dist-packages/tvm:/usr/local/cuda/lib64
-echo "  Created CUDA stubs ($(echo "$NEEDED" | wc -l | tr -d ' ') symbols)"
 
-echo ""
-echo "=== Phase 1: Install patched TVM .so ==="
+echo "=== Phase 1: Install patched TVM ==="
 cp /output/libtvm.so /usr/local/lib/python3.10/dist-packages/tvm/libtvm.so
 cp /output/libtvm_runtime.so /usr/local/lib/python3.10/dist-packages/tvm/libtvm_runtime.so
-echo "  Done"
 
-echo ""
-echo "=== Phase 2: Apply all Python patches ==="
+echo "=== Phase 2: Apply all patches ==="
+SITE=/usr/local/lib/python3.10/dist-packages
+MLC=/opt/mlc-llm
 
-# --- TVM kv_cache.py ---
-cd /opt/mlc-llm/3rdparty/tvm
+# TVM kv_cache.py patch
+cd $MLC/3rdparty/tvm
 python3 -c "
 path = 'python/tvm/relax/frontend/nn/llm/kv_cache.py'
 with open(path) as f:
@@ -68,7 +64,7 @@ with open(path, 'w') as f:
 print('  Patched: kv_cache.py')
 "
 
-# --- TVM position_embedding.py ---
+# TVM position_embedding.py patch
 python3 -c "
 path = 'python/tvm/relax/frontend/nn/llm/position_embedding.py'
 with open(path) as f:
@@ -97,12 +93,11 @@ with open(path, 'w') as f:
 print('  Patched: position_embedding.py')
 "
 
-# Copy patched TVM Python to site-packages
-cp python/tvm/relax/frontend/nn/llm/kv_cache.py /usr/local/lib/python3.10/dist-packages/tvm/relax/frontend/nn/llm/kv_cache.py
-cp python/tvm/relax/frontend/nn/llm/position_embedding.py /usr/local/lib/python3.10/dist-packages/tvm/relax/frontend/nn/llm/position_embedding.py
+cp python/tvm/relax/frontend/nn/llm/kv_cache.py $SITE/tvm/relax/frontend/nn/llm/kv_cache.py
+cp python/tvm/relax/frontend/nn/llm/position_embedding.py $SITE/tvm/relax/frontend/nn/llm/position_embedding.py
 
-# --- MLC-LLM patches ---
-cd /opt/mlc-llm
+# MLC-LLM patches
+cd $MLC
 python3 -c "
 path = 'python/mlc_llm/compiler_pass/dispatch_kv_cache_creation.py'
 with open(path) as f:
@@ -115,50 +110,19 @@ content = content.replace(
     '    return {\n        \"attn_kind\": args[0].value,',
     '    _raw = args[0].value\n    if _raw.startswith(\"[\"):\n        import json as _json\n        _attn_kind = _json.loads(_raw)\n    else:\n        _attn_kind = _raw\n    return {\n        \"attn_kind\": _attn_kind,'
 )
+# FlashInfer normalization
+old = '                cache = kv_cache.FlashInferPagedKVCache(target=self.target, **kwargs)'
+new = '                fi_kwargs = dict(kwargs)\n                ak = fi_kwargs[\"attn_kind\"]\n                if isinstance(ak, list):\n                    fi_kwargs[\"attn_kind\"] = \"mla\" if \"mla\" in set(ak) else \"mha\"\n                cache = kv_cache.FlashInferPagedKVCache(target=self.target, **fi_kwargs)'
+if old in content:
+    content = content.replace(old, new)
+# TIR normalization
+old2 = '            cache = kv_cache.TIRPagedKVCache(target=self.target, **kwargs)'
+new2 = '            tir_k = dict(kwargs)\n            ak = tir_k[\"attn_kind\"]\n            if isinstance(ak, list): tir_k[\"attn_kind\"] = \"mla\" if \"mla\" in set(ak) else \"mha\"\n            cache = kv_cache.TIRPagedKVCache(target=self.target, **tir_k)'
+if old2 in content:
+    content = content.replace(old2, new2)
 with open(path, 'w') as f:
     f.write(content)
-print('  Patched: dispatch_kv_cache_creation.py')
-"
-
-# FlashInfer attn_kind normalization: per-layer list → single string
-python3 -c "
-path = 'python/mlc_llm/compiler_pass/dispatch_kv_cache_creation.py'
-with open(path) as f:
-    content = f.read()
-old = '                cache = kv_cache.FlashInferPagedKVCache(target=self.target, **kwargs)'
-new = '''                fi_kwargs = dict(kwargs)
-                ak = fi_kwargs[\"attn_kind\"]
-                if isinstance(ak, list):
-                    unique = set(ak)
-                    fi_kwargs[\"attn_kind\"] = \"mla\" if \"mla\" in unique else \"mha\"
-                cache = kv_cache.FlashInferPagedKVCache(target=self.target, **fi_kwargs)'''
-if old in content:
-    content = content.replace(old, new)
-    with open(path, 'w') as f:
-        f.write(content)
-    print('  Patched: FlashInfer attn_kind normalization')
-else:
-    print('  FlashInfer patch already applied or target not found')
-"
-
-# TIR attn_kind normalization: same fix for TIR backend
-python3 -c "
-path = 'python/mlc_llm/compiler_pass/dispatch_kv_cache_creation.py'
-with open(path) as f:
-    content = f.read()
-old = '            cache = kv_cache.TIRPagedKVCache(target=self.target, **kwargs)'
-new = '''            tir_kwargs = dict(kwargs)
-            ak = tir_kwargs[\"attn_kind\"]
-            if isinstance(ak, list):
-                tir_kwargs[\"attn_kind\"] = \"mla\" if \"mla\" in set(ak) else \"mha\"
-            cache = kv_cache.TIRPagedKVCache(target=self.target, **tir_kwargs)'''
-if old in content:
-    content = content.replace(old, new)
-    with open(path, 'w') as f:
-        f.write(content)
-    print('  Patched: TIR attn_kind normalization')
-else:
-    print('  TIR patch already applied or target not found')
+print('  Patched: dispatch_kv_cache_creation.py (JSON + FlashInfer + TIR)')
 "
 
 python3 -c "
@@ -179,21 +143,22 @@ with open(path, 'w') as f:
 print('  Patched: mlc_llm/nn/kv_cache.py')
 "
 
-# Copy to site-packages
-cp python/mlc_llm/compiler_pass/dispatch_kv_cache_creation.py /usr/local/lib/python3.10/dist-packages/mlc_llm/compiler_pass/
-cp python/mlc_llm/nn/kv_cache.py /usr/local/lib/python3.10/dist-packages/mlc_llm/nn/
+# Copy patches to site-packages
+cp python/mlc_llm/compiler_pass/dispatch_kv_cache_creation.py $SITE/mlc_llm/compiler_pass/
+cp python/mlc_llm/nn/kv_cache.py $SITE/mlc_llm/nn/
 
-# --- Install gemma4 model ---
-mkdir -p /usr/local/lib/python3.10/dist-packages/mlc_llm/model/gemma4
-cp /patches/gemma4-patches/__init__.py /usr/local/lib/python3.10/dist-packages/mlc_llm/model/gemma4/
-cp /patches/gemma4-patches/gemma4_model.py /usr/local/lib/python3.10/dist-packages/mlc_llm/model/gemma4/
-cp /patches/gemma4-patches/gemma4_loader_v2.py /usr/local/lib/python3.10/dist-packages/mlc_llm/model/gemma4/gemma4_loader.py
-cp /patches/gemma4-patches/gemma4_quantization_v2.py /usr/local/lib/python3.10/dist-packages/mlc_llm/model/gemma4/gemma4_quantization.py
-echo "  Installed gemma4 model files"
+# Install gemma4 model (to BOTH paths)
+for BASE in $SITE/mlc_llm/model/gemma4 $MLC/python/mlc_llm/model/gemma4; do
+    mkdir -p $BASE
+    cp /patches/gemma4-patches/__init__.py $BASE/
+    cp /patches/gemma4-patches/gemma4_model.py $BASE/gemma4_model.py
+    cp /patches/gemma4-patches/gemma4_loader_v2.py $BASE/gemma4_loader.py
+    cp /patches/gemma4-patches/gemma4_quantization_v2.py $BASE/gemma4_quantization.py
+done
 
-# --- Register gemma4 in model.py ---
+# Register gemma4
 python3 -c "
-path = '/usr/local/lib/python3.10/dist-packages/mlc_llm/model/model.py'
+path = '$SITE/mlc_llm/model/model.py'
 with open(path) as f:
     content = f.read()
 if 'gemma4' not in content:
@@ -201,101 +166,110 @@ if 'gemma4' not in content:
         'from .gemma3 import gemma3_loader, gemma3_model, gemma3_quantization',
         'from .gemma3 import gemma3_loader, gemma3_model, gemma3_quantization\nfrom .gemma4 import gemma4_loader, gemma4_model, gemma4_quantization'
     )
-    entry = '''    \\\"gemma4\\\": Model(
-        name=\\\"gemma4\\\",
-        model=gemma4_model.Gemma4LanguageModel,
-        config=gemma4_model.Gemma4Config,
-        source={
-            \\\"huggingface-torch\\\": gemma4_loader.huggingface,
-            \\\"huggingface-safetensor\\\": gemma4_loader.huggingface,
-        },
-        quantize={
-            \\\"no-quant\\\": gemma4_quantization.no_quant,
-            \\\"group-quant\\\": gemma4_quantization.group_quant,
-        },
-    ),
-'''
+    entry = '    \"gemma4\": Model(\n        name=\"gemma4\",\n        model=gemma4_model.Gemma4LanguageModel,\n        config=gemma4_model.Gemma4Config,\n        source={\n            \"huggingface-torch\": gemma4_loader.huggingface,\n            \"huggingface-safetensor\": gemma4_loader.huggingface,\n        },\n        quantize={\n            \"no-quant\": gemma4_quantization.no_quant,\n            \"group-quant\": gemma4_quantization.group_quant,\n        },\n    ),\n'
     content = content.replace('    \"gpt2\": Model(', entry + '    \"gpt2\": Model(')
     with open(path, 'w') as f:
         f.write(content)
-    print('  Registered gemma4 in model.py')
-elif 'Gemma4ForCausalLM' in content:
-    content = content.replace('Gemma4ForCausalLM', 'Gemma4LanguageModel')
-    with open(path, 'w') as f:
-        f.write(content)
-    print('  Fixed: Gemma4ForCausalLM -> Gemma4LanguageModel')
+    print('  Registered gemma4')
 else:
-    print('  gemma4 already registered correctly')
+    print('  gemma4 already registered')
 "
 
 echo ""
 echo "=== Phase 3: Verify ==="
 python3 -c "
 from mlc_llm.model import MODELS
-assert 'gemma4' in MODELS, 'gemma4 not in MODELS'
-print('  gemma4 model registered OK')
-
-# Quick test: load config and instantiate model
+assert 'gemma4' in MODELS
 from mlc_llm.model.gemma4.gemma4_model import Gemma4Config
 import json
-with open('/hf-model/config.json') as f:
+with open('$MODEL_DIR/mlc-chat-config.json') as f:
     cfg = json.load(f)
-config = Gemma4Config.from_dict(cfg)
+mc = cfg.get('model_config', cfg)
+config = Gemma4Config.from_dict(mc)
 tc = config.text_config
-print(f'  Config loaded: {tc.num_hidden_layers} layers, hidden_size={tc.hidden_size}')
-print(f'  double_wide_mlp={tc.use_double_wide_mlp}, kv_shared_layers={tc.num_kv_shared_layers}')
+print(f'  double_wide_start_layer={tc.double_wide_start_layer}')
+print(f'  layer 15 double_wide={tc.layer_uses_double_wide_mlp(15)}')
 "
 
-QUANT="${QUANT:-q4f16_1}"
-WEIGHT_DIR="${WEIGHT_DIR:-gemma4-weights-v3}"
-
 echo ""
-echo "=== Phase 4: Convert weights ==="
-echo "Input: /hf-model/ ($(ls -lh /hf-model/model.safetensors | awk '{print $5}'))"
-echo "Quantization: $QUANT"
-echo "Output: /output/$WEIGHT_DIR/"
-echo ""
-
-python3 -m mlc_llm convert_weight \
-    /hf-model \
-    --model-type gemma4 \
-    --quantization "$QUANT" \
-    --output "/output/$WEIGHT_DIR/" \
-    2>&1
-
-echo ""
-echo "=== Phase 5: Results ==="
-echo "Output files:"
-ls -lh "/output/$WEIGHT_DIR/"
-echo ""
-echo "Total size:"
-du -sh "/output/$WEIGHT_DIR/"
-
-echo ""
-echo "=== Phase 6: Param inventory ==="
-python3 << PYEOF
+echo "=== Phase 4: Compile for sm_87 (cross-compile, no GPU needed) ==="
+python3 -c "
 import json
-import os
+from pathlib import Path
+import tvm
+from tvm import relax
+from mlc_llm.interface.compile import compile as mlc_compile, ModelConfigOverride, OptimizationFlags
+from mlc_llm.model import MODELS
+from mlc_llm.quantization import QUANTIZATION
 
-output_dir = "/output/$WEIGHT_DIR"
-cache_path = os.path.join(output_dir, "ndarray-cache.json")
-if os.path.exists(cache_path):
-    with open(cache_path) as f:
-        cache = json.load(f)
+model_dir = '$MODEL_DIR'
+output = '/output/gemma4-merged-cuda.so'
+quant = '$QUANT'
 
-    # Shard format: cache["records"] is a list of shard dicts, each with sub-"records"
-    total = 0
-    all_params = []
-    for shard in cache.get("records", []):
-        for r in shard.get("records", []):
-            total += 1
-            all_params.append((r["name"], r["shape"], r["dtype"]))
+with open(model_dir + '/mlc-chat-config.json') as f:
+    config = json.load(f)
 
-    print(f"Total converted params: {total}")
-    print(f"Shards: {len(cache.get('records', []))}")
+target = tvm.target.Target(
+    {'kind': 'cuda', 'arch': 'sm_87', 'max_threads_per_block': 1024,
+     'max_num_threads': 1024, 'max_shared_memory_per_block': 49152,
+     'thread_warp_size': 32, 'libs': ['thrust']},
+    host={'kind': 'llvm', 'mtriple': 'aarch64-unknown-linux-gnu', 'mcpu': 'generic'},
+)
+
+def build_func(mod, args, pipeline=None):
+    relax.build(mod, target=args.target, relax_pipeline=pipeline,
+                system_lib=False).export_library(str(args.output))
+
+# Debug: trace the config through the same path as compile()
+import copy
+cfg_copy = copy.deepcopy(config)
+if 'model_config' in cfg_copy:
+    mc = cfg_copy.pop('model_config')
+    mc.update(cfg_copy)
+    debug_config = MODELS['gemma4'].config.from_dict(mc)
 else:
-    print("WARNING: ndarray-cache.json not found!")
-PYEOF
+    debug_config = MODELS['gemma4'].config.from_dict(cfg_copy)
+tc = debug_config.text_config
+print('DEBUG compile config:')
+print('  double_wide_start_layer:', tc.double_wide_start_layer)
+print('  num_kv_shared_layers:', tc.num_kv_shared_layers)
+print('  use_double_wide_mlp:', tc.use_double_wide_mlp)
+print('  layer 15 double_wide:', tc.layer_uses_double_wide_mlp(15))
+
+# Monkey-patch _compile to inspect model shapes
+import mlc_llm.interface.compile as _comp_mod
+_orig_compile = _comp_mod._compile
+def _debug_compile(args, model_config):
+    tc = model_config.text_config
+    print('INSIDE _compile:')
+    print('  double_wide_start_layer:', getattr(tc, 'double_wide_start_layer', 'MISSING'))
+    print('  num_kv_shared_layers:', tc.num_kv_shared_layers)
+    print('  use_double_wide_mlp:', tc.use_double_wide_mlp)
+    # Check model param shapes
+    model = args.model.model(model_config)
+    _, params, _ = model.export_tvm(spec=model.get_default_spec(), allow_extern=True)
+    params = dict(params)
+    for key in ['model.layers.0.mlp.gate_up_proj.weight', 'model.layers.15.mlp.gate_up_proj.weight']:
+        if key in params: print('  %s: %s' % (key, params[key].shape))
+    # Now run original
+    return _orig_compile(args, model_config)
+_comp_mod._compile = _debug_compile
+
+mlc_compile(
+    config=config,
+    quantization=QUANTIZATION[quant],
+    model_type=MODELS['gemma4'],
+    target=target,
+    opt=OptimizationFlags.from_str('O2'),
+    build_func=build_func,
+    system_lib_prefix='',
+    output=Path(output),
+    overrides=ModelConfigOverride.from_str('context_window_size=1536;prefill_chunk_size=512'),
+)
+print('Generated:', output)
+"
 
 echo ""
-echo "=== Weight conversion complete ==="
+echo "=== Result ==="
+ls -lh /output/gemma4-merged-cuda.so
+echo "=== Cross-compilation complete ==="

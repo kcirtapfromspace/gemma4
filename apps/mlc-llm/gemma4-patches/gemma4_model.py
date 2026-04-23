@@ -55,6 +55,7 @@ class Gemma4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
     num_kv_shared_layers: int = 0
     enable_moe_block: bool = False
     use_double_wide_mlp: bool = False
+    double_wide_start_layer: int = -1  # computed in __post_init__; -1 = disabled
     num_experts: Optional[int] = None
     top_k_experts: Optional[int] = None
     moe_intermediate_size: Optional[int] = None
@@ -71,20 +72,15 @@ class Gemma4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
         if self.attention_bias:
             raise ValueError('Only "False" attention_bias is supported for gemma4')
 
-        # Guard: use_double_wide_mlp requires num_kv_shared_layers > 0.
-        # Without shared-KV layers, layer_uses_double_wide_mlp() always
-        # returns False, silently compiling all layers with the wrong
-        # intermediate_size.  Catch this early.
-        if False and self.use_double_wide_mlp and self.num_kv_shared_layers <= 0:
-            raise ValueError(
-                "Gemma4 config has use_double_wide_mlp=True but "
-                f"num_kv_shared_layers={self.num_kv_shared_layers}.  "
-                "Shared-KV layers are required for double-wide MLP.  "
-                "Set num_kv_shared_layers to the correct value from the "
-                "HuggingFace config.json (typically 20 for Gemma 4 E2B)."
-            )
+        # Compute double-wide MLP threshold as a proper field (survives
+        # config reconstruction in MLC-LLM compile pipeline).
+        if self.double_wide_start_layer < 0:
+            if self.use_double_wide_mlp and self.num_kv_shared_layers > 0:
+                self.double_wide_start_layer = self.num_hidden_layers - self.num_kv_shared_layers
+            else:
+                self.double_wide_start_layer = self.num_hidden_layers
+        self.num_kv_shared_layers = 0
 
-        self.num_kv_shared_layers = 0  # DEBUG: disable KV sharing
         if self.sliding_window_size is None:
             self.sliding_window_size = self.kwargs.get("sliding_window", None)
 
@@ -223,19 +219,15 @@ class Gemma4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
         return self.num_hidden_layers - self.num_kv_shared_layers
 
     def layer_uses_shared_cache(self, layer_idx: int) -> bool:
-        first_shared = self.first_kv_shared_layer_idx()
-        return layer_idx >= first_shared > 0
+        # Disabled: num_kv_shared_layers is zeroed in __post_init__ to
+        # avoid TVM 0.20.0 FlashInfer RoPE codegen bug.
+        return False
 
     def layer_cache_source(self, layer_idx: int) -> Optional[int]:
-        if not self.layer_uses_shared_cache(layer_idx):
-            return None
-        first_shared = self.first_kv_shared_layer_idx()
-        prev_layers = self.layer_types[:first_shared]
-        layer_type = self.layer_type(layer_idx)
-        return len(prev_layers) - 1 - prev_layers[::-1].index(layer_type)
+        return None
 
     def layer_uses_double_wide_mlp(self, layer_idx: int) -> bool:
-        return self.use_double_wide_mlp and self.layer_uses_shared_cache(layer_idx)
+        return self.use_double_wide_mlp and layer_idx >= self.double_wide_start_layer
 
     def unsupported_runtime_features(self) -> List[str]:
         """Return Gemma4 features that still need native support."""
@@ -978,6 +970,11 @@ class Gemma4LanguageModel(nn.Module):  # pylint: disable=too-many-instance-attri
             # so the cache must be sized for the padded dimension.
             qk_head_dim=self.text_config.max_head_dim,
             v_head_dim=self.text_config.max_head_dim,
+            # FlashInfer's ragged prefill uses mla_original_qk_head_dim when
+            # attn_kind is not exactly "mha" (e.g. a per-layer list).
+            # Set it to qk_head_dim to avoid divide-by-zero in _rope codegen.
+            mla_original_qk_head_dim=self.text_config.max_head_dim,
+            mla_original_v_head_dim=self.text_config.max_head_dim,
             rope_mode=RopeMode.NONE,
             rope_scale=1,
             rope_theta=self.rope_theta,

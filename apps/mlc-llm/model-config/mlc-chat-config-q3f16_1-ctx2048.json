@@ -1,6 +1,6 @@
 {
   "model_type": "gemma4",
-  "quantization": "q4f16_1",
+  "quantization": "q3f16_1",
   "context_window_size": 2048,
   "prefill_chunk_size": 512,
   "sliding_window_size": 512,
