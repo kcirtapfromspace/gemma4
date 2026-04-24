@@ -46,15 +46,15 @@ if torch.cuda.is_available():
 print(f"PyTorch: {torch.__version__}")
 
 # Upgrade transformers + peft for Gemma 4 support (ClippableLinear).
-# unsloth is needed only for its chat_templates helpers (get_chat_template
-# to force the <|turn> template, and train_on_responses_only for loss
-# masking). This script does NOT use unsloth's FastLanguageModel — we stay
-# on vanilla transformers + bitsandbytes for 4-bit quant.
+# NOTE: previously imported unsloth for get_chat_template + train_on_responses_only,
+# but unsloth's 2026 releases hit ImportError in Kaggle's TRL (ConstantLengthDataset
+# moved). Bypass: inline the gemma4 template string vendored from unsloth source
+# at kaggle-training/templates/gemma4_unsloth.jinja, use TRL's stock
+# DataCollatorForCompletionOnlyLM for response-only masking (same behavior).
 subprocess.check_call([sys.executable, "-m", "pip", "install", "-q",
     "transformers>=5.5", "peft>=0.15", "trl>=0.15",
     "bitsandbytes", "sentencepiece", "datasets",
-    "git+https://github.com/huggingface/peft.git",
-    "unsloth"])
+    "git+https://github.com/huggingface/peft.git"])
 
 # ============================================================
 # Find training data — prefer v2 (C9) over legacy compact
@@ -108,8 +108,13 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 # and the original cliniq-compact-lora.gguf which was trained via the notebook
 # using the same template). HF's default Gemma tokenizer template emits
 # <start_of_turn> / <end_of_turn> — that would mis-align training vs inference.
-from unsloth.chat_templates import get_chat_template
-tokenizer = get_chat_template(tokenizer, chat_template="gemma-4")
+# Template vendored verbatim from
+# github.com/unslothai/unsloth/unsloth/chat_templates.py `gemma4_template`
+# (2026-04-23). Embedded inline because Kaggle kernel push only uploads
+# the single code_file.
+_GEMMA4_UNSLOTH_TEMPLATE = '{%- macro strip_thinking(text) -%}\n    {%- set ns = namespace(result=\'\') -%}\n    {%- for part in text.split(\'<channel|>\') -%}\n        {%- if \'<|channel>\' in part -%}\n            {%- set ns.result = ns.result + part.split(\'<|channel>\')[0] -%}\n        {%- else -%}\n            {%- set ns.result = ns.result + part -%}\n        {%- endif -%}\n    {%- endfor -%}\n    {{- ns.result | trim -}}\n{%- endmacro -%}\n{%- set thinking = enable_thinking is defined and enable_thinking -%}\n{%- set loop_messages = messages -%}\n{%- if messages[0][\'role\'] in [\'system\', \'developer\'] or thinking -%}\n    {{ \'<|turn>system\\n\' }}\n    {%- if thinking -%}\n        {{ \'<|think>\' }}\n    {%- endif -%}\n    {%- if messages[0][\'role\'] in [\'system\', \'developer\'] -%}\n        {{ messages[0][\'content\'] | trim }}\n        {%- set loop_messages = messages[1:] -%}\n    {%- endif -%}\n    {{ \'<turn|>\\n\' }}\n{%- endif -%}\n{%- for message in loop_messages -%}\n    {%- set role = message[\'role\'] -%}\n    {%- if role == \'assistant\' -%}\n        {%- set role = \'model\' -%}\n    {%- endif -%}\n    {{ \'<|turn>\' + role + \'\\n\' }}\n    {%- if message[\'content\'] is string -%}\n        {%- if role == \'model\' -%}\n            {{ strip_thinking(message[\'content\']) }}\n        {%- else -%}\n            {{ message[\'content\'] | trim }}\n        {%- endif -%}\n    {%- else -%}\n        {%- for content in message[\'content\'] -%}\n            {%- if content[\'type\'] == \'text\' -%}\n                {%- if role == \'model\' -%}\n                    {{ strip_thinking(content[\'text\']) }}\n                {%- else -%}\n                    {{ content[\'text\'] | trim }}\n                {%- endif -%}\n            {%- elif content[\'type\'] == \'image\' -%}\n                {{ \'<start_of_image>\' }}\n            {%- elif content[\'type\'] == \'audio\' -%}\n                {{ \'<start_of_audio>\' }}\n            {%- endif -%}\n        {%- endfor -%}\n    {%- endif -%}\n    {{ \'<turn|>\\n\' }}\n{%- endfor -%}\n{%- if add_generation_prompt -%}\n    {{\'<|turn>model\\n\'}}\n{%- endif -%}'
+tokenizer.chat_template = _GEMMA4_UNSLOTH_TEMPLATE
+print(f"Loaded unsloth gemma-4 template inline ({len(tokenizer.chat_template)} chars)")
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
     quantization_config=bnb_config,
@@ -214,16 +219,34 @@ dataset = dataset.map(fmt, batched=True, remove_columns=["conversations"])
 
 print("\n=== Training: 3 epochs, response-only masking ===")
 from trl import SFTTrainer, SFTConfig
+from trl.trainer import DataCollatorForCompletionOnlyLM
+
+# Response-only loss masking: compute loss only on the assistant JSON
+# tokens, not the user/system prompt where the codes already appear
+# verbatim. Uses TRL's stock collator; response_template is tokenized
+# and every occurrence in each sequence flips the preceding tokens'
+# labels to -100. Unsloth's train_on_responses_only does the same thing
+# with more plumbing; bypassed here because unsloth's latest releases
+# break on Kaggle's TRL version (ConstantLengthDataset import moved).
+#
+# Unsloth gemma-4 template emits <|turn>model\n as the assistant-turn
+# opener (verified: templates/gemma4_unsloth.jinja line "<|turn>model\n").
+_response_template = "<|turn>model\n"
+collator = DataCollatorForCompletionOnlyLM(
+    response_template=_response_template,
+    tokenizer=tokenizer,
+)
+print(f"DataCollatorForCompletionOnlyLM with response_template={_response_template!r}")
 
 trainer = SFTTrainer(
     model=model, processing_class=tokenizer,
     train_dataset=dataset["train"], eval_dataset=dataset["validation"],
+    data_collator=collator,
     args=SFTConfig(
         dataset_text_field="text",
         # Kaggle's TRL rejects max_seq_length in SFTConfig; tokenizer's
-        # model_max_length governs truncation instead. Set it explicitly
-        # on the tokenizer above if needed (Gemma 4 default is 131072 so
-        # our ~605-token p99 examples don't get truncated).
+        # model_max_length governs truncation instead (Gemma 4 default
+        # 131072 so our ~605-token p99 examples don't get truncated).
         per_device_train_batch_size=1, gradient_accumulation_steps=8,
         warmup_steps=10, num_train_epochs=3, learning_rate=1e-4,
         logging_steps=20, eval_strategy="no",
@@ -234,67 +257,21 @@ trainer = SFTTrainer(
     ),
 )
 
-# Apply train_on_responses_only mask so loss is only computed on the
-# assistant JSON tokens, not the input prompt (where the codes already
-# appear verbatim). This concentrates training signal on the output
-# distribution and reduces wasted capacity on input repetition.
-#
-# Note: unsloth.chat_templates.train_on_responses_only wraps the trainer
-# and re-writes labels. We install unsloth only if available; otherwise
-# fall back to stock SFTTrainer (still trains, just slightly less focused).
-#
-# 2026-04-23 correction: unsloth's `gemma-4` chat template emits `<|turn>`
-# and `<turn|>` delimiters (verified against
-# github.com/unslothai/unsloth/.../unsloth/chat_templates.py — the body
-# has 5 occurrences of `<|turn>`/`<turn|>`, 0 of `<start_of_turn>`).
-# Earlier draft of this file used `<start_of_turn>` markers, which would
-# have silently no-op'd the mask against every training sample.
-try:
-    from unsloth.chat_templates import train_on_responses_only
-    trainer = train_on_responses_only(
-        trainer,
-        instruction_part="<|turn>user\n",
-        response_part="<|turn>model\n",
-    )
-    print("train_on_responses_only applied (unsloth, <|turn> delimiters)")
-except ImportError:
-    # Manual implementation: mask labels for non-assistant tokens.
-    # Gemma 4 unsloth turn template uses <|turn>model\n ... <turn|>.
-    import numpy as np
-    model_start = tokenizer.encode("<|turn>model\n", add_special_tokens=False)
-    turn_end = tokenizer.encode("<turn|>", add_special_tokens=False)
-
-    def mask_non_responses(example):
-        input_ids = example["input_ids"]
-        labels = list(input_ids)
-        # Find model-turn spans and only keep labels there
-        in_response = False
-        i = 0
-        ml = len(model_start)
-        tl = len(turn_end)
-        while i < len(input_ids):
-            if not in_response and i + ml <= len(input_ids) and input_ids[i:i+ml] == model_start:
-                in_response = True
-                # mask the <|turn>model\n prefix itself
-                for j in range(i, i+ml):
-                    labels[j] = -100
-                i += ml
-                continue
-            if in_response and i + tl <= len(input_ids) and input_ids[i:i+tl] == turn_end:
-                in_response = False
-                i += tl
-                continue
-            if not in_response:
-                labels[i] = -100
-            i += 1
-        example["labels"] = labels
-        return example
-
-    print("train_on_responses_only fallback (manual mask)")
-    # Apply mask after tokenization happens inside SFTTrainer - leave as-is;
-    # full manual implementation would require patching the data collator.
-    # Skipping to keep stock behavior rather than risk mismatch.
-    print("  (fallback skipped - stock SFTTrainer labels retained)")
+# Legacy dead code below (kept commented so git blame preserves the
+# decision trail about why we dropped unsloth). DataCollatorForCompletionOnlyLM
+# now handles response-only masking above.
+if False:
+    try:
+        from unsloth.chat_templates import train_on_responses_only
+        trainer = train_on_responses_only(
+            trainer,
+            instruction_part="<|turn>user\n",
+            response_part="<|turn>model\n",
+        )
+        print("train_on_responses_only applied (unsloth, <|turn> delimiters)")
+    except ImportError:
+        pass
+# End legacy dead code.
 
 stats = trainer.train()
 print(f"\nLoss: {stats.training_loss:.4f} | Time: {stats.metrics['train_runtime']:.0f}s")
