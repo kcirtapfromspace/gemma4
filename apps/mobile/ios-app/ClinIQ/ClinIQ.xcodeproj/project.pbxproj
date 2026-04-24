@@ -17,6 +17,26 @@
 		C12C12C112C12C0012C12C01 /* LlamaCppInferenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C12C12C112C12C0012C12C02 /* LlamaCppInferenceEngine.swift */; };
 		C12C12C112C12C0012C12C03 /* llama.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C12C12C112C12C0012C12C04 /* llama.xcframework */; };
 		C12C12C112C12C0012C12C05 /* llama.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C12C12C112C12C0012C12C04 /* llama.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		D13C130100000101D13C1301 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130100000102D13C1301 /* Models.swift */; };
+		D13C130200000101D13C1302 /* PersistenceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130200000102D13C1302 /* PersistenceController.swift */; };
+		D13C130300000101D13C1303 /* DemoSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130300000102D13C1303 /* DemoSeed.swift */; };
+		D13C130400000101D13C1304 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130400000102D13C1304 /* NetworkMonitor.swift */; };
+		D13C130500000101D13C1305 /* SyncConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130500000102D13C1305 /* SyncConfig.swift */; };
+		D13C130600000101D13C1306 /* SyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130600000102D13C1306 /* SyncService.swift */; };
+		D13C130700000101D13C1307 /* ExtractionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130700000102D13C1307 /* ExtractionParser.swift */; };
+		D13C130800000101D13C1308 /* ExtractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130800000102D13C1308 /* ExtractionService.swift */; };
+		D13C130900000101D13C1309 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130900000102D13C1309 /* RootView.swift */; };
+		D13C131000000101D13C1310 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131000000102D13C1310 /* Theme.swift */; };
+		D13C131100000101D13C1311 /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131100000102D13C1311 /* StatusBadge.swift */; };
+		D13C131200000101D13C1312 /* OfflineBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131200000102D13C1312 /* OfflineBanner.swift */; };
+		D13C131300000101D13C1313 /* EntityRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131300000102D13C1313 /* EntityRow.swift */; };
+		D13C131400000101D13C1314 /* CasesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131400000102D13C1314 /* CasesTab.swift */; };
+		D13C131500000101D13C1315 /* NewCaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131500000102D13C1315 /* NewCaseView.swift */; };
+		D13C131600000101D13C1316 /* CaseDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131600000102D13C1316 /* CaseDetailView.swift */; };
+		D13C131700000101D13C1317 /* ReviewFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131700000102D13C1317 /* ReviewFlowView.swift */; };
+		D13C131800000101D13C1318 /* OutboxTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131800000102D13C1318 /* OutboxTab.swift */; };
+		D13C131900000101D13C1319 /* HistoryTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131900000102D13C1319 /* HistoryTab.swift */; };
+		D13C132000000101D13C1320 /* SettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C132000000102D13C1320 /* SettingsTab.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,6 +51,26 @@
 		F667F7CDEB334C2C89C7B1FD /* ClinIQ.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClinIQ.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C12C12C112C12C0012C12C02 /* LlamaCppInferenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaCppInferenceEngine.swift; sourceTree = "<group>"; };
 		C12C12C112C12C0012C12C04 /* llama.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = llama.xcframework; path = Frameworks/llama.xcframework; sourceTree = SOURCE_ROOT; };
+		D13C130100000102D13C1301 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		D13C130200000102D13C1302 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
+		D13C130300000102D13C1303 /* DemoSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoSeed.swift; sourceTree = "<group>"; };
+		D13C130400000102D13C1304 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
+		D13C130500000102D13C1305 /* SyncConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncConfig.swift; sourceTree = "<group>"; };
+		D13C130600000102D13C1306 /* SyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncService.swift; sourceTree = "<group>"; };
+		D13C130700000102D13C1307 /* ExtractionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractionParser.swift; sourceTree = "<group>"; };
+		D13C130800000102D13C1308 /* ExtractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractionService.swift; sourceTree = "<group>"; };
+		D13C130900000102D13C1309 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		D13C131000000102D13C1310 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		D13C131100000102D13C1311 /* StatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadge.swift; sourceTree = "<group>"; };
+		D13C131200000102D13C1312 /* OfflineBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineBanner.swift; sourceTree = "<group>"; };
+		D13C131300000102D13C1313 /* EntityRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityRow.swift; sourceTree = "<group>"; };
+		D13C131400000102D13C1314 /* CasesTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CasesTab.swift; sourceTree = "<group>"; };
+		D13C131500000102D13C1315 /* NewCaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewCaseView.swift; sourceTree = "<group>"; };
+		D13C131600000102D13C1316 /* CaseDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaseDetailView.swift; sourceTree = "<group>"; };
+		D13C131700000102D13C1317 /* ReviewFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewFlowView.swift; sourceTree = "<group>"; };
+		D13C131800000102D13C1318 /* OutboxTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutboxTab.swift; sourceTree = "<group>"; };
+		D13C131900000102D13C1319 /* HistoryTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryTab.swift; sourceTree = "<group>"; };
+		D13C132000000102D13C1320 /* SettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTab.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -65,6 +105,9 @@
 				5D9727451C9748C495F14F18 /* ClinIQApp.swift */,
 				8484FD09DCE042D0B97B0DDC /* Views */,
 				1AC41953EDE04466AF7D2C82 /* Models */,
+				D13C140000000000D13C1400 /* Persistence */,
+				D13C140100000000D13C1401 /* Sync */,
+				D13C140200000000D13C1402 /* Extraction */,
 				9E9218AB691C499D87972EDF /* Inference */,
 				495B853A87404AB69331FFAD /* Resources */,
 				C12C12C112C12C0012C12C07 /* Frameworks */,
@@ -83,10 +126,70 @@
 		8484FD09DCE042D0B97B0DDC /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				D13C130900000102D13C1309 /* RootView.swift */,
 				8F835508E3704DD9967B6EFE /* ContentView.swift */,
 				E92E9B41550E4FC298127CA3 /* ExtractionViewModel.swift */,
+				D13C140300000000D13C1403 /* Components */,
+				D13C140400000000D13C1404 /* Cases */,
+				D13C140500000000D13C1405 /* Review */,
+				D13C140600000000D13C1406 /* Outbox */,
+				D13C140700000000D13C1407 /* History */,
+				D13C140800000000D13C1408 /* Settings */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		D13C140300000000D13C1403 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				D13C131000000102D13C1310 /* Theme.swift */,
+				D13C131100000102D13C1311 /* StatusBadge.swift */,
+				D13C131200000102D13C1312 /* OfflineBanner.swift */,
+				D13C131300000102D13C1313 /* EntityRow.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		D13C140400000000D13C1404 /* Cases */ = {
+			isa = PBXGroup;
+			children = (
+				D13C131400000102D13C1314 /* CasesTab.swift */,
+				D13C131500000102D13C1315 /* NewCaseView.swift */,
+				D13C131600000102D13C1316 /* CaseDetailView.swift */,
+			);
+			path = Cases;
+			sourceTree = "<group>";
+		};
+		D13C140500000000D13C1405 /* Review */ = {
+			isa = PBXGroup;
+			children = (
+				D13C131700000102D13C1317 /* ReviewFlowView.swift */,
+			);
+			path = Review;
+			sourceTree = "<group>";
+		};
+		D13C140600000000D13C1406 /* Outbox */ = {
+			isa = PBXGroup;
+			children = (
+				D13C131800000102D13C1318 /* OutboxTab.swift */,
+			);
+			path = Outbox;
+			sourceTree = "<group>";
+		};
+		D13C140700000000D13C1407 /* History */ = {
+			isa = PBXGroup;
+			children = (
+				D13C131900000102D13C1319 /* HistoryTab.swift */,
+			);
+			path = History;
+			sourceTree = "<group>";
+		};
+		D13C140800000000D13C1408 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				D13C132000000102D13C1320 /* SettingsTab.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		1AC41953EDE04466AF7D2C82 /* Models */ = {
@@ -95,6 +198,35 @@
 				3AD5D659DE6B446DBC6C1BCE /* TestCase.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		D13C140000000000D13C1400 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				D13C130100000102D13C1301 /* Models.swift */,
+				D13C130200000102D13C1302 /* PersistenceController.swift */,
+				D13C130300000102D13C1303 /* DemoSeed.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		D13C140100000000D13C1401 /* Sync */ = {
+			isa = PBXGroup;
+			children = (
+				D13C130400000102D13C1304 /* NetworkMonitor.swift */,
+				D13C130500000102D13C1305 /* SyncConfig.swift */,
+				D13C130600000102D13C1306 /* SyncService.swift */,
+			);
+			path = Sync;
+			sourceTree = "<group>";
+		};
+		D13C140200000000D13C1402 /* Extraction */ = {
+			isa = PBXGroup;
+			children = (
+				D13C130700000102D13C1307 /* ExtractionParser.swift */,
+				D13C130800000102D13C1308 /* ExtractionService.swift */,
+			);
+			path = Extraction;
 			sourceTree = "<group>";
 		};
 		9E9218AB691C499D87972EDF /* Inference */ = {
@@ -209,6 +341,26 @@
 				A62770F4720A4BD480FB9D01 /* InferenceEngine.swift in Sources */,
 				05AB7170EA8B4682AB7CA701 /* StubInferenceEngine.swift in Sources */,
 				C12C12C112C12C0012C12C01 /* LlamaCppInferenceEngine.swift in Sources */,
+				D13C130100000101D13C1301 /* Models.swift in Sources */,
+				D13C130200000101D13C1302 /* PersistenceController.swift in Sources */,
+				D13C130300000101D13C1303 /* DemoSeed.swift in Sources */,
+				D13C130400000101D13C1304 /* NetworkMonitor.swift in Sources */,
+				D13C130500000101D13C1305 /* SyncConfig.swift in Sources */,
+				D13C130600000101D13C1306 /* SyncService.swift in Sources */,
+				D13C130700000101D13C1307 /* ExtractionParser.swift in Sources */,
+				D13C130800000101D13C1308 /* ExtractionService.swift in Sources */,
+				D13C130900000101D13C1309 /* RootView.swift in Sources */,
+				D13C131000000101D13C1310 /* Theme.swift in Sources */,
+				D13C131100000101D13C1311 /* StatusBadge.swift in Sources */,
+				D13C131200000101D13C1312 /* OfflineBanner.swift in Sources */,
+				D13C131300000101D13C1313 /* EntityRow.swift in Sources */,
+				D13C131400000101D13C1314 /* CasesTab.swift in Sources */,
+				D13C131500000101D13C1315 /* NewCaseView.swift in Sources */,
+				D13C131600000101D13C1316 /* CaseDetailView.swift in Sources */,
+				D13C131700000101D13C1317 /* ReviewFlowView.swift in Sources */,
+				D13C131800000101D13C1318 /* OutboxTab.swift in Sources */,
+				D13C131900000101D13C1319 /* HistoryTab.swift in Sources */,
+				D13C132000000101D13C1320 /* SettingsTab.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -357,7 +509,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.cliniq.ClinIQ;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -391,7 +543,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.cliniq.ClinIQ;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
