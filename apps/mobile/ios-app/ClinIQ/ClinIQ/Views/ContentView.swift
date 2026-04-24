@@ -100,7 +100,15 @@ struct ContentView: View {
                 // kick off extraction automatically so screenshot-driving
                 // tools (xcrun simctl io ... screenshot) can observe output
                 // without a UI tap.
-                if ProcessInfo.processInfo.environment["CLINIQ_AUTO_EXTRACT"] == "1" {
+                // Optional: CLINIQ_CASE=<case_id> pre-loads a specific bundled
+                // test case before the auto-extract fires (C12).
+                let env = ProcessInfo.processInfo.environment
+                if let caseID = env["CLINIQ_CASE"],
+                   let tc = TestCase.bundled.first(where: { $0.caseId == caseID })
+                {
+                    vm.loadCase(tc)
+                }
+                if env["CLINIQ_AUTO_EXTRACT"] == "1" {
                     Task { await vm.extract() }
                 }
             }

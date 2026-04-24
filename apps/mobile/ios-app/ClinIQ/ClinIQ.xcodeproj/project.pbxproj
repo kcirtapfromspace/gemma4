@@ -14,6 +14,9 @@
 		F4418689E6BA4353B4601A01 /* PromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4418689E6BA4353B4601A4B /* PromptBuilder.swift */; };
 		A62770F4720A4BD480FB9D01 /* InferenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62770F4720A4BD480FB9D8D /* InferenceEngine.swift */; };
 		05AB7170EA8B4682AB7CA701 /* StubInferenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05AB7170EA8B4682AB7CA77A /* StubInferenceEngine.swift */; };
+		C12C12C112C12C0012C12C01 /* LlamaCppInferenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C12C12C112C12C0012C12C02 /* LlamaCppInferenceEngine.swift */; };
+		C12C12C112C12C0012C12C03 /* llama.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C12C12C112C12C0012C12C04 /* llama.xcframework */; };
+		C12C12C112C12C0012C12C05 /* llama.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C12C12C112C12C0012C12C04 /* llama.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,6 +29,8 @@
 		05AB7170EA8B4682AB7CA77A /* StubInferenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubInferenceEngine.swift; sourceTree = "<group>"; };
 		1E5D3AF2D1A64C08A99879D7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F667F7CDEB334C2C89C7B1FD /* ClinIQ.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClinIQ.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C12C12C112C12C0012C12C02 /* LlamaCppInferenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaCppInferenceEngine.swift; sourceTree = "<group>"; };
+		C12C12C112C12C0012C12C04 /* llama.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = llama.xcframework; path = Frameworks/llama.xcframework; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -33,10 +38,25 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C12C12C112C12C0012C12C03 /* llama.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C12C12C112C12C0012C12C06 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				C12C12C112C12C0012C12C05 /* llama.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXGroup section */
 		9BCB97DDB42841AC8EB1D925 /* ClinIQ */ = {
@@ -47,8 +67,17 @@
 				1AC41953EDE04466AF7D2C82 /* Models */,
 				9E9218AB691C499D87972EDF /* Inference */,
 				495B853A87404AB69331FFAD /* Resources */,
+				C12C12C112C12C0012C12C07 /* Frameworks */,
 			);
 			path = ClinIQ;
+			sourceTree = "<group>";
+		};
+		C12C12C112C12C0012C12C07 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C12C12C112C12C0012C12C04 /* llama.xcframework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		8484FD09DCE042D0B97B0DDC /* Views */ = {
@@ -74,6 +103,7 @@
 				F4418689E6BA4353B4601A4B /* PromptBuilder.swift */,
 				A62770F4720A4BD480FB9D8D /* InferenceEngine.swift */,
 				05AB7170EA8B4682AB7CA77A /* StubInferenceEngine.swift */,
+				C12C12C112C12C0012C12C02 /* LlamaCppInferenceEngine.swift */,
 			);
 			path = Inference;
 			sourceTree = "<group>";
@@ -112,6 +142,7 @@
 				0B0C61DD85974C74BBF529F8 /* Sources */,
 				89B9BFAD8EE14C5393A30E39 /* Frameworks */,
 				2756ECEDB44142BB8D10FF1F /* Resources */,
+				C12C12C112C12C0012C12C06 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -177,6 +208,7 @@
 				F4418689E6BA4353B4601A01 /* PromptBuilder.swift in Sources */,
 				A62770F4720A4BD480FB9D01 /* InferenceEngine.swift in Sources */,
 				05AB7170EA8B4682AB7CA701 /* StubInferenceEngine.swift in Sources */,
+				C12C12C112C12C0012C12C01 /* LlamaCppInferenceEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -309,6 +341,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Frameworks",
+				);
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ClinIQ/Resources/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -339,6 +375,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Frameworks",
+				);
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ClinIQ/Resources/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

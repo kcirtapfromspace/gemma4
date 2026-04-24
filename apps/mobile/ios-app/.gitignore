@@ -6,3 +6,10 @@ xcuserdata/
 
 # Apple stuff
 .DS_Store
+
+# GGUF models — kept out of git (2-3 GB each). See BUILD.md § "Model distribution"
+# for how to seed the model into the simulator's Documents directory.
+*.gguf
+ClinIQ/ClinIQ/Resources/Models/
+ClinIQ/Models/
+
