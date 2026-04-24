@@ -84,15 +84,30 @@ def main():
     # which the embedded template engine inside LiteRT-LM does NOT
     # implement (fails with "unknown method: map has no method named get").
     # Work-around: bypass the high-level `Conversation` API and drive the
-    # `Session` prefill/decode directly with a hand-rolled prompt. This is
-    # exactly what a mobile integrator would do if they hit the same bug;
-    # the fix is upstream in the LiteRT-LM Jinja vendored library.
-    # LiteRT-LM rejects literal control tokens like <bos> in the raw prefill
-    # input (the runtime inserts the BOS token itself based on
-    # LlmMetadata.start_token). Send plain text; LiteRT-LM handles
-    # turn-tagging through its own turn-transcript state machine, even in
-    # raw session mode.
-    plain_prompt = f"{DEFAULT_SYSTEM}\n\n{case_user}\n\nReturn JSON only.\n"
+    # `Session` prefill/decode directly with a hand-rolled prompt.
+    #
+    # 2026-04-23 update — raw-text prompt (DEFAULT_SYSTEM + \n\n + case_user)
+    # produced degraded extraction (mangled SNOMED codes). Root cause: the
+    # LoRA was trained with unsloth's "gemma-4" chat template, which wraps
+    # each turn with unsloth-specific special tokens:
+    #     <|turn>system\n ... <turn|>\n
+    #     <|turn>user\n   ... <turn|>\n
+    #     <|turn>model\n  <- generation starts here
+    # These are NOT standard Gemma <start_of_turn>/<end_of_turn>; they live
+    # in the unsloth/gemma-4-E2B-it tokenizer (the same base the LoRA was
+    # trained against and the .litertlm was exported from). LiteRT-LM's
+    # turn-transcript state machine does NOT know about this variant, so
+    # we inject the delimiters manually. LiteRT-LM still rejects literal
+    # <bos> in raw prefill input; the runtime inserts BOS from LlmMetadata.
+    TURN_SYS_OPEN   = "<|turn>system\n"
+    TURN_USER_OPEN  = "<|turn>user\n"
+    TURN_MODEL_OPEN = "<|turn>model\n"
+    TURN_CLOSE      = "<turn|>\n"
+    plain_prompt = (
+        f"{TURN_SYS_OPEN}{DEFAULT_SYSTEM}{TURN_CLOSE}"
+        f"{TURN_USER_OPEN}{case_user}{TURN_CLOSE}"
+        f"{TURN_MODEL_OPEN}"
+    )
 
     session = engine.create_session()
 
