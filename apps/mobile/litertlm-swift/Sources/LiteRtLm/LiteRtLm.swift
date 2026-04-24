@@ -112,6 +112,21 @@ public final class LiteRtLmSession: @unchecked Sendable {
         if rc != 0 { throw LiteRtLmError.prefillFailed(code: rc) }
     }
 
+    /// Caps the next decode to at most `maxTokens` generated tokens. Must
+    /// be called before `decode()` begins emitting; ignored mid-decode.
+    /// Pass `0` (or negative) to clear the cap and fall back to the
+    /// model's default. Safe to call repeatedly between turns.
+    public func setMaxDecodeTokens(_ maxTokens: Int) {
+        _ = litertlm_session_decode_set_max_tokens(raw, Int32(maxTokens))
+    }
+
+    /// Number of tokens produced by the most recent decode for this
+    /// session. Returns 0 if no decode has run yet. Read this after the
+    /// stream returned by `decode()` finishes to compute tokens/sec.
+    public var lastTokenCount: Int {
+        return Int(litertlm_session_last_token_count(raw))
+    }
+
     /// Streaming decode. Returns an `AsyncThrowingStream` that yields UTF-8
     /// substrings as the model emits them. Calls `decode_step` on a
     /// background task; closes the stream on EOS or error.
@@ -119,6 +134,14 @@ public final class LiteRtLmSession: @unchecked Sendable {
     /// The detached task strongly retains `self`, so the underlying native
     /// session pointer cannot be torn down mid-decode even if the Swift
     /// caller drops its reference to the `LiteRtLmSession`.
+    ///
+    /// Under the covers the current C shim implements this as one
+    /// blocking `RunDecode` followed by byte-level drain of the cached
+    /// output — so the first chunk's latency equals the full decode
+    /// time, and subsequent chunks are essentially free. That's fine for
+    /// a smoke/demo: `lastTokenCount / totalElapsed` gives a fair
+    /// aggregate tok/s. True per-token streaming will land in a follow-
+    /// up when we wire up `RunDecodeAsync`.
     public func decode(bufferSize: Int = 512) -> AsyncThrowingStream<String, Error> {
         return AsyncThrowingStream { continuation in
             let owner = self  // strong retain for the duration of the task

@@ -46,6 +46,50 @@ test:
 	    -destination 'platform=iOS Simulator,id=$(SIMULATOR_ID)' \
 	    test
 
+# Same as `test` but also opts in to the decode smoke test. Decode on
+# the iOS Simulator CPU backend is SLOW (minutes per 32-token run), so
+# we gate it behind LITERTLM_RUN_DECODE=1 to keep routine test runs fast.
+.PHONY: test-decode
+test-decode:
+	@if [ -z "$(SIMULATOR_ID)" ]; then \
+	  echo "error: no booted iOS simulator. Boot one in Simulator.app, then re-run." >&2; \
+	  exit 1; \
+	fi
+	@echo "==> copying model into simulator sandbox"
+	@SIM_ROOT="$$HOME/Library/Developer/CoreSimulator/Devices/$(SIMULATOR_ID)/data"; \
+	 mkdir -p "$$SIM_ROOT/private/tmp/gemma-model"; \
+	 cp -n "$(MODEL_PATH)" "$$SIM_ROOT/private/tmp/gemma-model/" || true
+	TEST_RUNNER_LITERTLM_MODEL_PATH=/private/tmp/gemma-model/$$(basename "$(MODEL_PATH)") \
+	TEST_RUNNER_LITERTLM_RUN_DECODE=1 \
+	  xcodebuild -scheme LiteRtLm \
+	    -destination 'platform=iOS Simulator,id=$(SIMULATOR_ID)' \
+	    -only-testing:LiteRtLmTests/DecodeTest \
+	    test 2>&1 | tee build/decode-test.log | \
+	      grep -E 'LITERTLM_DECODE_RESULT|LITERTLM_DECODE_SAMPLE|Test Suite.*(passed|failed)|error:' || true
+	@echo ''
+	@echo '==> tok/s (parsed from test output):'
+	@grep -E 'LITERTLM_DECODE_RESULT' build/decode-test.log | tail -1 || echo '  (no result line found; see build/decode-test.log)'
+
+# Build + invoke the CLI on the booted simulator. Pass a prompt via PROMPT=,
+# e.g. `make cli PROMPT='The capital of France is'`.
+PROMPT ?= The capital of France is
+.PHONY: cli
+cli:
+	@if [ -z "$(SIMULATOR_ID)" ]; then \
+	  echo "error: no booted iOS simulator." >&2; exit 1; fi
+	@SIM_ROOT="$$HOME/Library/Developer/CoreSimulator/Devices/$(SIMULATOR_ID)/data"; \
+	 mkdir -p "$$SIM_ROOT/private/tmp/gemma-model"; \
+	 cp -n "$(MODEL_PATH)" "$$SIM_ROOT/private/tmp/gemma-model/" || true
+	xcodebuild -scheme LiteRtLmCli \
+	  -destination 'platform=iOS Simulator,id=$(SIMULATOR_ID)' \
+	  build -quiet
+	@CLI=$$(find "$$HOME/Library/Developer/Xcode/DerivedData" \
+	  -name LiteRtLmCli -path '*Debug-iphonesimulator*' -type f | head -1); \
+	 test -n "$$CLI" || (echo "error: LiteRtLmCli binary not found after build" >&2; exit 1); \
+	 SIMCTL_CHILD_LITERTLM_MODEL_PATH=/private/tmp/gemma-model/$$(basename "$(MODEL_PATH)") \
+	 SIMCTL_CHILD_LITERTLM_MAX_TOKENS=64 \
+	   xcrun simctl spawn $(SIMULATOR_ID) "$$CLI" $(PROMPT)
+
 .PHONY: clean
 clean:
 	rm -rf build/ .build/ .swiftpm/ Package.resolved

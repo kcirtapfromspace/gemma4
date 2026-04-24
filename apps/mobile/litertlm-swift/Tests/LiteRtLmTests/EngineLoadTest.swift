@@ -13,9 +13,14 @@ final class EngineLoadTest: XCTestCase {
     func testShimVersionIsReachable() {
         // Cheapest possible smoke: if the xcframework linked, the C shim
         // symbol resolves and we get back a non-empty version string.
+        //
+        // The "+team-" tag is appended by every team that widens the
+        // shim's ABI (C11 shipped `+team-c11`; C14 bumped to
+        // `+team-c14` when adding `decode_set_max_tokens` and
+        // `last_token_count`). Match the family, not the exact tag.
         let v = liteRtLmShimVersion()
         XCTAssertFalse(v.isEmpty)
-        XCTAssertTrue(v.contains("team-c11"))
+        XCTAssertTrue(v.contains("+team-"), "unexpected shim version: \(v)")
     }
 
     func testEngineLoadsModel() throws {
