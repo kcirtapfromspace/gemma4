@@ -59,10 +59,12 @@ def build_server_args(experiment: dict) -> list[str]:
     }
 
     bool_flags = {
-        "flash_attn": "--flash-attn",
         "mlock": "--mlock",
         "no_mmap": "--no-mmap",
         "cont_batching": "--cont-batching",
+        "no_warmup": "--no-warmup",
+        "no_perf": "--no-perf",
+        "jinja": "--jinja",
     }
 
     for key, flag in flag_map.items():
@@ -72,6 +74,15 @@ def build_server_args(experiment: dict) -> list[str]:
     for key, flag in bool_flags.items():
         if sa.get(key):
             args.append(flag)
+
+    # flash_attn can be: True/False (old-style bool) or "on"/"off"/"auto" (string)
+    if "flash_attn" in sa:
+        fa = sa["flash_attn"]
+        if isinstance(fa, bool):
+            if fa:
+                args.extend(["--flash-attn", "on"])
+        else:
+            args.extend(["--flash-attn", str(fa)])
 
     return args
 
