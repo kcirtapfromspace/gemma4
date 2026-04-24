@@ -229,20 +229,27 @@ trainer = SFTTrainer(
 # Note: unsloth.chat_templates.train_on_responses_only wraps the trainer
 # and re-writes labels. We install unsloth only if available; otherwise
 # fall back to stock SFTTrainer (still trains, just slightly less focused).
+#
+# 2026-04-23 correction: unsloth's `gemma-4` chat template emits `<|turn>`
+# and `<turn|>` delimiters (verified against
+# github.com/unslothai/unsloth/.../unsloth/chat_templates.py — the body
+# has 5 occurrences of `<|turn>`/`<turn|>`, 0 of `<start_of_turn>`).
+# Earlier draft of this file used `<start_of_turn>` markers, which would
+# have silently no-op'd the mask against every training sample.
 try:
     from unsloth.chat_templates import train_on_responses_only
     trainer = train_on_responses_only(
         trainer,
-        instruction_part="<start_of_turn>user\n",
-        response_part="<start_of_turn>model\n",
+        instruction_part="<|turn>user\n",
+        response_part="<|turn>model\n",
     )
-    print("train_on_responses_only applied (unsloth)")
+    print("train_on_responses_only applied (unsloth, <|turn> delimiters)")
 except ImportError:
     # Manual implementation: mask labels for non-assistant tokens.
-    # Gemma 4 turn template uses <start_of_turn>model and <end_of_turn>.
+    # Gemma 4 unsloth turn template uses <|turn>model\n ... <turn|>.
     import numpy as np
-    model_start = tokenizer.encode("<start_of_turn>model\n", add_special_tokens=False)
-    turn_end = tokenizer.encode("<end_of_turn>", add_special_tokens=False)
+    model_start = tokenizer.encode("<|turn>model\n", add_special_tokens=False)
+    turn_end = tokenizer.encode("<turn|>", add_special_tokens=False)
 
     def mask_non_responses(example):
         input_ids = example["input_ids"]
@@ -255,7 +262,7 @@ except ImportError:
         while i < len(input_ids):
             if not in_response and i + ml <= len(input_ids) and input_ids[i:i+ml] == model_start:
                 in_response = True
-                # mask the <start_of_turn>model\n prefix itself
+                # mask the <|turn>model\n prefix itself
                 for j in range(i, i+ml):
                     labels[j] = -100
                 i += ml
