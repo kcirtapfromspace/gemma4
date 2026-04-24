@@ -15,6 +15,12 @@ import SwiftData
 struct ClinIQApp: App {
     @StateObject private var monitor = NetworkMonitor()
     @StateObject private var sync = SyncService()
+    // C15: one ExtractionService at the App level so the Settings
+    // backend-toggle can reach the same engine instance the Review
+    // flow is using. Previously this was a per-view @StateObject which
+    // meant a toggle flip only took effect after the review sheet
+    // was dismissed + reopened.
+    @StateObject private var extractionService = ExtractionService()
     private let container: ModelContainer
 
     @MainActor
@@ -27,6 +33,7 @@ struct ClinIQApp: App {
             RootView()
                 .environmentObject(monitor)
                 .environmentObject(sync)
+                .environmentObject(extractionService)
                 .modelContainer(container)
                 .task {
                     monitor.start()

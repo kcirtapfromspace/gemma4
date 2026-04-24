@@ -1,11 +1,14 @@
 // ExtractionService.swift
 // Orchestrates: narrative -> prompt -> model stream -> parsed entities ->
 // review-ready SwiftData objects. Observes the `InferenceEngine`
-// implementation injected at construction (defaults to
-// `LlamaCppInferenceEngine` when a GGUF is on disk, else StubEngine).
+// implementation injected at construction (defaults to whichever backend
+// the user has selected in Settings — see `ExtractionViewModel.makeDefaultEngine`).
 //
-// The service is a @MainActor observable so views can bind directly to
-// `isRunning`, `tokensPerSecond`, `streamedOutput` for the live tok counter.
+// C15: engine is a `var`, not a `let`, so a Settings toggle flip can
+// invalidate it via `reloadEngine()` without tearing down the whole
+// service. The service is a @MainActor observable so views can bind
+// directly to `isRunning`, `tokensPerSecond`, `streamedOutput` for the
+// live tok counter.
 
 import Foundation
 import SwiftUI
@@ -18,24 +21,44 @@ final class ExtractionService: ObservableObject {
     @Published private(set) var lastElapsed: Double = 0
     @Published private(set) var streamedOutput: String = ""
     @Published private(set) var errorMessage: String?
+    /// Human-readable backend name (e.g. "LiteRT-LM (base)"). Surfaces
+    /// in the UI + sync log so reviewers know which path produced a row.
+    @Published private(set) var activeBackendLabel: String = "llama.cpp"
 
-    private let engine: any InferenceEngine
-    private let usingStub: Bool
+    private var engine: any InferenceEngine
+    private var usingStub: Bool
 
     init(engine: (any InferenceEngine)? = nil) {
         if let engine = engine {
             self.engine = engine
             self.usingStub = engine is StubInferenceEngine
-        } else if LlamaCppInferenceEngine.resolveModelPath() != nil {
-            self.engine = LlamaCppInferenceEngine()
-            self.usingStub = false
+            self.activeBackendLabel = Self.label(for: engine)
         } else {
-            self.engine = StubInferenceEngine()
-            self.usingStub = true
+            let (e, label) = ExtractionViewModel.makeDefaultEngine()
+            self.engine = e
+            self.activeBackendLabel = label
+            self.usingStub = e is StubInferenceEngine
         }
     }
 
-    /// True if the running engine is the regex stub (no GGUF found). The UI
+    /// Flip the active engine (called from SettingsTab when the picker
+    /// changes). No-op if the target backend is unavailable — we fall
+    /// back to the next best option per `makeDefaultEngine()`.
+    func reloadEngine() {
+        let (e, label) = ExtractionViewModel.makeDefaultEngine()
+        self.engine = e
+        self.activeBackendLabel = label
+        self.usingStub = e is StubInferenceEngine
+    }
+
+    private static func label(for engine: any InferenceEngine) -> String {
+        if engine is LiteRtLmInferenceEngine { return "LiteRT-LM (base)" }
+        if engine is LlamaCppInferenceEngine { return "llama.cpp (fine-tune)" }
+        if engine is StubInferenceEngine { return "Rule-based stub" }
+        return String(describing: type(of: engine))
+    }
+
+    /// True if the running engine is the regex stub (no model found). The UI
     /// surfaces this as a soft chip so the demoer knows.
     var isStubEngine: Bool { usingStub }
 
