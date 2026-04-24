@@ -37,6 +37,9 @@ struct RootView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             OfflineBanner()
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            InferenceStatusBar()
+        }
         .onAppear {
             // Demo-mode env vars so the screenshot harness can jump directly
             // to a given tab without chasing tap coordinates.

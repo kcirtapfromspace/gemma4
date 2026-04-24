@@ -55,8 +55,25 @@ final class ExtractionService: ObservableObject {
         var accum = ""
         var tokens = 0
 
+        // Publish live telemetry to the status-bar overlay.
+        let backendName = usingStub
+            ? "Stub (rule-based)"
+            : String(describing: type(of: engine)).replacingOccurrences(of: "InferenceEngine", with: "")
+        let modelName: String = {
+            if engine is LlamaCppInferenceEngine {
+                return (LlamaCppInferenceEngine.resolveModelPath() as NSString?)?
+                    .lastPathComponent ?? "on-device model"
+            }
+            return usingStub ? "—" : "on-device model"
+        }()
+        let maxTokens = 512
+        InferenceMetrics.shared.begin(backend: backendName,
+                                      model: modelName,
+                                      promptChars: prompt.count,
+                                      maxTokens: maxTokens)
+
         do {
-            let stream = try await engine.generate(prompt: prompt, maxTokens: 512)
+            let stream = try await engine.generate(prompt: prompt, maxTokens: maxTokens)
             for try await chunk in stream {
                 accum += chunk.text
                 tokens += chunk.tokenCount
@@ -65,16 +82,20 @@ final class ExtractionService: ObservableObject {
                     tokensPerSecond = Double(tokens) / elapsed
                 }
                 streamedOutput = accum
+                InferenceMetrics.shared.record(chunkTokens: max(1, chunk.tokenCount))
             }
+            InferenceMetrics.shared.finalize()
             let elapsed = Date().timeIntervalSince(start)
             lastElapsed = elapsed
             lastTokens = tokens
             tokensPerSecond = elapsed > 0 ? Double(tokens) / elapsed : 0
             isRunning = false
+            InferenceMetrics.shared.end()
             return ExtractionParser.parse(accum)
         } catch {
             errorMessage = "Inference error: \(error.localizedDescription)"
             isRunning = false
+            InferenceMetrics.shared.end(error: error.localizedDescription)
             return nil
         }
     }

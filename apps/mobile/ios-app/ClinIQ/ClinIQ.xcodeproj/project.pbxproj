@@ -15,6 +15,8 @@
 		A62770F4720A4BD480FB9D01 /* InferenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62770F4720A4BD480FB9D8D /* InferenceEngine.swift */; };
 		05AB7170EA8B4682AB7CA701 /* StubInferenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05AB7170EA8B4682AB7CA77A /* StubInferenceEngine.swift */; };
 		C12C12C112C12C0012C12C01 /* LlamaCppInferenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C12C12C112C12C0012C12C02 /* LlamaCppInferenceEngine.swift */; };
+		E14C141E00000101E14C141E /* InferenceMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14C141E00000102E14C141E /* InferenceMetrics.swift */; };
+		E14C141F00000101E14C141F /* InferenceStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14C141F00000102E14C141F /* InferenceStatusBar.swift */; };
 		C12C12C112C12C0012C12C03 /* llama.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C12C12C112C12C0012C12C04 /* llama.xcframework */; };
 		C12C12C112C12C0012C12C05 /* llama.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C12C12C112C12C0012C12C04 /* llama.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		D13C130100000101D13C1301 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130100000102D13C1301 /* Models.swift */; };
@@ -50,6 +52,8 @@
 		1E5D3AF2D1A64C08A99879D7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F667F7CDEB334C2C89C7B1FD /* ClinIQ.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClinIQ.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C12C12C112C12C0012C12C02 /* LlamaCppInferenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaCppInferenceEngine.swift; sourceTree = "<group>"; };
+		E14C141E00000102E14C141E /* InferenceMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceMetrics.swift; sourceTree = "<group>"; };
+		E14C141F00000102E14C141F /* InferenceStatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceStatusBar.swift; sourceTree = "<group>"; };
 		C12C12C112C12C0012C12C04 /* llama.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = llama.xcframework; path = Frameworks/llama.xcframework; sourceTree = SOURCE_ROOT; };
 		D13C130100000102D13C1301 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		D13C130200000102D13C1302 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
@@ -145,6 +149,7 @@
 				D13C131000000102D13C1310 /* Theme.swift */,
 				D13C131100000102D13C1311 /* StatusBadge.swift */,
 				D13C131200000102D13C1312 /* OfflineBanner.swift */,
+				E14C141F00000102E14C141F /* InferenceStatusBar.swift */,
 				D13C131300000102D13C1313 /* EntityRow.swift */,
 			);
 			path = Components;
@@ -236,6 +241,7 @@
 				A62770F4720A4BD480FB9D8D /* InferenceEngine.swift */,
 				05AB7170EA8B4682AB7CA77A /* StubInferenceEngine.swift */,
 				C12C12C112C12C0012C12C02 /* LlamaCppInferenceEngine.swift */,
+				E14C141E00000102E14C141E /* InferenceMetrics.swift */,
 			);
 			path = Inference;
 			sourceTree = "<group>";
@@ -341,6 +347,8 @@
 				A62770F4720A4BD480FB9D01 /* InferenceEngine.swift in Sources */,
 				05AB7170EA8B4682AB7CA701 /* StubInferenceEngine.swift in Sources */,
 				C12C12C112C12C0012C12C01 /* LlamaCppInferenceEngine.swift in Sources */,
+				E14C141E00000101E14C141E /* InferenceMetrics.swift in Sources */,
+				E14C141F00000101E14C141F /* InferenceStatusBar.swift in Sources */,
 				D13C130100000101D13C1301 /* Models.swift in Sources */,
 				D13C130200000101D13C1302 /* PersistenceController.swift in Sources */,
 				D13C130300000101D13C1303 /* DemoSeed.swift in Sources */,

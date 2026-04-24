@@ -54,6 +54,13 @@ struct ReviewFlowView: View {
                     phase = .review
                 }
             }
+            // Make the live LLM status pill visible while this sheet is
+            // presented (it also shows in the root TabView below, but the
+            // sheet covers that). `InferenceStatusBar` is a shared observer
+            // so this reflects the same metrics.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                InferenceStatusBar()
+            }
         }
     }
 
