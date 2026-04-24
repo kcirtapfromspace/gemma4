@@ -1,0 +1,5 @@
+module LiteRtLmCShim {
+  header "include/litertlm_c_shim.h"
+  export *
+  link "litertlm_c_shim"
+}

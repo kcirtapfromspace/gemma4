@@ -1,0 +1,53 @@
+# Overlay BUILD file staged into the upstream LiteRT-LM tree at the
+# relative path //apps/litertlm_swift_shim/BUILD. Depends only on public
+# LiteRT-LM targets so no upstream patches are required.
+#
+# `build_xcframework.sh` copies this directory into the LiteRT-LM checkout
+# before invoking Bazel, then collects build/bin/.../LiteRtLmCore.xcframework
+# back into apps/mobile/litertlm-swift/build/.
+
+load("@build_bazel_rules_apple//apple:apple.bzl", "apple_static_xcframework")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "litertlm_c_shim_lib",
+    srcs = ["litertlm_c_shim.cc"],
+    hdrs = ["include/litertlm_c_shim.h"],
+    includes = ["."],
+    # Minimum iOS 15 for `std::string_view` + `std::optional` being fully
+    # available in the stable libc++ dylib shipped by the simulator runtime.
+    copts = ["-fno-exceptions", "-std=c++20"] + select({
+        "@platforms//os:ios": [
+            "-mios-version-min=15.0",
+            "-fembed-bitcode",
+        ],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//runtime/engine:engine_factory",
+        "//runtime/engine:engine_impl_selected",
+        "//runtime/engine:engine_interface",
+        "//runtime/engine:engine_settings",
+        "//runtime/engine:io_types",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+    alwayslink = True,
+)
+
+# Produces one static archive per iOS arch and bundles them into a single
+# `.xcframework` directory that SwiftPM can consume as a binaryTarget.
+apple_static_xcframework(
+    name = "LiteRtLmCore",
+    bundle_name = "LiteRtLmCore",
+    # One entry per slice. rules_apple handles dsym/info.plist emission.
+    ios = {
+        "simulator": ["arm64"],
+        "device": ["arm64"],
+    },
+    minimum_os_versions = {"ios": "15.0"},
+    public_hdrs = ["include/litertlm_c_shim.h"],
+    deps = [":litertlm_c_shim_lib"],
+)
