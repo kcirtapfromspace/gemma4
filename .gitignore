@@ -24,3 +24,7 @@ demo-video/
 
 # Notebook checkpoints
 .ipynb_checkpoints/
+
+# Xcode build artifacts (C13 worktree)
+apps/mobile/ios-app/ClinIQ/build/
+apps/mobile/ios-app/screenshots-c13/

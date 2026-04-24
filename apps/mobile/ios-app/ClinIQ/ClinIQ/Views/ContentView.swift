@@ -1,5 +1,11 @@
 // ContentView.swift
-// Single-screen SwiftUI view for ClinIQ eICR extraction.
+// LEGACY developer testbench (C10/C12). Kept in the source tree so prior
+// diagnostic screens are preserved under version control, but NOT wired
+// into the app shell — the current app root is `RootView.swift`.
+//
+// Leaving this file in the build keeps ExtractionViewModel (and the
+// headless env-var auto-extract path in BUILD.md) accessible for
+// validation runs. See LEGACY.md for the transition notes.
 
 import SwiftUI
 
@@ -9,32 +15,24 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Paste an eICR summary; tap Extract to receive minified JSON.")
+                Text("Legacy JSON-dumper testbench (developer use).\nThe clinician PoC shell lives in RootView.swift.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal)
 
-                // Input editor
-                GroupBox(label: Label("Input eICR", systemImage: "doc.text")) {
+                GroupBox(label: Label("Narrative", systemImage: "doc.text")) {
                     TextEditor(text: $vm.inputEicr)
                         .font(.system(.footnote, design: .monospaced))
-                        .frame(minHeight: 220, maxHeight: 300)
+                        .frame(minHeight: 180, maxHeight: 240)
                         .scrollContentBackground(.hidden)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.secondary.opacity(0.25), lineWidth: 0.5)
-                        )
                 }
                 .padding(.horizontal)
 
-                // Action row
                 HStack(spacing: 12) {
                     Button(action: { Task { await vm.extract() } }) {
                         if vm.isExtracting {
-                            ProgressView()
-                                .controlSize(.small)
-                                .padding(.trailing, 4)
-                            Text("Extracting\u{2026}")
+                            ProgressView().controlSize(.small)
+                            Text("Extracting...")
                         } else {
                             Image(systemName: "wand.and.stars")
                             Text("Extract")
@@ -47,39 +45,16 @@ struct ContentView: View {
                         Text(String(format: "%.1f tok/s", vm.tokensPerSecond))
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
-                    } else if vm.lastTokensGenerated > 0 {
-                        Text("\(vm.lastTokensGenerated) tok / \(String(format: "%.1fs", vm.lastElapsedSeconds))")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
                     }
-
                     Spacer()
-
-                    Menu {
-                        ForEach(TestCase.bundled) { tc in
-                            Button(tc.caseId) { vm.loadCase(tc) }
-                        }
-                    } label: {
-                        Label("Sample", systemImage: "tray.and.arrow.down")
-                    }
-                    .font(.caption)
                 }
                 .padding(.horizontal)
 
-                // Output editor
                 GroupBox(label: Label("JSON Output", systemImage: "curlybraces")) {
                     TextEditor(text: .constant(vm.output))
                         .font(.system(.footnote, design: .monospaced))
-                        .frame(minHeight: 200, maxHeight: .infinity)
+                        .frame(minHeight: 150, maxHeight: .infinity)
                         .scrollContentBackground(.hidden)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(
-                                    vm.errorMessage != nil
-                                        ? Color.red.opacity(0.5)
-                                        : Color.secondary.opacity(0.25),
-                                    lineWidth: 0.5)
-                        )
                 }
                 .padding(.horizontal)
 
@@ -93,15 +68,9 @@ struct ContentView: View {
                 Spacer(minLength: 0)
             }
             .padding(.vertical, 8)
-            .navigationTitle("ClinIQ eICR Extractor")
+            .navigationTitle("ClinIQ testbench")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
-                // When the simulator launches us with CLINIQ_AUTO_EXTRACT=1,
-                // kick off extraction automatically so screenshot-driving
-                // tools (xcrun simctl io ... screenshot) can observe output
-                // without a UI tap.
-                // Optional: CLINIQ_CASE=<case_id> pre-loads a specific bundled
-                // test case before the auto-extract fires (C12).
                 let env = ProcessInfo.processInfo.environment
                 if let caseID = env["CLINIQ_CASE"],
                    let tc = TestCase.bundled.first(where: { $0.caseId == caseID })
