@@ -219,22 +219,42 @@ dataset = dataset.map(fmt, batched=True, remove_columns=["conversations"])
 
 print("\n=== Training: 3 epochs, response-only masking ===")
 from trl import SFTTrainer, SFTConfig
-# DataCollatorForCompletionOnlyLM moves around across TRL versions:
-#   <=0.10: from trl import DataCollatorForCompletionOnlyLM
-#   0.11-0.14: from trl.trainer import DataCollatorForCompletionOnlyLM
-#   0.15+: from trl.trainer.utils import DataCollatorForCompletionOnlyLM
-# Try all three so the script runs on whatever Kaggle has preinstalled.
-DataCollatorForCompletionOnlyLM = None
-for _module in ("trl.trainer.utils", "trl.trainer", "trl"):
-    try:
-        _m = __import__(_module, fromlist=["DataCollatorForCompletionOnlyLM"])
-        DataCollatorForCompletionOnlyLM = _m.DataCollatorForCompletionOnlyLM
-        print(f"Loaded DataCollatorForCompletionOnlyLM from {_module}")
-        break
-    except (ImportError, AttributeError):
-        continue
-assert DataCollatorForCompletionOnlyLM is not None, \
-    "DataCollatorForCompletionOnlyLM not found in any TRL submodule"
+# Inline DataCollatorForCompletionOnlyLM to avoid the moving-target import
+# in TRL (dropped from trl/trl.trainer/trl.trainer.utils in recent releases).
+# Behavior: for each example, finds the response_template's token id sequence
+# and sets labels = -100 for every position BEFORE the end of that match.
+# Equivalent to the TRL implementation's happy path for a single response
+# template; we don't need the instruction_template variant here.
+from transformers import DataCollatorForLanguageModeling
+
+class DataCollatorForCompletionOnlyLM(DataCollatorForLanguageModeling):
+    def __init__(self, response_template, tokenizer, mlm=False, **kwargs):
+        super().__init__(tokenizer=tokenizer, mlm=mlm, **kwargs)
+        self.response_template = response_template
+        self.response_token_ids = tokenizer.encode(response_template, add_special_tokens=False)
+        self.ignore_index = -100
+
+    def torch_call(self, examples):
+        batch = super().torch_call(examples)
+        import numpy as np
+        rid = self.response_token_ids
+        rlen = len(rid)
+        for i, input_ids in enumerate(batch["input_ids"].tolist()):
+            # locate last occurrence of response_template
+            end = -1
+            for j in range(len(input_ids) - rlen, -1, -1):
+                if input_ids[j:j+rlen] == rid:
+                    end = j + rlen
+                    break
+            if end < 0:
+                # template not found -> mask entire sequence to skip sample
+                batch["labels"][i, :] = self.ignore_index
+            else:
+                # mask everything up to (and including) the response template
+                batch["labels"][i, :end] = self.ignore_index
+        return batch
+
+print("Using inline DataCollatorForCompletionOnlyLM (bypasses TRL version drift)")
 
 # Response-only loss masking: compute loss only on the assistant JSON
 # tokens, not the user/system prompt where the codes already appear
