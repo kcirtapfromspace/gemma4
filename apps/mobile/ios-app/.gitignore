@@ -1,0 +1,8 @@
+# Xcode derived-data / build intermediates
+ClinIQ/build/
+build/
+*.xcuserstate
+xcuserdata/
+
+# Apple stuff
+.DS_Store
