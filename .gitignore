@@ -28,3 +28,4 @@ demo-video/
 # Xcode build artifacts (C13 worktree)
 apps/mobile/ios-app/ClinIQ/build/
 apps/mobile/ios-app/screenshots-c13/
+models/cliniq-gemma4-e2b-v2-Q3_K_M.gguf

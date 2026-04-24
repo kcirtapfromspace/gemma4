@@ -239,6 +239,10 @@ final class LlamaCppInferenceEngine: InferenceEngine {
     // Candidate GGUF filenames, in preference order. The fine-tune is
     // preferred; falls back to the stock base if the former isn't found.
     static let candidateModelNames: [String] = [
+        // v2 LoRA (Kaggle kernel 26, 2026-04-24). r=32, target_modules
+        // drops the 40 KV-shared k/v_proj no-ops, +50 diversified
+        // training examples targeting code-elision + neg-lab degen.
+        "cliniq-gemma4-e2b-v2-Q3_K_M",
         "cliniq-gemma4-e2b-Q3_K_M",
         "gemma-4-E2B-it-Q3_K_M",
         "cliniq-gemma4-e2b-Q2_K",
