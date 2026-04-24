@@ -45,11 +45,16 @@ if torch.cuda.is_available():
 
 print(f"PyTorch: {torch.__version__}")
 
-# Upgrade transformers + peft for Gemma 4 support (ClippableLinear)
+# Upgrade transformers + peft for Gemma 4 support (ClippableLinear).
+# unsloth is needed only for its chat_templates helpers (get_chat_template
+# to force the <|turn> template, and train_on_responses_only for loss
+# masking). This script does NOT use unsloth's FastLanguageModel — we stay
+# on vanilla transformers + bitsandbytes for 4-bit quant.
 subprocess.check_call([sys.executable, "-m", "pip", "install", "-q",
     "transformers>=5.5", "peft>=0.15", "trl>=0.15",
     "bitsandbytes", "sentencepiece", "datasets",
-    "git+https://github.com/huggingface/peft.git"])
+    "git+https://github.com/huggingface/peft.git",
+    "unsloth"])
 
 # ============================================================
 # Find training data — prefer v2 (C9) over legacy compact
