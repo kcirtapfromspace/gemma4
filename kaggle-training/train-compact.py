@@ -219,7 +219,22 @@ dataset = dataset.map(fmt, batched=True, remove_columns=["conversations"])
 
 print("\n=== Training: 3 epochs, response-only masking ===")
 from trl import SFTTrainer, SFTConfig
-from trl.trainer import DataCollatorForCompletionOnlyLM
+# DataCollatorForCompletionOnlyLM moves around across TRL versions:
+#   <=0.10: from trl import DataCollatorForCompletionOnlyLM
+#   0.11-0.14: from trl.trainer import DataCollatorForCompletionOnlyLM
+#   0.15+: from trl.trainer.utils import DataCollatorForCompletionOnlyLM
+# Try all three so the script runs on whatever Kaggle has preinstalled.
+DataCollatorForCompletionOnlyLM = None
+for _module in ("trl.trainer.utils", "trl.trainer", "trl"):
+    try:
+        _m = __import__(_module, fromlist=["DataCollatorForCompletionOnlyLM"])
+        DataCollatorForCompletionOnlyLM = _m.DataCollatorForCompletionOnlyLM
+        print(f"Loaded DataCollatorForCompletionOnlyLM from {_module}")
+        break
+    except (ImportError, AttributeError):
+        continue
+assert DataCollatorForCompletionOnlyLM is not None, \
+    "DataCollatorForCompletionOnlyLM not found in any TRL submodule"
 
 # Response-only loss masking: compute loss only on the assistant JSON
 # tokens, not the user/system prompt where the codes already appear
