@@ -61,9 +61,37 @@ enum ExtractionParser {
         var parsed = ParsedExtraction()
         parsed.raw = rawOutput
 
-        guard let obj = Self.findJSONObject(in: rawOutput) else {
+        guard let topObj = Self.findJSONObject(in: rawOutput) else {
             return parsed
         }
+
+        // The model occasionally nests everything (encounter_date + arrays)
+        // inside the `patient` sub-object. If the top-level is missing the
+        // content arrays but `patient` has them, lift from there.
+        let obj: [String: Any] = {
+            let topHasContent = (topObj["conditions"] as? [[String: Any]])?.isEmpty == false
+                || (topObj["labs"] as? [[String: Any]])?.isEmpty == false
+                || (topObj["medications"] as? [[String: Any]])?.isEmpty == false
+            if topHasContent { return topObj }
+            if let nested = topObj["patient"] as? [String: Any] {
+                let nestedHasContent = (nested["conditions"] as? [[String: Any]])?.isEmpty == false
+                    || (nested["labs"] as? [[String: Any]])?.isEmpty == false
+                    || (nested["medications"] as? [[String: Any]])?.isEmpty == false
+                if nestedHasContent {
+                    // Merge: keep the `patient`-level fields for demographics,
+                    // but pull arrays + encounter_date to the top. `gender`
+                    // and `birth_date` stay on the nested patient object.
+                    var merged = topObj
+                    for key in ["conditions", "labs", "medications", "encounter_date", "vitals"] {
+                        if merged[key] == nil, let v = nested[key] {
+                            merged[key] = v
+                        }
+                    }
+                    return merged
+                }
+            }
+            return topObj
+        }()
 
         // patient
         if let p = obj["patient"] as? [String: Any] {
@@ -160,8 +188,38 @@ enum ExtractionParser {
                 if depth == 0 { endIndex = i; break }
             }
         }
-        guard let end = endIndex else { return nil }
-        let jsonSlice = String(chars[start...end])
+        // If the stream cut off mid-object (max_tokens hit), the closing
+        // braces for outer objects are missing. Try to recover by appending
+        // enough `}` / `]` to balance the opens we saw up to that point.
+        let sliceEnd: Int = endIndex ?? (chars.count - 1)
+        var jsonSlice = String(chars[start...sliceEnd])
+        if endIndex == nil {
+            // Count unmatched opens (ignoring ones inside strings) to figure
+            // out how many closers to append, and in what order.
+            var stack: [Character] = []
+            var s = false
+            var esc = false
+            for c in jsonSlice {
+                if esc { esc = false; continue }
+                if c == "\\" { esc = true; continue }
+                if c == "\"" { s.toggle(); continue }
+                if s { continue }
+                if c == "{" { stack.append("}") }
+                else if c == "[" { stack.append("]") }
+                else if c == "}" || c == "]" { if !stack.isEmpty { stack.removeLast() } }
+            }
+            // Trim any trailing partial token (e.g. `"ke`) before closing.
+            if s, let lastQuote = jsonSlice.lastIndex(of: "\"") {
+                jsonSlice = String(jsonSlice[..<lastQuote])
+            }
+            // Trim dangling trailing comma before appending closers.
+            while let last = jsonSlice.last,
+                  last == "," || last.isWhitespace || last == ":" {
+                jsonSlice.removeLast()
+            }
+            while let closer = stack.popLast() { jsonSlice.append(closer) }
+        }
+
         guard let data = jsonSlice.data(using: .utf8) else { return nil }
         return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }

@@ -122,17 +122,33 @@ Fluconazole 200 mg for thrush. Reportable HIV infection, new diagnosis.
                                       endpoint: "http://localhost:8080/reports",
                                       message: "202 Accepted — ref PH-2026-0419-B17")]
 
-        // --- Draft: user started typing, hasn't extracted yet ---
+        // --- Draft: user just finished typing, not yet reviewed by AI ---
+        // Narrative matches the training distribution (inline codes) so a
+        // live "Review with AI" demo produces a clean extraction.
+        // Using the same COVID template as the submitted case but with a
+        // different patient, so when demoing we show real on-device
+        // inference producing accurate SNOMED/LOINC/RxNorm extraction.
         let drafting = ClinicalCase(narrative: """
-Patient: Jennifer Brown, 40 y/o F. Forty-week history of fatigue,
-abdominal discomfort, nausea, mild jaundice. Travel to endemic region.
+Patient: Aisha Washington
+Gender: F
+DOB: 1991-08-22
+Race: Black or African American
+Ethnicity: Non Hispanic or Latino
+Location: Portland, OR 97201
+Facility: Field Clinic, Remote Site 04
+Encounter: 2026-04-23
+Reason: fever (38.9C), dry cough for 4 days, fatigue, shortness of breath
+Dx: COVID-19 (SNOMED 840539006)
+Lab: SARS-CoV-2 RNA NAA+probe Ql Resp (LOINC 94500-6) - Detected [Respiratory, final]
+Vitals: Temp 38.9C, HR 102, RR 20, SpO2 95%, BP 126
+Meds: nirmatrelvir 150 MG / ritonavir 100 MG (RxNorm 2599543)
 """,
                                     status: .draft,
-                                    createdAt: cal.date(byAdding: .minute, value: -18, to: now) ?? now)
-        drafting.patient = Patient(givenName: "Jennifer",
-                                   familyName: "Brown",
+                                    createdAt: cal.date(byAdding: .minute, value: -3, to: now) ?? now)
+        drafting.patient = Patient(givenName: "Aisha",
+                                   familyName: "Washington",
                                    gender: "F",
-                                   birthDate: cal.date(from: DateComponents(year: 1985, month: 10, day: 5)),
+                                   birthDate: cal.date(from: DateComponents(year: 1991, month: 8, day: 22)),
                                    postalCode: "97201",
                                    facilityName: "Field Clinic, Remote Site 04")
 

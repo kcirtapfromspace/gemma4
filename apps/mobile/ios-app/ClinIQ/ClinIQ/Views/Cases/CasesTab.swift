@@ -65,6 +65,16 @@ struct CasesTab: View {
                 {
                     reviewTarget = first
                 }
+                // Open a case that has NO prior entities so the Review sheet
+                // shows .intro and (if CLINIQ_AUTO_EXTRACT=1 is also set) the
+                // ReviewFlowView.onAppear hook fires a real inference run.
+                if env["CLINIQ_OPEN_DRAFT_REVIEW"] == "1",
+                   let first = allCases.first(where: {
+                       $0.conditions.isEmpty && $0.labs.isEmpty && $0.medications.isEmpty
+                   })
+                {
+                    reviewTarget = first
+                }
                 if env["CLINIQ_OPEN_CASE_DETAIL"] == "1",
                    let first = allCases.first(where: { !$0.conditions.isEmpty })
                 {

@@ -54,6 +54,12 @@ struct ReviewFlowView: View {
                 if hasExistingDraft {
                     draft = ReviewDraft.from(case: clinicalCase)
                     phase = .review
+                } else if ProcessInfo.processInfo.environment["CLINIQ_AUTO_EXTRACT"] == "1" {
+                    // Demo hook: auto-fire the extraction so we can drive
+                    // the flow headlessly from `xcrun simctl launch` with
+                    // env vars (taps don't register reliably on iOS 26.4
+                    // simulator via idb/simctl).
+                    Task { await runExtraction() }
                 }
             }
             // Make the live LLM status pill visible while this sheet is

@@ -89,7 +89,10 @@ final class ExtractionService: ObservableObject {
             }
             return usingStub ? "—" : "on-device model"
         }()
-        let maxTokens = 512
+        // Bumped from 512 after observing the model needs ~700-900 tokens
+        // to emit the full schema for a vitals-heavy eICR. Truncated JSON
+        // makes the parser bail and the review sheet shows "0 entities".
+        let maxTokens = 1024
         InferenceMetrics.shared.begin(backend: backendName,
                                       model: modelName,
                                       promptChars: prompt.count,
@@ -114,6 +117,14 @@ final class ExtractionService: ObservableObject {
             tokensPerSecond = elapsed > 0 ? Double(tokens) / elapsed : 0
             isRunning = false
             InferenceMetrics.shared.end()
+            // DEBUG: persist the raw model output so simulator runs can be
+            // post-mortemed from the container without a live tap-through.
+            if let docs = FileManager.default.urls(for: .documentDirectory,
+                                                    in: .userDomainMask).first {
+                let path = docs.appendingPathComponent("last-extraction-raw.txt")
+                let header = "backend=\(backendName) model=\(modelName) tokens=\(tokens) elapsed=\(String(format: "%.1f", elapsed))s\n---\n"
+                try? (header + accum).write(to: path, atomically: true, encoding: .utf8)
+            }
             return ExtractionParser.parse(accum)
         } catch {
             errorMessage = "Inference error: \(error.localizedDescription)"
