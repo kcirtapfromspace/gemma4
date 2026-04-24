@@ -1,0 +1,141 @@
+# Team C2 — llama.cpp runtime flags sweep (2026-04-23)
+#
+# Results: scripts/sweep-c2-results.md
+# Runner:  scripts/run_c2_sweep2.sh (imperative; preferred over optimize.py
+#          while Team C4 is simultaneously patching the deployment)
+# DB:      scripts/benchmarks.duckdb
+#
+# All experiments use the demo prompt (no-confidence variant from
+# scripts/sweep-results.md) and target the merged fine-tune Q3_K_M GGUF.
+# Unless noted, runs are n=2 x 1 case x max_tokens=200 under the 7W-locked
+# power regime (EMC 2133 / GPU 624.75 MHz, per team/c1 POWER_MODE.md).
+#
+# Declarative form — can be consumed by scripts/optimize.py. The imperative
+# run_c2_sweep2.sh is functionally equivalent but was used during the live
+# sweep because it includes C4-aware patch-detection via pod labels.
+
+experiments:
+
+  # ============================================================
+  # BASELINE (reference; sweep winner unchanged)
+  # ============================================================
+  - name: "c2-baseline"
+    description: "Sweep winner: Q3_K_M merged, ctx=2048, parallel=1, reasoning=0"
+    model_override: "/models/cliniq-gemma4-e2b-Q3_K_M.gguf"
+    system_prompt: "Extract clinical entities from this eICR summary. Output JSON with: patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), medications (RxNorm), vitals, and a case summary. Output valid JSON only."
+    max_tokens: 200
+    server_args:
+      ctx_size: 2048
+      n_gpu_layers: 99
+      parallel: 1
+      reasoning_budget: 0
+    # measured: 0.87 tok/s
+
+  # ============================================================
+  # FLASH ATTENTION — neutral result
+  # ============================================================
+  - name: "c2-fa-on-pure"
+    description: "--flash-attn on (pure, no other flag changes)"
+    model_override: "/models/cliniq-gemma4-e2b-Q3_K_M.gguf"
+    system_prompt: "Extract clinical entities from this eICR summary. Output JSON with: patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), medications (RxNorm), vitals, and a case summary. Output valid JSON only."
+    max_tokens: 200
+    server_args:
+      ctx_size: 2048
+      n_gpu_layers: 99
+      parallel: 1
+      reasoning_budget: 0
+      flash_attn: "on"
+    # measured: 0.87 tok/s (same as baseline — no benefit)
+
+  # ============================================================
+  # KV CACHE QUANTIZATION — REGRESSION (-27%)
+  # ============================================================
+  - name: "c2-kvq8-fa"
+    description: "--flash-attn on + KV cache Q8_0 (K and V)"
+    model_override: "/models/cliniq-gemma4-e2b-Q3_K_M.gguf"
+    system_prompt: "Extract clinical entities from this eICR summary. Output JSON with: patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), medications (RxNorm), vitals, and a case summary. Output valid JSON only."
+    max_tokens: 200
+    server_args:
+      ctx_size: 2048
+      n_gpu_layers: 99
+      parallel: 1
+      reasoning_budget: 0
+      flash_attn: "on"
+      cache_type_k: "q8_0"
+      cache_type_v: "q8_0"
+    # measured: 0.64 tok/s — DO NOT ADOPT (quant/dequant overhead > bandwidth savings)
+
+  # ============================================================
+  # MLOCK — neutral, costs startup time
+  # ============================================================
+  - name: "c2-mlock-final"
+    description: "--mlock pin weights in RAM"
+    model_override: "/models/cliniq-gemma4-e2b-Q3_K_M.gguf"
+    system_prompt: "Extract clinical entities from this eICR summary. Output JSON with: patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), medications (RxNorm), vitals, and a case summary. Output valid JSON only."
+    max_tokens: 200
+    server_args:
+      ctx_size: 2048
+      n_gpu_layers: 99
+      parallel: 1
+      reasoning_budget: 0
+      mlock: true
+    # measured: 0.87 tok/s (neutral on eval; pod startup slower)
+
+  # ============================================================
+  # EXPERIMENTS INTERRUPTED BY C4 CONTENTION
+  # (not recorded in DB as successful runs; re-do when deployment is idle)
+  # ============================================================
+
+  - name: "c2-ubatch-128"
+    description: "--ubatch-size 128 (default is 512). Interrupted by C4 patch mid-run."
+    model_override: "/models/cliniq-gemma4-e2b-Q3_K_M.gguf"
+    system_prompt: "Extract clinical entities from this eICR summary. Output JSON with: patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), medications (RxNorm), vitals, and a case summary. Output valid JSON only."
+    max_tokens: 200
+    server_args:
+      ctx_size: 2048
+      n_gpu_layers: 99
+      parallel: 1
+      reasoning_budget: 0
+      ubatch_size: 128
+    # measured: INTERRUPTED
+
+  - name: "c2-ubatch-256"
+    description: "--ubatch-size 256. Not run."
+    model_override: "/models/cliniq-gemma4-e2b-Q3_K_M.gguf"
+    system_prompt: "Extract clinical entities from this eICR summary. Output JSON with: patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), medications (RxNorm), vitals, and a case summary. Output valid JSON only."
+    max_tokens: 200
+    server_args:
+      ctx_size: 2048
+      n_gpu_layers: 99
+      parallel: 1
+      reasoning_budget: 0
+      ubatch_size: 256
+
+  - name: "c2-threads-4"
+    description: "--threads 4. Not run."
+    model_override: "/models/cliniq-gemma4-e2b-Q3_K_M.gguf"
+    system_prompt: "Extract clinical entities from this eICR summary. Output JSON with: patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), medications (RxNorm), vitals, and a case summary. Output valid JSON only."
+    max_tokens: 200
+    server_args:
+      ctx_size: 2048
+      n_gpu_layers: 99
+      parallel: 1
+      reasoning_budget: 0
+      threads: 4
+
+  # ============================================================
+  # CONTAMINATED MEASUREMENT (for the record only)
+  # ============================================================
+
+  - name: "c2-fa-on-CONTAMINATED"
+    description: "--flash-attn on, but Team C4 had overlaid --spec-type ngram-cache --draft-max 16 at benchmark time. DO NOT reuse this row — use c2-fa-on-pure above."
+    model_override: "/models/cliniq-gemma4-e2b-Q3_K_M.gguf"
+    system_prompt: "Extract clinical entities from this eICR summary. Output JSON with: patient demographics, conditions (SNOMED/ICD-10), labs (LOINC), medications (RxNorm), vitals, and a case summary. Output valid JSON only."
+    max_tokens: 200
+    server_args:
+      ctx_size: 2048
+      n_gpu_layers: 99
+      parallel: 1
+      reasoning_budget: 0
+      flash_attn: "on"
+    # measured: 1.22 tok/s (but this is fa-on + ngram-cache-16, NOT pure fa-on)
