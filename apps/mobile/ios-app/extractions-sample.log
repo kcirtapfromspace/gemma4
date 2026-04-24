@@ -1,0 +1,25 @@
+### extraction @ 2026-04-24T03:38:30Z
+tokens=172 elapsed=42.91s tps=4.009
+OUTPUT:
+{"patient":{"gender":"F","birth_date":"1985-06-14","encounter_date":"2026-03-15","conditions":[{"code":"840539006","display":"COVID-19"}],"labs":[{"code":"94500-6","display":"SARS-CoV-2 RNA NAA+probe Ql Resp","value":"Detected","unit":null,"interpretation":"Respiratory, final"}],"medications":[{"code":"2599543","display":"nirmatrelvir 150 MG / ritonavir 100 MG"}],"vitals":{"temp_c":39.2,"hr":98,"rr":22,"spo2":94,"bp_systolic":128}}
+---
+### case=bench_minimal @ 2026-04-24T03:41:29Z
+tokens=140 elapsed=37.47s tps=3.736
+OUTPUT:
+{"patient":{"gender":"M","birth_date":"1958-08-07","encounter_date":"2026-12-05","conditions":[{"code":"Syphilis","system":"SNOMED","display":"Syphilis"}],"labs":[{"code":"Treponema pallidum Ab","system":"LOINC",value:"Positive",unit:"Serum,final","interpretation":"Positive"}],"medications":[{"code":"penicillin G benzathine 2400000 UNT/injection","display":"penicillin G benzathine 2400000 UNT/injection"}],"vitals":null}
+---
+### case=bench_meningitis @ 2026-04-24T03:42:32Z
+tokens=165 elapsed=41.24s tps=4.001
+OUTPUT:
+{"patient":{"gender":"M","birth_date":"1977-03-20","encounter_date":"2025-02-28","conditions":[{"code":"Meningococcal disease","system":"SNOMED",display":"Meningococcal disease"}],"labs":[{"code":"49672-8","system":"LOINC",display:"Neisseria meningitidis DNA",value":"Presence","unit":null,"interpretation":"Detected"}],"medications":[{"code":"1665021","display":"ceftriaxone 500 MG Injection"}],"vitals":{"temp_c":38.3,"hr":95,"rr":24,"spo2":97,"bp_systolic":160}}
+---
+### case=bench_complex_multi @ 2026-04-24T03:43:54Z
+tokens=317 elapsed=59.06s tps=5.367
+OUTPUT:
+{"patient":{"gender":"M","birth_date":"1958-03-16","encounter_date":"2026-06-24","conditions":[{"code":"86406008","display":"HIV infection"}],"labs":[{"code":"756222-1","display":"HIV 1 and 2 Ag+Ab","value":"Positive","unit":"Serum","interpretation":"Positive"},{"code":"57021-8","display":"Complete blood count","value":"WBC 2.1 x10^3/uL","unit":"Blood","interpretation":"Normal"},{"code":"24467-3","display":"CD4+ T cells","value":"180 cells/uL","unit":"Blood","interpretation":"Normal"}],"medications":[{"code":"1999563","display":"bictegravir 50 MG / emtricitabine 200 MG / tenofovir alafenamide 25 MG","display":"bictegravir 50 MG / emtricitabine 200 MG / tenofovir alafenamide 25 MG","display":"bictegravir 50 MG / emtricitabine 200 MG / tenofovir alafenamide 25 MG"}],"vitals":{"temp_c":40.0,"hr":89,"rr":18,"spo2":90,"bp_systolic":97}}
+---
+### case=bench_negative_lab @ 2026-04-24T03:45:04Z
+tokens=182 elapsed=41.68s tps=4.366
+OUTPUT:
+{"patient":{"gender":"F","birth_date":"1985-10-05","encounter_date":"2026-12-10","conditions":[{"code":"50711007","display":"Hepatitis C","system":"SNOMED"}],"labs":[{"code":"11259-9","display":"Hepatitis C virus Ab [Presence] in Serum","value":null,"unit":"Serum","interpretation":"Not detected"}],"medications":[{"code":"1940261","display":"sofosbuvir 400 MG / velpatasvir 100 MG","system":"RxNorm"}],"vitals":{"temp_c":39.7,"hr":113,"rr":27,"spo2":97,"bp_systolic":96}}
+---
