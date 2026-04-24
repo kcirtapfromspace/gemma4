@@ -17,7 +17,9 @@ struct ReviewFlowView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @EnvironmentObject private var sync: SyncService
-    @StateObject private var service = ExtractionService()
+    // C15: pulled up to an @EnvironmentObject so Settings' backend
+    // picker can reload the engine on the same instance.
+    @EnvironmentObject private var service: ExtractionService
 
     @State private var phase: Phase = .intro
     @State private var draft = ReviewDraft()
@@ -92,12 +94,21 @@ struct ReviewFlowView: View {
     }
 
     private var infoBanner: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "lock.shield")
-                .foregroundStyle(ClinIQTheme.accent)
-            Text("All inference runs on this device. Nothing leaves until you queue a case.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Image(systemName: "lock.shield")
+                    .foregroundStyle(ClinIQTheme.accent)
+                Text("All inference runs on this device. Nothing leaves until you queue a case.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 6) {
+                Image(systemName: "cpu")
+                    .foregroundStyle(ClinIQTheme.accent)
+                Text("Backend: \(service.activeBackendLabel)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(10)
         .background(ClinIQTheme.cardBackground, in: RoundedRectangle(cornerRadius: 10))

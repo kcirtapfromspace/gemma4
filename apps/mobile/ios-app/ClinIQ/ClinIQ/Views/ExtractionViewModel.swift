@@ -1,9 +1,34 @@
 // ExtractionViewModel.swift
 // View model driving the ContentView. Owns the inference engine, the
 // streaming state, and all timing counters.
+//
+// Backend selection (C15): reads the `ClinIQ.Backend` @AppStorage key so
+// the user can flip between the fine-tuned llama.cpp path and the stock
+// Gemma 4 LiteRT-LM path at runtime. The engine is cached; flipping the
+// toggle invalidates the cache (see `reloadEngine()`).
 
 import Foundation
 import Combine
+import SwiftUI
+
+/// Available inference backends exposed to the Settings UI.
+/// Persisted as the raw String value under `ClinIQ.Backend`.
+enum InferenceBackend: String, CaseIterable, Identifiable {
+    case llamacpp = "llamacpp"
+    case litertlm = "litertlm"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .llamacpp: return "llama.cpp (fine-tune)"
+        case .litertlm: return "LiteRT-LM (base)"
+        }
+    }
+
+    static let appStorageKey = "ClinIQ.Backend"
+    static let `default`: InferenceBackend = .llamacpp
+}
 
 @MainActor
 final class ExtractionViewModel: ObservableObject {
@@ -17,33 +42,66 @@ final class ExtractionViewModel: ObservableObject {
     @Published var lastTokensGenerated: Int = 0
     @Published var lastElapsedSeconds: Double = 0
     @Published var errorMessage: String?
+    /// Human-readable label for the backend actually serving this run
+    /// (after any graceful fallback). Surfaced in the UI so the demoer
+    /// knows which path produced the JSON.
+    @Published private(set) var activeBackendLabel: String = "llama.cpp"
 
-    // Inject the engine. Default (C12) is `LlamaCppInferenceEngine` when a
-    // GGUF is discoverable on disk, falling back to the stub regex engine
-    // for CI / SwiftUI Previews. The runtime decision lives in
-    // `makeDefaultEngine()` below so the owner can still inject a custom
-    // engine in unit tests.
-    private let engine: any InferenceEngine
+    // Inject the engine. Default is `makeDefaultEngine()` which honours
+    // the `ClinIQ.Backend` AppStorage key (C15). Unit tests can still
+    // inject a stub.
+    private var engine: any InferenceEngine
 
     init(engine: (any InferenceEngine)? = nil) {
         if let engine = engine {
             self.engine = engine
+            self.activeBackendLabel = Self.label(for: engine)
         } else {
-            self.engine = Self.makeDefaultEngine()
+            let (e, label) = Self.makeDefaultEngine()
+            self.engine = e
+            self.activeBackendLabel = label
         }
     }
 
-    private static func makeDefaultEngine() -> any InferenceEngine {
-        // Team C12 — real inference via the vendored llama.cpp xcframework
-        // (see `ClinIQ/Frameworks/llama.xcframework/`). Works on both
-        // simulator (CPU-only — `n_gpu_layers=0`) and physical iPhone
-        // (Metal). Falls back to `StubInferenceEngine` only if no GGUF
-        // can be resolved via the bundle / Documents / tmp search path —
-        // keeps CI + Previews functional without a 2-3 GB model file.
-        if LlamaCppInferenceEngine.resolveModelPath() != nil {
-            return LlamaCppInferenceEngine()
+    /// Flip the active engine (called from SettingsTab when the picker
+    /// changes). Safe to invoke mid-session — the previous engine is
+    /// dropped and the next `extract()` call will use the new one.
+    func reloadEngine() {
+        let (e, label) = Self.makeDefaultEngine()
+        self.engine = e
+        self.activeBackendLabel = label
+    }
+
+    /// Returns an engine + its human-readable label, honouring the
+    /// `ClinIQ.Backend` AppStorage selection. Falls back to llama.cpp
+    /// (and ultimately the regex stub) if the requested backend's model
+    /// file isn't present on disk — we never crash on a missing model.
+    static func makeDefaultEngine() -> (any InferenceEngine, String) {
+        let raw = UserDefaults.standard.string(forKey: InferenceBackend.appStorageKey)
+        let requested = InferenceBackend(rawValue: raw ?? "") ?? .default
+
+        switch requested {
+        case .litertlm:
+            if LiteRtLmInferenceEngine.resolveModelPath() != nil {
+                return (LiteRtLmInferenceEngine(), "LiteRT-LM (base)")
+            }
+            // Graceful fallback: .litertlm not seeded; log + drop to llama.cpp.
+            NSLog("[ClinIQ] LiteRT-LM backend requested but no .litertlm model found; falling back to llama.cpp")
+            fallthrough
+        case .llamacpp:
+            if LlamaCppInferenceEngine.resolveModelPath() != nil {
+                return (LlamaCppInferenceEngine(), "llama.cpp (fine-tune)")
+            }
+            NSLog("[ClinIQ] No GGUF found either; falling back to rule-based stub")
+            return (StubInferenceEngine(), "Rule-based stub")
         }
-        return StubInferenceEngine()
+    }
+
+    private static func label(for engine: any InferenceEngine) -> String {
+        if engine is LiteRtLmInferenceEngine { return "LiteRT-LM (base)" }
+        if engine is LlamaCppInferenceEngine { return "llama.cpp (fine-tune)" }
+        if engine is StubInferenceEngine { return "Rule-based stub" }
+        return String(describing: type(of: engine))
     }
 
     func loadCase(_ tc: TestCase) {
@@ -89,23 +147,26 @@ final class ExtractionViewModel: ObservableObject {
             // runs + screenshot harnesses can audit the exact JSON the model
             // produced. Writes a timestamped file under Documents so it
             // survives app relaunch.
+            // C15: backend label prefixed so downstream scoring can segment
+            // llama.cpp (fine-tune) vs LiteRT-LM (base) runs.
             Self.persistExtraction(
                 caseID: currentCaseID,
                 output: accum,
                 tokens: tokenCount,
                 elapsed: elapsed,
-                tps: tokensPerSecond)
+                tps: tokensPerSecond,
+                backend: activeBackendLabel)
         } catch {
             errorMessage = "Inference error: \(error.localizedDescription)"
         }
         isExtracting = false
     }
 
-    private static func persistExtraction(caseID: String, output: String, tokens: Int, elapsed: Double, tps: Double) {
+    private static func persistExtraction(caseID: String, output: String, tokens: Int, elapsed: Double, tps: Double, backend: String) {
         guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         let ts = ISO8601DateFormatter().string(from: Date())
         let entry = """
-### case=\(caseID) @ \(ts)
+### backend=\(backend) case=\(caseID) @ \(ts)
 tokens=\(tokens) elapsed=\(String(format: "%.2f", elapsed))s tps=\(String(format: "%.3f", tps))
 OUTPUT:
 \(output)
