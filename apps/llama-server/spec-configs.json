@@ -1,0 +1,97 @@
+{
+  "ec0_baseline_noSpec": {
+    "description": "Baseline: Q3_K_M target, no spec. Control.",
+    "args": [
+      "-m", "/models/cliniq-gemma4-e2b-Q3_K_M.gguf",
+      "--port", "8080", "--host", "0.0.0.0",
+      "--ctx-size", "2048", "--n-gpu-layers", "99",
+      "--reasoning-budget", "0", "--parallel", "1"
+    ]
+  },
+  "ec1_self_Q2Kdraft_N8": {
+    "description": "Self-spec: Q3_K_M target + Q2_K draft, N=8.",
+    "args": [
+      "-m", "/models/cliniq-gemma4-e2b-Q3_K_M.gguf",
+      "--model-draft", "/models/cliniq-gemma4-e2b-Q2_K.gguf",
+      "--n-gpu-layers-draft", "99",
+      "--draft-max", "8", "--draft-min", "2",
+      "--draft-p-min", "0.6",
+      "--port", "8080", "--host", "0.0.0.0",
+      "--ctx-size", "2048", "--n-gpu-layers", "99",
+      "--reasoning-budget", "0", "--parallel", "1"
+    ]
+  },
+  "ec2_base_draft_N8": {
+    "description": "Base-gemma-as-draft: Q3_K_M target + gemma base Q3_K_M draft, N=8.",
+    "args": [
+      "-m", "/models/cliniq-gemma4-e2b-Q3_K_M.gguf",
+      "--model-draft", "/models/gemma-4-E2B-it-Q3_K_M.gguf",
+      "--n-gpu-layers-draft", "99",
+      "--draft-max", "8", "--draft-min", "2",
+      "--draft-p-min", "0.6",
+      "--port", "8080", "--host", "0.0.0.0",
+      "--ctx-size", "2048", "--n-gpu-layers", "99",
+      "--reasoning-budget", "0", "--parallel", "1"
+    ]
+  },
+  "ec3_ngramCache_N8": {
+    "description": "Prompt-lookup (ngram-cache), no external draft. N=8.",
+    "args": [
+      "-m", "/models/cliniq-gemma4-e2b-Q3_K_M.gguf",
+      "--spec-type", "ngram-cache",
+      "--draft-max", "8", "--draft-min", "2",
+      "--draft-p-min", "0.6",
+      "--port", "8080", "--host", "0.0.0.0",
+      "--ctx-size", "2048", "--n-gpu-layers", "99",
+      "--reasoning-budget", "0", "--parallel", "1"
+    ]
+  },
+  "ec4_ngramCache_N4": {
+    "description": "Prompt-lookup (ngram-cache), N=4 (less aggressive).",
+    "args": [
+      "-m", "/models/cliniq-gemma4-e2b-Q3_K_M.gguf",
+      "--spec-type", "ngram-cache",
+      "--draft-max", "4", "--draft-min", "2",
+      "--draft-p-min", "0.6",
+      "--port", "8080", "--host", "0.0.0.0",
+      "--ctx-size", "2048", "--n-gpu-layers", "99",
+      "--reasoning-budget", "0", "--parallel", "1"
+    ]
+  },
+  "ec5_ngramCache_N16": {
+    "description": "Prompt-lookup (ngram-cache), N=16 (aggressive).",
+    "args": [
+      "-m", "/models/cliniq-gemma4-e2b-Q3_K_M.gguf",
+      "--spec-type", "ngram-cache",
+      "--draft-max", "16", "--draft-min", "2",
+      "--draft-p-min", "0.6",
+      "--port", "8080", "--host", "0.0.0.0",
+      "--ctx-size", "2048", "--n-gpu-layers", "99",
+      "--reasoning-budget", "0", "--parallel", "1"
+    ]
+  },
+  "ec6_kvQuant_q8": {
+    "description": "CONTROL: KV cache q8_0 (no spec), measure standalone effect.",
+    "args": [
+      "-m", "/models/cliniq-gemma4-e2b-Q3_K_M.gguf",
+      "--cache-type-k", "q8_0", "--cache-type-v", "q8_0",
+      "--flash-attn", "on",
+      "--port", "8080", "--host", "0.0.0.0",
+      "--ctx-size", "2048", "--n-gpu-layers", "99",
+      "--reasoning-budget", "0", "--parallel", "1"
+    ]
+  },
+  "ec7_self_Q3KSdraft_N8": {
+    "description": "Self-spec alt: Q3_K_M target + Q3_K_S draft (smallest fine-tune quant we have aside from Q2_K).",
+    "args": [
+      "-m", "/models/cliniq-gemma4-e2b-Q3_K_M.gguf",
+      "--model-draft", "/models/cliniq-gemma4-e2b-Q3_K_S.gguf",
+      "--n-gpu-layers-draft", "99",
+      "--draft-max", "8", "--draft-min", "2",
+      "--draft-p-min", "0.6",
+      "--port", "8080", "--host", "0.0.0.0",
+      "--ctx-size", "2048", "--n-gpu-layers", "99",
+      "--reasoning-budget", "0", "--parallel", "1"
+    ]
+  }
+}

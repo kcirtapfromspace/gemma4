@@ -1,0 +1,147 @@
+# Spec-decode variant of the llama-server deployment (Team C4).
+#
+# This is a parameterizable template. The args list below reflects the
+# current-best spec-decode configuration discovered during Team C4's sweep.
+# The default `deployment.yaml` remains the production baseline (no spec).
+#
+# To apply this variant:   kubectl apply -f apps/llama-server/deployment-spec.yaml
+# To restore production:   kubectl apply -f apps/llama-server/deployment.yaml
+#
+# Results are recorded in SPEC_DECODE_LOG.md and summarised in SPEC_DECODE_RESULTS.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama-server
+  namespace: gemma4
+  labels:
+    app: llama-server
+    variant: spec-decode
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llama-server
+  template:
+    metadata:
+      labels:
+        app: llama-server
+        variant: spec-decode
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: talos-jetson-3
+      containers:
+        - name: llama-server
+          image: 192.168.25.201:5050/llama-server:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/cuda-build/bin/llama-server"]
+          args:
+            # --- target model (fine-tune) ---
+            - "-m"
+            - "/models/cliniq-gemma4-e2b-Q3_K_M.gguf"
+            # --- spec-decode: prompt-lookup (ngram-cache) ---
+            # No external draft model — draws candidate continuations from the
+            # prompt + rolling generation cache. Effective for repeated keys
+            # (SNOMED/LOINC codes, JSON structural tokens) in clinical JSON.
+            - "--spec-type"
+            - "ngram-cache"
+            - "--draft-max"
+            - "8"
+            - "--draft-min"
+            - "2"
+            - "--draft-p-min"
+            - "0.60"
+            # --- server basics ---
+            - "--port"
+            - "8080"
+            - "--host"
+            - "0.0.0.0"
+            - "--ctx-size"
+            - "2048"
+            - "--n-gpu-layers"
+            - "99"
+            - "--reasoning-budget"
+            - "0"
+            - "--parallel"
+            - "1"
+          ports:
+            - containerPort: 8080
+              name: api
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1"
+            limits:
+              memory: "7Gi"
+              cpu: "4"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 5
+          env:
+            - name: LD_LIBRARY_PATH
+              value: "/cuda-build/lib:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/compat:/usr/local/cuda/lib64"
+          volumeMounts:
+            - mountPath: /cuda-build
+              name: cuda-build
+              readOnly: true
+            - mountPath: /models
+              name: models
+            - mountPath: /dev/nvgpu
+              name: dev-nvgpu
+            - mountPath: /dev/nvhost-gpu
+              name: dev-nvhost-gpu
+            - mountPath: /dev/nvhost-ctrl
+              name: dev-nvhost-ctrl
+            - mountPath: /dev/nvhost-ctrl-gpu
+              name: dev-nvhost-ctrl-gpu
+            - mountPath: /dev/nvhost-as-gpu
+              name: dev-nvhost-as-gpu
+            - mountPath: /dev/nvhost-dbg-gpu
+              name: dev-nvhost-dbg-gpu
+            - mountPath: /dev/nvhost-tsg-gpu
+              name: dev-nvhost-tsg-gpu
+            - mountPath: /dev/nvmap
+              name: dev-nvmap
+      volumes:
+        - name: cuda-build
+          hostPath:
+            path: /var/lib/cliniq/llama-build
+        - name: models
+          hostPath:
+            path: /var/lib/ollama/models
+            type: DirectoryOrCreate
+        - name: dev-nvgpu
+          hostPath:
+            path: /dev/nvgpu
+        - name: dev-nvhost-gpu
+          hostPath:
+            path: /dev/nvhost-gpu
+        - name: dev-nvhost-ctrl
+          hostPath:
+            path: /dev/nvhost-ctrl
+        - name: dev-nvhost-ctrl-gpu
+          hostPath:
+            path: /dev/nvhost-ctrl-gpu
+        - name: dev-nvhost-as-gpu
+          hostPath:
+            path: /dev/nvhost-as-gpu
+        - name: dev-nvhost-dbg-gpu
+          hostPath:
+            path: /dev/nvhost-dbg-gpu
+        - name: dev-nvhost-tsg-gpu
+          hostPath:
+            path: /dev/nvhost-tsg-gpu
+        - name: dev-nvmap
+          hostPath:
+            path: /dev/nvmap
