@@ -1,0 +1,10 @@
+.build/
+.swiftpm/
+.derived/
+Package.resolved
+DerivedData/
+build/
+*.xcframework
+*.xcframework.zip
+# Local bazelisk/Bazel caches: never vendored. The build script at
+# scripts/build_xcframework.sh uses /tmp/c11-bazel-cache.

@@ -17,27 +17,33 @@ let package = Package(
     dependencies: [],
     targets: [
         // Binary xcframework produced by scripts/build_xcframework.sh.
-        // Commit the .zip (or fetch over HTTPS) once the Bazel build lands.
+        // The xcframework ships its own umbrella header + modulemap so
+        // Swift can `import LiteRtLmCore` without a separate C target.
         .binaryTarget(
             name: "LiteRtLmCore",
             // TODO(c11): Flip this to `url:` + `checksum:` once a release
             // artifact is published. For now consumers run the build script
-            // to produce a local LiteRtLmCore.xcframework.zip and point
-            // here at `path: "build/LiteRtLmCore.xcframework"`.
+            // to produce a local LiteRtLmCore.xcframework.
             path: "build/LiteRtLmCore.xcframework"
         ),
-        // Swift-visible C module for the shim header.
-        .target(
-            name: "LiteRtLmCShim",
-            dependencies: ["LiteRtLmCore"],
-            path: "Sources/LiteRtLmCShim",
-            publicHeadersPath: "include"
-        ),
-        // High-level Swift wrapper.
+        // High-level Swift wrapper. Imports the C symbols directly from
+        // the binary target's generated framework module.
+        //
+        // The `-ObjC` + `-all_load` linker flags force the Apple linker to
+        // pull in EVERY .o file from LiteRtLmCore's static archive, even
+        // ones that have no directly-referenced external symbols. This is
+        // required because LiteRT-LM uses file-scope static initializers
+        // (e.g. `LITERT_LM_REGISTER_ENGINE` in runtime/core/engine_impl.cc)
+        // that would otherwise be stripped by the linker's dead-strip
+        // pass. Bazel's `alwayslink=1` is preserved inside the archive,
+        // but the CONSUMER's link must opt in explicitly.
         .target(
             name: "LiteRtLm",
-            dependencies: ["LiteRtLmCShim"],
-            path: "Sources/LiteRtLm"
+            dependencies: ["LiteRtLmCore"],
+            path: "Sources/LiteRtLm",
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-all_load"]),
+            ]
         ),
         .testTarget(
             name: "LiteRtLmTests",

@@ -1,5 +1,7 @@
 module LiteRtLmCShim {
-  header "include/litertlm_c_shim.h"
-  export *
-  link "litertlm_c_shim"
+    header "include/litertlm_c_shim.h"
+    export *
+    // NOTE: Do NOT add a `link "..."` directive here. The static archive
+    // containing these symbols is provided by the `LiteRtLmCore` binary
+    // target declared in Package.swift; SwiftPM wires the linker itself.
 }
