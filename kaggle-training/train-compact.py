@@ -98,6 +98,13 @@ bnb_config = BitsAndBytesConfig(
 
 model_name = "google/gemma-4-E2B-it"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
+# Force the unsloth gemma-4 chat template so the tokenized training text
+# uses <|turn> / <turn|> delimiters (matching apps/mobile/convert/validate_litertlm.py
+# and the original cliniq-compact-lora.gguf which was trained via the notebook
+# using the same template). HF's default Gemma tokenizer template emits
+# <start_of_turn> / <end_of_turn> — that would mis-align training vs inference.
+from unsloth.chat_templates import get_chat_template
+tokenizer = get_chat_template(tokenizer, chat_template="gemma-4")
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
     quantization_config=bnb_config,
@@ -208,9 +215,10 @@ trainer = SFTTrainer(
     train_dataset=dataset["train"], eval_dataset=dataset["validation"],
     args=SFTConfig(
         dataset_text_field="text",
-        # max_seq_length bumped from default to 768 to fit the 10 new
-        # length-stress examples (p99 ~ 605 tokens including chat wrappers).
-        max_seq_length=768,
+        # Kaggle's TRL rejects max_seq_length in SFTConfig; tokenizer's
+        # model_max_length governs truncation instead. Set it explicitly
+        # on the tokenizer above if needed (Gemma 4 default is 131072 so
+        # our ~605-token p99 examples don't get truncated).
         per_device_train_batch_size=1, gradient_accumulation_steps=8,
         warmup_steps=10, num_train_epochs=3, learning_rate=1e-4,
         logging_steps=20, eval_strategy="no",
