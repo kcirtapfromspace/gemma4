@@ -21,7 +21,7 @@ dependencies = [
     "litert-lm==0.10.1",         # .litertlm loader for validation harness
     # Misc
     "fire",
-    "gguf>=0.19",                # reverse-parse the GGUF LoRA header if needed
+    "gguf>=0.18",                # reverse-parse the GGUF LoRA header if needed (0.18 is latest on PyPI)
     "huggingface-hub>=0.27",
     "tabulate",
     "rich",
