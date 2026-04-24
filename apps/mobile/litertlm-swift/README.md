@@ -10,8 +10,9 @@ In progress. See `STATUS.md` for exact state, what works, and the next-engineer 
 
 - `Package.swift` — SPM manifest; binaryTarget at `build/LiteRtLmCore.xcframework`.
 - `Sources/LiteRtLmCShim/` — C-ABI shim header (`include/litertlm_c_shim.h`) + implementation (`litertlm_c_shim.cc`). The `.cc` is compiled by Bazel, NOT by SPM — SPM consumes the prebuilt xcframework.
-- `Sources/LiteRtLm/` — high-level Swift API: `LiteRtLmEngine` / `LiteRtLmSession` + `AsyncThrowingStream<String>` decode.
-- `Tests/LiteRtLmTests/` — XCTest smoke tests gated on `LITERTLM_MODEL_PATH`.
+- `Sources/LiteRtLm/` — high-level Swift API: `LiteRtLmEngine` / `LiteRtLmSession` + `AsyncThrowingStream<String>` decode, `setMaxDecodeTokens(_:)`, `lastTokenCount`.
+- `Sources/LiteRtLmCli/` — tiny demo CLI (see `DEMO.md`).
+- `Tests/LiteRtLmTests/` — XCTest smoke tests: `EngineLoadTest` (shim version + model load/prefill) and `DecodeTest` (full decode + tok/s), gated on `LITERTLM_MODEL_PATH`.
 - `scripts/build_xcframework.sh` — invokes Bazel in an upstream LiteRT-LM checkout and copies the xcframework out.
 - `scripts/bazel_overlay/BUILD.bazel` — the overlay that declares `cc_library(litertlm_c_shim_lib)` and `apple_static_xcframework(LiteRtLmCore)` against `//runtime/engine:*` targets.
 

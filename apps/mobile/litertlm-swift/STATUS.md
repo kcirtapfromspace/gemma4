@@ -1,8 +1,10 @@
-# C11 — LiteRT-LM Swift Package (hand-off status)
+# C11 + C14 — LiteRT-LM Swift Package (hand-off status)
 
-**Branch:** `worktree-agent-a1924497` (the task brief specified `team/c11-litertlm-swift-2026-04-23` but the worktree was pre-created on the above branch — rename on final merge).
-**Budget:** 5 hours, hard stop. **Time used:** ~4 h.
-**Date:** 2026-04-23.
+**C11 branch:** `worktree-agent-a1924497` (the task brief specified `team/c11-litertlm-swift-2026-04-23` but the worktree was pre-created on the above branch — rename on final merge).
+**C11 budget:** 5 hours. **Time used:** ~4 h. **Date:** 2026-04-23.
+
+**C14 branch:** `team/c14-litertlm-decode-2026-04-23`.
+**C14 budget:** 3 hours. **Date:** 2026-04-23. **Scope:** prove decode end-to-end, add a CLI, capture a transcript.
 
 ## Stage reached
 
@@ -35,7 +37,7 @@
 2. **`swift build` / `swift test` from the command line (no `xcodebuild`).** SwiftPM's CLI build doesn't auto-wire xcframework framework search paths for the Mac host triple. Use `xcodebuild` with an iOS destination, or integrate the package into an Xcode project (which is how C12 will consume it).
 3. **The `build/` directory is 424 MB unzipped.** Not committed — added to `.gitignore`. Consumers rebuild via `scripts/build_xcframework.sh` or we publish the `.xcframework.zip` as a release artifact.
 4. **macOS slice missing** — `apple_static_xcframework` in the overlay declares `ios = {device, simulator}` only. Add `macos = ["arm64"]` if Mac unit tests are desired; adds ~5 min to the build.
-5. **Decode not exercised.** `testEngineLoadsModel` runs prefill but not decode. A decode-smoke test that asserts `session.decode()` yields at least one chunk is a recommended next addition.
+5. ~~**Decode not exercised.** `testEngineLoadsModel` runs prefill but not decode. A decode-smoke test that asserts `session.decode()` yields at least one chunk is a recommended next addition.~~ **Resolved by C14** — `testDecodeProducesTokens` in `Tests/LiteRtLmTests/DecodeTest.swift` runs a real 32-token decode and asserts ≥5 non-empty chunks. Measured tok/s: see the "C14 decode results" section below.
 6. **Passing `LITERTLM_MODEL_PATH` to the simulator requires the `TEST_RUNNER_` prefix.** The Makefile target `test` uses the non-prefixed env var — fix before handing to QA.
 
 ## Exact Bazel commands that succeeded
@@ -128,3 +130,33 @@ apps/mobile/litertlm-swift/build/LiteRtLmCore.xcframework/   # 424 MB, rebuild v
 ```
 
 Repro notes: Bazel output_user_root at `/tmp/c11-bazel-cache` uses ~16 GB on first build. A clean rebuild of the xcframework from a warm cache is ~30 s.
+
+---
+
+## C14 decode results (2026-04-23)
+
+### What shipped
+
+- `Sources/LiteRtLmCShim/litertlm_c_shim.{h,cc}` — added `litertlm_session_decode_set_max_tokens` and `litertlm_session_last_token_count`. `litertlm_shim_version` bumped to `0.2.0+team-c14`.
+- `Sources/LiteRtLm/LiteRtLm.swift` — exposed `LiteRtLmSession.setMaxDecodeTokens(_:)` and `LiteRtLmSession.lastTokenCount`.
+- `Tests/LiteRtLmTests/DecodeTest.swift` — new `testDecodeProducesTokens` gated on `LITERTLM_RUN_DECODE=1`. Caps decode at 32 tokens, asserts ≥5 non-empty chunks, prints a `LITERTLM_DECODE_RESULT` line with tok/s.
+- `Sources/LiteRtLmCli/main.swift` — new `LiteRtLmCli` `executableTarget`.
+- `Package.swift` — declared the executable target + `-all_load` linker flag.
+- `Makefile` — added `make test-decode`.
+- `scripts/build_xcframework.sh` — honours `BAZEL_OUTPUT_USER_ROOT` so parallel teams don't fight over the cache.
+- `DEMO.md` — copy-pasteable demo commands + the captured transcript.
+
+### Measured
+
+- **Decode: PASS.** Gemma 4 E2B on iPhone 17 Pro Simulator (UDID `CADA1806-F64D-4B02-B983-B75F197D1EF3`), CPU backend.
+- **All 3 XCTest cases green** (decode + C11's two existing tests):
+  - `testDecodeProducesTokens` — 6 tokens, 0.43 s, **13.84 tok/s** on "List five common colors".
+  - `testEngineLoadsModel` — prefill "Hello" in 0.62 s (C11 had 3.76 s — warm prefill cache).
+  - `testShimVersionIsReachable` — 0.001 s; version string now `0.2.0+team-c14`.
+- **CLI runs on Simulator.** `The capital of France is` → ` Paris.` at **15.55 tok/s** (2 tokens). Full transcripts in `DEMO.md`.
+
+### Known gaps handed off
+
+1. **True per-token streaming.** The shim's decode is blocking + byte-drain, so `AsyncThrowingStream<String>` doesn't yield tokens as they're emitted. Wire up `Engine::Session::RunDecodeAsync` with a thread-safe queue behind the same C ABI (no Swift-side changes needed).
+2. **macOS slice.** `swift run LiteRtLmCli` on the Mac host still fails to link without an `-F` pointing at a macOS slice of the xcframework. Add `macos = ["arm64"]` to the `apple_static_xcframework` rule.
+3. **GPU path.** Simulator has no Metal device, so the CLI / test default to CPU. Real tok/s comes from iPhone hardware — stopwatch that against C15's integration work.

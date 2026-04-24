@@ -13,6 +13,11 @@ let package = Package(
     ],
     products: [
         .library(name: "LiteRtLm", targets: ["LiteRtLm"]),
+        // Tiny demo CLI. On the Mac host `swift run` struggles to
+        // resolve the xcframework search paths; the reliable invocation
+        // is `xcodebuild -scheme LiteRtLmCli -destination 'platform=iOS
+        // Simulator,id=...' run`. See DEMO.md.
+        .executable(name: "LiteRtLmCli", targets: ["LiteRtLmCli"]),
     ],
     dependencies: [],
     targets: [
@@ -41,6 +46,17 @@ let package = Package(
             name: "LiteRtLm",
             dependencies: ["LiteRtLmCore"],
             path: "Sources/LiteRtLm",
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-all_load"]),
+            ]
+        ),
+        // Command-line demo target. Must carry the same -all_load
+        // linker flag as the library target so the upstream registerer
+        // symbols survive dead-strip.
+        .executableTarget(
+            name: "LiteRtLmCli",
+            dependencies: ["LiteRtLm"],
+            path: "Sources/LiteRtLmCli",
             linkerSettings: [
                 .unsafeFlags(["-Xlinker", "-all_load"]),
             ]

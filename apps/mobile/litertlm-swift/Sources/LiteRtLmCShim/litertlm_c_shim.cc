@@ -30,6 +30,7 @@
 namespace {
 
 using ::litert::lm::Backend;
+using ::litert::lm::DecodeConfig;
 using ::litert::lm::Engine;
 using ::litert::lm::EngineFactory;
 using ::litert::lm::EngineSettings;
@@ -63,13 +64,22 @@ struct LiteRtLmSessionOpaque {
   // pops bytes off the front until drained, then advances the model one
   // more step. Naive — enough to prove the binding path, not efficient.
   std::string pending_output;
+  // Number of tokens produced by the most recent RunDecode. Populated
+  // from Responses::GetTokenLengths() when available; falls back to a
+  // whitespace-ish heuristic otherwise so tok/s can still be estimated.
+  int last_token_count = 0;
+  // User-supplied cap applied on the next RunDecode. <=0 means use the
+  // model's default. Consumed at the first decode_step call for the turn.
+  int max_output_tokens = 0;
   bool finished = false;
 };
 
 extern "C" {
 
 const char* litertlm_shim_version(void) {
-  return "0.1.0+team-c11";
+  // 0.2.0+team-c14: adds decode_set_max_tokens + last_token_count, exposes
+  // token counts to Swift so tok/s can be measured from the test harness.
+  return "0.2.0+team-c14";
 }
 
 LiteRtLmEngine* litertlm_engine_create(const char* model_path, int backend) {
@@ -126,12 +136,35 @@ int litertlm_session_decode_step(LiteRtLmSession* session,
   // Naive: on first call, run a full blocking decode and buffer the first
   // candidate's text. Subsequent calls drain the buffer.
   if (session->pending_output.empty() && !session->finished) {
-    auto responses = session->session->RunDecode();
+    absl::StatusOr<Responses> responses = [&]() {
+      if (session->max_output_tokens > 0) {
+        DecodeConfig cfg = DecodeConfig::CreateDefault();
+        cfg.SetMaxOutputTokens(session->max_output_tokens);
+        return session->session->RunDecode(cfg);
+      }
+      return session->session->RunDecode();
+    }();
     if (!responses.ok()) return -2;
     const auto& texts = responses->GetTexts();
     if (!texts.empty()) {
       session->pending_output = texts.front();
     }
+    // Capture token count for tok/s reporting. Prefer the model's own
+    // tally when it reports one; otherwise fall back to a whitespace
+    // approximation so the Swift test can still compute a meaningful
+    // throughput number.
+    const auto& maybe_token_lengths = responses->GetTokenLengths();
+    int tokens = 0;
+    if (maybe_token_lengths.has_value() && !maybe_token_lengths->empty()) {
+      tokens = (*maybe_token_lengths)[0];
+    } else if (!session->pending_output.empty()) {
+      // Space-tokenised estimate; deliberately rough but non-zero.
+      tokens = 1;
+      for (char c : session->pending_output) {
+        if (c == ' ' || c == '\n' || c == '\t') tokens++;
+      }
+    }
+    session->last_token_count = tokens;
     session->finished = true;
   }
   if (session->pending_output.empty()) return 0;  // EOS
@@ -141,6 +174,22 @@ int litertlm_session_decode_step(LiteRtLmSession* session,
               static_cast<size_t>(n));
   session->pending_output.erase(0, static_cast<size_t>(n));
   return n;
+}
+
+int litertlm_session_decode_set_max_tokens(LiteRtLmSession* session,
+                                           int max_output_tokens) {
+  if (session == nullptr || session->session == nullptr) return -1;
+  // Ignored once a decode is in flight — the cap is sticky per turn and
+  // is applied lazily when decode_step runs RunDecode. Calling this after
+  // decode_step has returned data is a no-op rather than an error so the
+  // Swift wrapper can set it defensively before every prefill.
+  session->max_output_tokens = max_output_tokens;
+  return 0;
+}
+
+int litertlm_session_last_token_count(LiteRtLmSession* session) {
+  if (session == nullptr || session->session == nullptr) return -1;
+  return session->last_token_count;
 }
 
 }  // extern "C"

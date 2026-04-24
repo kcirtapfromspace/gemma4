@@ -53,9 +53,31 @@ int litertlm_session_prefill(LiteRtLmSession* session, const char* text);
 // necessarily null-terminated) into `out_buf`, up to `out_cap` bytes.
 // Returns the number of bytes written on success, 0 for end-of-sequence,
 // and a negative value on error.
+//
+// First call triggers a full blocking `RunDecode` (bounded by any prior
+// `litertlm_session_decode_begin` call). Subsequent calls drain the
+// buffered bytes. This is enough to prove the binding path and is
+// compatible with Swift's `AsyncThrowingStream<String>` consumer.
 int litertlm_session_decode_step(LiteRtLmSession* session,
                                  char* out_buf,
                                  int out_cap);
+
+// Configure the next decode with an explicit max-output-token cap. Must
+// be called BEFORE the first `litertlm_session_decode_step` for the
+// current turn — once decoding has started, this is a no-op.
+//
+// Passing `max_output_tokens <= 0` clears any previous cap (model uses
+// its default, e.g. the trained max sequence length).
+//
+// Returns 0 on success, negative on error. Used by the CLI and tests to
+// bound decode latency on the simulator.
+int litertlm_session_decode_set_max_tokens(LiteRtLmSession* session,
+                                           int max_output_tokens);
+
+// Returns the number of tokens produced by the most recent decode for
+// this session, or 0 if none has run yet. Drives tok/s measurement in
+// the Swift test. Negative on error.
+int litertlm_session_last_token_count(LiteRtLmSession* session);
 
 // Report the version of the shim itself (not LiteRT-LM's version). This is
 // cheap to call from Swift tests to confirm the dylib/xcframework is loaded.
