@@ -41,3 +41,6 @@ models/cliniq-gemma4-e2b-v2-Q3_K_M.gguf
 # Local Python venv lockfile artifacts left by uv (Python __pycache__
 # already covered above)
 *.egg-info/
+
+# Generated FHIR Bundles + agent_pipeline trace JSONs (regenerable)
+apps/mobile/convert/build/
