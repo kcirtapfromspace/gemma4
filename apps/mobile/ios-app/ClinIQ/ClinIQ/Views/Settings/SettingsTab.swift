@@ -42,6 +42,28 @@ struct SettingsTab: View {
                     Text("llama.cpp runs our fine-tuned Gemma 4 via the vendored GGUF. LiteRT-LM runs the stock base model from Google. Switching reloads the model on the next extraction (takes a few seconds on first use).")
                 }
 
+                // Demo controls live near the top of Settings so the
+                // presenter can hand the phone off and re-seed without
+                // scrolling. Pairs with the Connectivity → Simulate
+                // offline toggle.
+                Section {
+                    Button(role: .destructive) {
+                        showResetConfirm = true
+                    } label: {
+                        Label("Reset demo cases", systemImage: "arrow.counterclockwise.circle")
+                    }
+                    if let when = lastResetAt {
+                        LabeledContent("Last reset") {
+                            Text(when.formatted(date: .omitted, time: .shortened))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Demo")
+                } footer: {
+                    Text("Wipes every case and re-seeds the four demo patients (Maria, Daniel, Michael, Aisha). Use between demo handoffs so the next reviewer sees the same starting state.")
+                }
+
                 Section("Connectivity") {
                     LabeledContent("Network status") {
                         Text(monitor.isOnline ? "Online (\(monitor.interfaceDescription))" : "Offline")
@@ -75,24 +97,6 @@ struct SettingsTab: View {
                         Text(sync.lastDrainedAt.map { $0.formatted(.dateTime) } ?? "—")
                             .foregroundStyle(.secondary)
                     }
-                }
-
-                Section {
-                    Button(role: .destructive) {
-                        showResetConfirm = true
-                    } label: {
-                        Label("Reset demo cases", systemImage: "arrow.counterclockwise.circle")
-                    }
-                    if let when = lastResetAt {
-                        LabeledContent("Last reset") {
-                            Text(when.formatted(date: .omitted, time: .shortened))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                } header: {
-                    Text("Demo")
-                } footer: {
-                    Text("Wipes every case and re-seeds the four demo patients (Maria, Daniel, Michael, Aisha). Use between demo handoffs so the next reviewer sees the same starting state.")
                 }
 
                 Section("About") {
