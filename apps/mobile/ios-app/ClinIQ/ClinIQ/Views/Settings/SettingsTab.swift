@@ -3,6 +3,7 @@
 // not a production settings screen.
 
 import SwiftUI
+import SwiftData
 
 struct SettingsTab: View {
     @EnvironmentObject private var monitor: NetworkMonitor
@@ -13,6 +14,10 @@ struct SettingsTab: View {
     // Bridge to the shared ExtractionService so flipping the backend
     // picker invalidates the cached engine on the next extract call.
     @EnvironmentObject private var extractionService: ExtractionService
+    @Environment(\.modelContext) private var modelContext
+
+    @State private var showResetConfirm = false
+    @State private var lastResetAt: Date? = nil
 
     var body: some View {
         NavigationStack {
@@ -72,6 +77,24 @@ struct SettingsTab: View {
                     }
                 }
 
+                Section {
+                    Button(role: .destructive) {
+                        showResetConfirm = true
+                    } label: {
+                        Label("Reset demo cases", systemImage: "arrow.counterclockwise.circle")
+                    }
+                    if let when = lastResetAt {
+                        LabeledContent("Last reset") {
+                            Text(when.formatted(date: .omitted, time: .shortened))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Demo")
+                } footer: {
+                    Text("Wipes every case and re-seeds the four demo patients (Maria, Daniel, Michael, Aisha). Use between demo handoffs so the next reviewer sees the same starting state.")
+                }
+
                 Section("About") {
                     LabeledContent("Build") {
                         Text("ClinIQ PoC · team C13")
@@ -84,6 +107,17 @@ struct SettingsTab: View {
                 }
             }
             .navigationTitle("Settings")
+            .confirmationDialog("Reset demo cases?",
+                                isPresented: $showResetConfirm,
+                                titleVisibility: .visible) {
+                Button("Reset and re-seed", role: .destructive) {
+                    PersistenceController.resetDemo(container: modelContext.container)
+                    lastResetAt = Date()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("All current cases — including any queued reports — will be deleted, then the four demo patients will be re-inserted. This action cannot be undone.")
+            }
         }
     }
 

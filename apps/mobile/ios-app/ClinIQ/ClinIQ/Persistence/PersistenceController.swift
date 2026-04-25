@@ -92,4 +92,25 @@ enum PersistenceController {
         }
         try? context.save()
     }
+
+    /// Wipe every ClinicalCase (and cascading children via SwiftData
+    /// relationship rules) from the live store, then re-insert the four
+    /// demo cases. Used by Settings → "Reset demo cases" so the presenter
+    /// can recover a fresh demo state in two seconds when handing the
+    /// phone to the next reviewer.
+    @MainActor
+    static func resetDemo(container: ModelContainer) {
+        let context = container.mainContext
+        let descriptor = FetchDescriptor<ClinicalCase>()
+        if let cases = try? context.fetch(descriptor) {
+            for c in cases {
+                context.delete(c)
+            }
+        }
+        let seeds = DemoSeed.build()
+        for seed in seeds {
+            context.insert(seed)
+        }
+        try? context.save()
+    }
 }
