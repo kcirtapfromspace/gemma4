@@ -29,6 +29,17 @@
 		D13C130600000101D13C1306 /* SyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130600000102D13C1306 /* SyncService.swift */; };
 		D13C130700000101D13C1307 /* ExtractionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130700000102D13C1307 /* ExtractionParser.swift */; };
 		D13C130800000101D13C1308 /* ExtractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130800000102D13C1308 /* ExtractionService.swift */; };
+		D13C130A00000101D13C130A /* EicrPreparser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130A00000102D13C130A /* EicrPreparser.swift */; };
+		D13C130B00000101D13C130B /* LookupTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130B00000102D13C130B /* LookupTable.swift */; };
+		D13C130C00000101D13C130C /* ReportableConditions.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130C00000102D13C130C /* ReportableConditions.swift */; };
+		D13C130D00000101D13C130D /* RagSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130D00000102D13C130D /* RagSearch.swift */; };
+		D13C130E00000101D13C130E /* AgentRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130E00000102D13C130E /* AgentRunner.swift */; };
+		D13C130F00000101D13C130F /* GemmaToolTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130F00000102D13C130F /* GemmaToolTemplate.swift */; };
+		D13C131A00000101D13C131A /* ToolCallParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131A00000102D13C131A /* ToolCallParser.swift */; };
+		D13C131B00000101D13C131B /* ProvenanceBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131B00000102D13C131B /* ProvenanceBadge.swift */; };
+		D13C131E00000101D13C131E /* ProvenanceLegend.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131E00000102D13C131E /* ProvenanceLegend.swift */; };
+		D13C131C00000101D13C131C /* SpeechDictationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131C00000102D13C131C /* SpeechDictationService.swift */; };
+		D13C131D00000101D13C131D /* DictationButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131D00000102D13C131D /* DictationButton.swift */; };
 		D13C130900000101D13C1309 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130900000102D13C1309 /* RootView.swift */; };
 		D13C131000000101D13C1310 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131000000102D13C1310 /* Theme.swift */; };
 		D13C131100000101D13C1311 /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131100000102D13C1311 /* StatusBadge.swift */; };
@@ -67,6 +78,17 @@
 		D13C130600000102D13C1306 /* SyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncService.swift; sourceTree = "<group>"; };
 		D13C130700000102D13C1307 /* ExtractionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractionParser.swift; sourceTree = "<group>"; };
 		D13C130800000102D13C1308 /* ExtractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractionService.swift; sourceTree = "<group>"; };
+		D13C130A00000102D13C130A /* EicrPreparser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EicrPreparser.swift; sourceTree = "<group>"; };
+		D13C130B00000102D13C130B /* LookupTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookupTable.swift; sourceTree = "<group>"; };
+		D13C130C00000102D13C130C /* ReportableConditions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportableConditions.swift; sourceTree = "<group>"; };
+		D13C130D00000102D13C130D /* RagSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RagSearch.swift; sourceTree = "<group>"; };
+		D13C130E00000102D13C130E /* AgentRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRunner.swift; sourceTree = "<group>"; };
+		D13C130F00000102D13C130F /* GemmaToolTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GemmaToolTemplate.swift; sourceTree = "<group>"; };
+		D13C131A00000102D13C131A /* ToolCallParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolCallParser.swift; sourceTree = "<group>"; };
+		D13C131B00000102D13C131B /* ProvenanceBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvenanceBadge.swift; sourceTree = "<group>"; };
+		D13C131E00000102D13C131E /* ProvenanceLegend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvenanceLegend.swift; sourceTree = "<group>"; };
+		D13C131C00000102D13C131C /* SpeechDictationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechDictationService.swift; sourceTree = "<group>"; };
+		D13C131D00000102D13C131D /* DictationButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationButton.swift; sourceTree = "<group>"; };
 		D13C130900000102D13C1309 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		D13C131000000102D13C1310 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		D13C131100000102D13C1311 /* StatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadge.swift; sourceTree = "<group>"; };
@@ -118,10 +140,20 @@
 				D13C140100000000D13C1401 /* Sync */,
 				D13C140200000000D13C1402 /* Extraction */,
 				9E9218AB691C499D87972EDF /* Inference */,
+				D13C141100000000D13C1411 /* Audio */,
 				495B853A87404AB69331FFAD /* Resources */,
 				C12C12C112C12C0012C12C07 /* Frameworks */,
 			);
 			path = ClinIQ;
+			sourceTree = "<group>";
+		};
+		D13C141100000000D13C1411 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				D13C131C00000102D13C131C /* SpeechDictationService.swift */,
+				D13C131D00000102D13C131D /* DictationButton.swift */,
+			);
+			path = Audio;
 			sourceTree = "<group>";
 		};
 		C12C12C112C12C0012C12C07 /* Frameworks */ = {
@@ -156,6 +188,8 @@
 				D13C131200000102D13C1312 /* OfflineBanner.swift */,
 				E14C141F00000102E14C141F /* InferenceStatusBar.swift */,
 				D13C131300000102D13C1313 /* EntityRow.swift */,
+				D13C131B00000102D13C131B /* ProvenanceBadge.swift */,
+				D13C131E00000102D13C131E /* ProvenanceLegend.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -235,6 +269,13 @@
 			children = (
 				D13C130700000102D13C1307 /* ExtractionParser.swift */,
 				D13C130800000102D13C1308 /* ExtractionService.swift */,
+				D13C130A00000102D13C130A /* EicrPreparser.swift */,
+				D13C130B00000102D13C130B /* LookupTable.swift */,
+				D13C130C00000102D13C130C /* ReportableConditions.swift */,
+				D13C130D00000102D13C130D /* RagSearch.swift */,
+				D13C130E00000102D13C130E /* AgentRunner.swift */,
+				D13C130F00000102D13C130F /* GemmaToolTemplate.swift */,
+				D13C131A00000102D13C131A /* ToolCallParser.swift */,
 			);
 			path = Extraction;
 			sourceTree = "<group>";
@@ -384,6 +425,17 @@
 				D13C130600000101D13C1306 /* SyncService.swift in Sources */,
 				D13C130700000101D13C1307 /* ExtractionParser.swift in Sources */,
 				D13C130800000101D13C1308 /* ExtractionService.swift in Sources */,
+				D13C130A00000101D13C130A /* EicrPreparser.swift in Sources */,
+				D13C130B00000101D13C130B /* LookupTable.swift in Sources */,
+				D13C130C00000101D13C130C /* ReportableConditions.swift in Sources */,
+				D13C130D00000101D13C130D /* RagSearch.swift in Sources */,
+				D13C130E00000101D13C130E /* AgentRunner.swift in Sources */,
+				D13C130F00000101D13C130F /* GemmaToolTemplate.swift in Sources */,
+				D13C131A00000101D13C131A /* ToolCallParser.swift in Sources */,
+				D13C131B00000101D13C131B /* ProvenanceBadge.swift in Sources */,
+				D13C131E00000101D13C131E /* ProvenanceLegend.swift in Sources */,
+				D13C131C00000101D13C131C /* SpeechDictationService.swift in Sources */,
+				D13C131D00000101D13C131D /* DictationButton.swift in Sources */,
 				D13C130900000101D13C1309 /* RootView.swift in Sources */,
 				D13C131000000101D13C1310 /* Theme.swift in Sources */,
 				D13C131100000101D13C1311 /* StatusBadge.swift in Sources */,

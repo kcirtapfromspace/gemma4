@@ -189,6 +189,14 @@ struct ReviewFlowView: View {
             VStack(alignment: .leading, spacing: 14) {
                 metaBanner
 
+                // Show the tier legend whenever at least one entity has
+                // provenance attached. Without this a judge sees colored
+                // INLINE/CDA/LOOKUP/RAG chips with no context — the c17
+                // killer feature becomes invisible.
+                if draft.hasAnyProvenance {
+                    ProvenanceLegend()
+                }
+
                 if !draft.conditions.isEmpty {
                     card(title: "Proposed conditions") {
                         ForEach(draft.conditions.indices, id: \.self) { idx in
@@ -200,7 +208,8 @@ struct ReviewFlowView: View {
                                 onReject: { draft.conditions[idx].reviewState = .rejected },
                                 onEdit: {
                                     draft.conditions[idx].reviewState = .edited
-                                }
+                                },
+                                provenance: draft.conditions[idx].provenance
                             )
                             if idx != draft.conditions.count - 1 {
                                 Divider().padding(.vertical, 2)
@@ -229,7 +238,8 @@ struct ReviewFlowView: View {
                                 reviewState: draft.medications[idx].reviewState,
                                 onAccept: { draft.medications[idx].reviewState = .confirmed },
                                 onReject: { draft.medications[idx].reviewState = .rejected },
-                                onEdit: { draft.medications[idx].reviewState = .edited }
+                                onEdit: { draft.medications[idx].reviewState = .edited },
+                                provenance: draft.medications[idx].provenance
                             )
                             if idx != draft.medications.count - 1 {
                                 Divider().padding(.vertical, 2)
@@ -430,18 +440,44 @@ struct ReviewDraft {
             + medications.filter { $0.reviewState == .needsReview }.count
     }
 
+    /// True if any draft entity has provenance attached. Used by the
+    /// review screen to decide whether to render the tier legend — there's
+    /// no point showing it for cases that flow through the LLM-only path
+    /// without provenance metadata.
+    var hasAnyProvenance: Bool {
+        conditions.contains { $0.provenance != nil }
+            || labs.contains { $0.provenance != nil }
+            || medications.contains { $0.provenance != nil }
+    }
+
     static func from(parsed: ParsedExtraction) -> ReviewDraft {
         var d = ReviewDraft()
-        d.conditions = parsed.conditions.map { DraftCondition(code: $0.code, system: $0.system, display: $0.display) }
+        // Build a (bucket, code) → provenance index so we can attach the
+        // tier badge + source span to each draft entry. Provenance comes
+        // from EicrPreparser.extractWithProvenance (called inside
+        // ExtractionService when det.hasAnyDeterministic is true) or from
+        // the agent's tool trace; both populate parsed.matches.
+        var provIndex: [String: CodeProvenance] = [:]
+        for p in parsed.matches {
+            provIndex["\(p.bucket):\(p.code)"] = p
+        }
+        d.conditions = parsed.conditions.map {
+            DraftCondition(code: $0.code, system: $0.system, display: $0.display,
+                           provenance: provIndex["snomed:\($0.code)"])
+        }
         d.labs = parsed.labs.map {
             DraftLab(code: $0.code,
                      system: $0.system,
                      display: $0.display,
                      interpretation: $0.interpretation,
                      value: $0.value,
-                     unit: $0.unit)
+                     unit: $0.unit,
+                     provenance: provIndex["loinc:\($0.code)"])
         }
-        d.medications = parsed.medications.map { DraftMedication(code: $0.code, system: $0.system, display: $0.display) }
+        d.medications = parsed.medications.map {
+            DraftMedication(code: $0.code, system: $0.system, display: $0.display,
+                            provenance: provIndex["rxnorm:\($0.code)"])
+        }
         if let v = parsed.vitals {
             d.vitals = DraftVitals(tempC: v.tempC,
                                    heartRate: v.heartRate,
@@ -485,6 +521,11 @@ struct DraftCondition {
     var system: String
     var display: String
     var reviewState: ReviewState = .needsReview
+    /// Provenance for the deterministic / agent path. Lost on persistence
+    /// (SwiftData layer doesn't carry it) — only present on freshly-extracted
+    /// drafts. The reviewer sees the tier badge + source span; subsequent
+    /// edits zero this out.
+    var provenance: CodeProvenance?
 }
 
 struct DraftLab {
@@ -495,6 +536,7 @@ struct DraftLab {
     var value: Double?
     var unit: String?
     var reviewState: ReviewState = .needsReview
+    var provenance: CodeProvenance?
 
     var resultSummary: String {
         if let v = value, let u = unit {
@@ -510,6 +552,7 @@ struct DraftMedication {
     var system: String
     var display: String
     var reviewState: ReviewState = .needsReview
+    var provenance: CodeProvenance?
 }
 
 struct DraftVitals {
@@ -527,32 +570,40 @@ struct EntityReviewRow: View {
     let onAccept: () -> Void
     let onReject: () -> Void
     let onEdit: () -> Void
+    /// Optional provenance produced by the deterministic preparser or the
+    /// agent loop. Renders the tier badge + tap-to-expand source span.
+    var provenance: CodeProvenance? = nil
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 8) {
-                    Text(title)
-                        .font(.body.weight(.medium))
-                        .fixedSize(horizontal: false, vertical: true)
-                    ReviewStateChip(state: reviewState)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        Text(title)
+                            .font(.body.weight(.medium))
+                            .fixedSize(horizontal: false, vertical: true)
+                        ReviewStateChip(state: reviewState)
+                    }
+                    Text(subtitle)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(ClinIQTheme.auditMuted)
                 }
-                Text(subtitle)
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(ClinIQTheme.auditMuted)
+                Spacer()
+                HStack(spacing: 6) {
+                    Button(action: onAccept) {
+                        Image(systemName: reviewState == .confirmed ? "checkmark.circle.fill" : "checkmark.circle")
+                            .font(.title3)
+                            .foregroundStyle(Color(red: 0.13, green: 0.36, blue: 0.22))
+                    }
+                    Button(action: onReject) {
+                        Image(systemName: reviewState == .rejected ? "minus.circle.fill" : "minus.circle")
+                            .font(.title3)
+                            .foregroundStyle(Color(red: 0.66, green: 0.15, blue: 0.12))
+                    }
+                }
             }
-            Spacer()
-            HStack(spacing: 6) {
-                Button(action: onAccept) {
-                    Image(systemName: reviewState == .confirmed ? "checkmark.circle.fill" : "checkmark.circle")
-                        .font(.title3)
-                        .foregroundStyle(Color(red: 0.13, green: 0.36, blue: 0.22))
-                }
-                Button(action: onReject) {
-                    Image(systemName: reviewState == .rejected ? "minus.circle.fill" : "minus.circle")
-                        .font(.title3)
-                        .foregroundStyle(Color(red: 0.66, green: 0.15, blue: 0.12))
-                }
+            if let prov = provenance {
+                ProvenanceBadge(provenance: prov)
             }
         }
         .padding(.vertical, 6)
@@ -600,6 +651,9 @@ struct LabReviewRow: View {
                         .font(.title3)
                         .foregroundStyle(Color(red: 0.66, green: 0.15, blue: 0.12))
                 }
+            }
+            if let prov = lab.provenance {
+                ProvenanceBadge(provenance: prov)
             }
         }
         .padding(.vertical, 4)
