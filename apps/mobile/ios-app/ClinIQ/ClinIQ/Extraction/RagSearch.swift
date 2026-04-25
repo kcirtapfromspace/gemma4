@@ -168,40 +168,51 @@ enum RagSearch {
         let span: FastPathSpan
     }
 
-    /// Find the first non-negated occurrence in `narrative` of any candidate
-    /// phrase from the hit (matchedPhrase first, then altNames, then the
-    /// canonical display) and return it. Negation is judged via the same
-    /// `EicrPreparser.isNegated` used by Tier-3 lookup — keeps the bar
-    /// consistent ("ruled out Legionnaires" stays suppressed in both paths).
-    static func firstAssertedSpan(in narrative: String, for hit: RagHit) -> FastPathSpan? {
-        // Try the matched phrase first; falling back to all altNames + display
-        // gives us a chance even when the score came from token-overlap rather
-        // than an exact-phrase match (e.g. "valley fever" wins on tokens).
-        var candidates: [String] = []
-        if let matched = hit.matchedPhrase, !matched.isEmpty {
-            candidates.append(matched)
-        }
-        for alt in hit.altNames where !candidates.contains(alt) {
-            candidates.append(alt)
-        }
-        if !candidates.contains(hit.display) {
-            candidates.append(hit.display)
-        }
+    /// Negation predicate. Caller provides this so RagSearch stays
+    /// self-contained for the standalone `validate_rag.swift` CLI.
+    /// In-app: `ExtractionService` injects a closure that delegates to
+    /// `EicrPreparser.isNegated(in:matchStart:matchEnd:)`. Bench / CLI
+    /// can pass `{ _,_,_ in false }` to skip NegEx, or its own
+    /// implementation to test a different rule.
+    typealias IsNegated = (_ text: String, _ matchStart: Int, _ matchEnd: Int) -> Bool
 
-        for candidate in candidates {
-            if let span = firstNonNegatedSpan(of: candidate, in: narrative) {
-                return span
-            }
+    /// A no-op negation predicate that always returns false. Useful for
+    /// tests / CLIs that don't want to pull in EicrPreparser.
+    static let neverNegated: IsNegated = { _, _, _ in false }
+
+    /// Find the first non-negated occurrence in `narrative` of the hit's
+    /// `matchedPhrase` and return it. Negation is judged via the
+    /// caller-provided `isNegated` closure — keeps the bar consistent with
+    /// Tier-3 lookup ("ruled out Legionnaires" stays suppressed in both
+    /// paths) without RagSearch.swift directly depending on EicrPreparser.
+    ///
+    /// Why only `matchedPhrase` (not altNames + display)? altName fallback
+    /// is too loose: a short alias like "Cocci" (for Coccidioidomycosis)
+    /// matches the genus prefix in "Coccidioides serology negative for
+    /// valley fever" at an unrelated offset, defeating NegEx on the
+    /// actual diagnosis. `matchedPhrase` is the exact phrase that earned
+    /// RAG's score in the first place — if THAT span is suppressed, the
+    /// hit is suppressed. If matchedPhrase is nil (score came from
+    /// token-overlap alone, never an exact phrase match) the fast-path
+    /// declines and falls through to the agent.
+    static func firstAssertedSpan(in narrative: String,
+                                  for hit: RagHit,
+                                  isNegated: IsNegated = neverNegated) -> FastPathSpan? {
+        guard let matched = hit.matchedPhrase, !matched.isEmpty else {
+            return nil
         }
-        return nil
+        return firstNonNegatedSpan(of: matched,
+                                   in: narrative,
+                                   isNegated: isNegated)
     }
 
     /// Scan `narrative` for every case-insensitive occurrence of `phrase`.
-    /// Return the first occurrence that is NOT in NegEx scope per
-    /// `EicrPreparser.isNegated`. Returns nil when every occurrence is
+    /// Return the first occurrence that is NOT in NegEx scope per the
+    /// caller-provided predicate. Returns nil when every occurrence is
     /// suppressed ("ruled out Legionnaires" with no other mention).
     private static func firstNonNegatedSpan(of phrase: String,
-                                            in narrative: String) -> FastPathSpan? {
+                                            in narrative: String,
+                                            isNegated: IsNegated) -> FastPathSpan? {
         let trimmed = phrase.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         // Use literal range search rather than regex so phrases containing
@@ -217,9 +228,7 @@ enum RagSearch {
                              range: searchRange)
             if r.location == NSNotFound { break }
             let end = r.location + r.length
-            if !EicrPreparser.isNegated(in: narrative,
-                                        matchStart: r.location,
-                                        matchEnd: end) {
+            if !isNegated(narrative, r.location, end) {
                 let spanText = ns.substring(with: r)
                 return FastPathSpan(text: spanText,
                                     location: r.location,
@@ -232,15 +241,19 @@ enum RagSearch {
 
     /// Top-level gate. Returns the fast-path hit if every condition holds:
     ///   - top RAG score ≥ `threshold`
-    ///   - at least one non-negated occurrence of a candidate phrase
+    ///   - at least one non-negated occurrence of a candidate phrase per
+    ///     the caller-provided `isNegated` predicate
     /// Otherwise nil → caller falls through to the agent loop.
     static func fastPathHit(
         narrative: String,
-        threshold: Double = fastPathThreshold
+        threshold: Double = fastPathThreshold,
+        isNegated: IsNegated = neverNegated
     ) -> FastPathHit? {
         let hits = search(query: narrative, topK: 1, minScore: threshold)
         guard let top = hits.first, top.score >= threshold else { return nil }
-        guard let span = firstAssertedSpan(in: narrative, for: top) else {
+        guard let span = firstAssertedSpan(in: narrative,
+                                           for: top,
+                                           isNegated: isNegated) else {
             return nil
         }
         return FastPathHit(hit: top, span: span)
