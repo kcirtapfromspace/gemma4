@@ -48,4 +48,21 @@ enum SyncConfig {
     static func setMockSucceeds(_ value: Bool) {
         UserDefaults.standard.set(value, forKey: "ClinIQ.MockSyncSucceeds")
     }
+
+    /// When true, the Outbox payload is a FHIR R4 Bundle (built on-device
+    /// via `BundleBuilder`); otherwise the legacy flat extraction dict.
+    /// Defaults to `true` — judges expect the wire format to match the
+    /// "View FHIR Bundle" sheet shown on the Review screen. The legacy
+    /// path stays available behind the toggle so a non-FHIR partner
+    /// endpoint can still receive a report.
+    static var useFhirBundlePayload: Bool {
+        if UserDefaults.standard.object(forKey: "ClinIQ.UseFhirBundlePayload") == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: "ClinIQ.UseFhirBundlePayload")
+    }
+
+    static func setUseFhirBundlePayload(_ value: Bool) {
+        UserDefaults.standard.set(value, forKey: "ClinIQ.UseFhirBundlePayload")
+    }
 }

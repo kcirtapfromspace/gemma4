@@ -114,7 +114,19 @@ final class SyncService: ObservableObject {
     }
 
     private func postCase(_ c: ClinicalCase) async -> PostResult {
-        let payload = ReportPayload.from(c)
+        // Wire format: c19 default = FHIR R4 Bundle assembled on-device
+        // via BundleBuilder. Toggle off via SyncConfig.useFhirBundlePayload
+        // for partner endpoints that haven't accepted FHIR yet.
+        let payload: [String: Any]
+        let payloadKind: String
+        if SyncConfig.useFhirBundlePayload {
+            payload = ReportPayload.fhirBundle(from: c)
+            payloadKind = "FHIR R4 Bundle"
+        } else {
+            payload = ReportPayload.from(c)
+            payloadKind = "legacy extraction"
+        }
+
         // Real transport path (only if opted in and we're actually online).
         if SyncConfig.shouldAttemptRealPost, let monitor = monitor, monitor.isOnline {
             do {
@@ -122,12 +134,16 @@ final class SyncService: ObservableObject {
                 var request = URLRequest(url: SyncConfig.currentEndpoint)
                 request.httpMethod = "POST"
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.setValue(payloadKind, forHTTPHeaderField: "X-ClinIQ-Payload")
                 request.httpBody = data
                 let (_, response) = try await URLSession.shared.data(for: request)
                 if let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
-                    return .init(success: true, message: "HTTP \(http.statusCode) from \(SyncConfig.currentEndpoint.absoluteString)")
+                    return .init(
+                        success: true,
+                        message: "HTTP \(http.statusCode) — \(payloadKind) accepted by \(SyncConfig.currentEndpoint.absoluteString)"
+                    )
                 }
-                return .init(success: false, message: "Endpoint rejected the report.")
+                return .init(success: false, message: "Endpoint rejected the \(payloadKind).")
             } catch {
                 // Fall through to mock result — still persist the attempt.
                 return .init(success: SyncConfig.mockSucceeds,
@@ -142,8 +158,10 @@ final class SyncService: ObservableObject {
         try? await Task.sleep(nanoseconds: 900_000_000)
         if SyncConfig.mockSucceeds {
             let ref = "PH-\(Int.random(in: 10_000...99_999))"
-            return .init(success: true,
-                         message: "202 Accepted — ref \(ref)")
+            return .init(
+                success: true,
+                message: "202 Accepted — \(payloadKind), ref \(ref)"
+            )
         } else {
             return .init(success: false,
                          message: "503 Service Unavailable — upstream timeout.")
@@ -163,7 +181,24 @@ final class SyncService: ObservableObject {
 /// Builds the JSON we would POST to a real public-health endpoint. Exposed
 /// as a separate type so tests (future work) can diff payloads without
 /// spinning up the whole sync service.
+///
+/// Two payload shapes:
+/// - `fhirBundle(from:)` — c19 default. R4 Bundle (Patient + Condition +
+///   Observation + MedicationStatement) built via BundleBuilder. Same
+///   bytes the "View FHIR Bundle" sheet displays. Partner endpoints get
+///   FHIR-shaped data they can ingest directly.
+/// - `from(_:)` — legacy flat extraction dict. Retained behind
+///   `SyncConfig.useFhirBundlePayload = false` for non-FHIR partners.
 enum ReportPayload {
+    /// FHIR R4 Bundle wrapping the case's accepted entities. Mirrors the
+    /// 35/35 R4-valid shape verified by `apps/mobile/convert/score_fhir.py`.
+    /// Patient.id is the per-case UUID so the public-health endpoint can
+    /// dedupe across re-syncs.
+    static func fhirBundle(from c: ClinicalCase) -> [String: Any] {
+        let draft = ReviewDraft.from(case: c)
+        return BundleBuilder.bundle(from: draft, patientId: "cliniq-\(c.id.uuidString)")
+    }
+
     static func from(_ c: ClinicalCase) -> [String: Any] {
         var payload: [String: Any] = [:]
         payload["caseId"] = c.id.uuidString
