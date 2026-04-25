@@ -20,6 +20,10 @@ struct ReviewFlowView: View {
     // C15: pulled up to an @EnvironmentObject so Settings' backend
     // picker can reload the engine on the same instance.
     @EnvironmentObject private var service: ExtractionService
+    // Observe the shared inference metrics so the runningView's phase
+    // chip + ETA copy update live as the engine transitions through
+    // load/prefill/decode/finalize.
+    @ObservedObject private var inferenceMetrics: InferenceMetrics = .shared
 
     @State private var phase: Phase = .intro
     @State private var draft = ReviewDraft()
@@ -130,14 +134,21 @@ struct ReviewFlowView: View {
     // MARK: - Running
 
     private var runningView: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 10) {
+        // Observe the live phase so the heading + chip update as the
+        // engine progresses through Loading → Prefilling → Decoding →
+        // Finalizing. Without this, "Extracting entities..." sits frozen
+        // for 30–90 s and looks like a crash to a non-engineer.
+        let metrics = inferenceMetrics
+        return VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 12) {
                 ProgressView().controlSize(.regular)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Extracting entities...")
-                        .font(.callout.weight(.medium))
-                    Text(String(format: "%.1f tok/s · %d tokens",
-                                service.tokensPerSecond, service.lastTokens))
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(phaseHeading(metrics.phase))
+                            .font(.callout.weight(.medium))
+                        phaseChip(for: metrics.phase)
+                    }
+                    Text(phaseDetail(metrics: metrics))
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -146,6 +157,22 @@ struct ReviewFlowView: View {
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(ClinIQTheme.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+            .animation(.easeInOut(duration: 0.2), value: metrics.phase)
+
+            // Tier expectation. A small calming line so the demo viewer
+            // knows simulator latency is normal and a physical iPhone is
+            // faster. Hardware-tagged based on measured numbers in
+            // VALIDATION.md.
+            HStack(spacing: 8) {
+                Image(systemName: "timer")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(etaCopy(elapsed: metrics.elapsedSeconds, phase: metrics.phase))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+            }
 
             card(title: "Live extraction") {
                 ScrollView {
@@ -160,14 +187,86 @@ struct ReviewFlowView: View {
             }
 
             Spacer()
-
-            Text("First inference on simulator CPU can take 30-90 s to prefill. Physical iPhone with Metal is several times faster.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(ClinIQTheme.pageBackground)
+    }
+
+    /// One-line heading shown next to the spinner. Updates as the engine
+    /// transitions phases so the user sees forward progress instead of a
+    /// frozen "Extracting entities..." string.
+    private func phaseHeading(_ phase: InferenceMetrics.Phase) -> String {
+        switch phase {
+        case .idle:       return "Starting up..."
+        case .loading:    return "Loading on-device model..."
+        case .prefilling: return "Reading the narrative..."
+        case .decoding:   return "Extracting entities..."
+        case .finalizing: return "Finalizing extraction..."
+        case .error:      return "Inference error"
+        }
+    }
+
+    /// Right-side detail line under the heading. Includes tok/s when we
+    /// have a meaningful number to show and falls back to elapsed-only
+    /// during model load / prefill where tok/s is 0.
+    private func phaseDetail(metrics: InferenceMetrics) -> String {
+        let elapsed = String(format: "%.1f s", max(0, metrics.elapsedSeconds))
+        switch metrics.phase {
+        case .decoding, .finalizing:
+            return String(format: "%@ · %.1f tok/s · %d tok",
+                          elapsed, metrics.instantTokensPerSecond, metrics.outputTokens)
+        case .loading, .prefilling, .idle:
+            return "\(elapsed) · waiting for first token"
+        case .error:
+            return metrics.lastError ?? "Failed"
+        }
+    }
+
+    /// Phase chip — same color family as InferenceStatusBar so the two
+    /// visualisations agree. Lets a glance from across the room confirm
+    /// "the model is doing something" even before the first token lands.
+    @ViewBuilder
+    private func phaseChip(for phase: InferenceMetrics.Phase) -> some View {
+        let (label, color) = phaseChipStyle(phase)
+        Text(label)
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.18), in: Capsule())
+            .foregroundStyle(color)
+    }
+
+    private func phaseChipStyle(_ phase: InferenceMetrics.Phase) -> (String, Color) {
+        switch phase {
+        case .idle:       return ("READY", Color.secondary)
+        case .loading:    return ("LOAD", Color(red: 0.10, green: 0.30, blue: 0.55))
+        case .prefilling: return ("PREFILL", Color(red: 0.10, green: 0.30, blue: 0.55))
+        case .decoding:   return ("DECODE", ClinIQTheme.accent)
+        case .finalizing: return ("FINAL", ClinIQTheme.accent)
+        case .error:      return ("ERROR", Color(red: 0.66, green: 0.15, blue: 0.12))
+        }
+    }
+
+    /// Soft expectation-setting copy. Updates from "first inference is the
+    /// slowest" to "still working" if we cross 60 s — useful for the demo
+    /// presenter who otherwise has to guess whether to keep talking.
+    private func etaCopy(elapsed: Double, phase: InferenceMetrics.Phase) -> String {
+        switch phase {
+        case .loading:
+            return "First-time model load takes ~15 s on simulator (mmap + KV setup); a few seconds on a real iPhone."
+        case .prefilling:
+            return "Prefilling the narrative. Typically 15–60 s on simulator CPU; under 1 s on iPhone with Metal."
+        case .decoding:
+            if elapsed > 60 {
+                return "Still decoding — simulator CPU is ~10× slower than iPhone Metal. The stream above shows live tokens."
+            }
+            return "Streaming tokens. On simulator CPU expect 15–90 s total; on iPhone with Metal, 5–15 s."
+        case .finalizing:
+            return "Closing the JSON envelope and validating extracted entities."
+        case .idle, .error:
+            return "Standing by."
+        }
     }
 
     private static func humanReadablePreview(_ raw: String) -> String {
