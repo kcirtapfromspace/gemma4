@@ -24,12 +24,49 @@ struct GemmaToolCall {
     let raw: String
 }
 
+/// Strict-mode parse failure modes (proposals-2026-04-25.md Rank 4).
+/// Surfaced via `ToolCallParser.parseStrict` so the agent loop can
+/// distinguish "model emitted a final answer" from "model emitted broken
+/// tool-call syntax" — the silent-fallback path was hiding the second case.
+enum ToolCallParseError: Error, CustomStringConvertible {
+    /// Open tag found but no matching close tag in the rest of the buffer.
+    case unterminatedToolCall(prefix: String)
+    /// Open + close tags found, but the body doesn't match `call:NAME{...}`.
+    case malformedBody(body: String)
+    /// Tool name in the body isn't one of the registered names. With the
+    /// GBNF active this should be unreachable, so a hit means the grammar
+    /// is being bypassed — usually a misconfiguration.
+    case unknownToolName(name: String)
+
+    var description: String {
+        switch self {
+        case .unterminatedToolCall(let prefix):
+            return "unterminated <|tool_call> block (no <tool_call|> closer in \(prefix.count) chars)"
+        case .malformedBody(let body):
+            return "malformed tool-call body: \(body.prefix(80))…"
+        case .unknownToolName(let name):
+            return "unknown tool name '\(name)'"
+        }
+    }
+}
+
 enum ToolCallParser {
     private static let openTag = "<|tool_call>"
     private static let closeTag = "<tool_call|>"
     /// Both sides of a Gemma 4 string-arg use the same 5-char sentinel
     /// `<|"|>`. The bundle template emits `<|"|>foo<|"|>` for a string `foo`.
     static let stringSentinel = "<|\"|>"
+
+    /// The 4 tool names registered with the agent. Used by `parseStrict` to
+    /// catch grammar bypasses; the tolerant `parse(...)` accepts any name
+    /// (the agent loop's tool dispatcher already has an "unknown tool"
+    /// branch, so unfamiliar names error out at execution time).
+    static let registeredToolNames: Set<String> = [
+        "extract_codes_from_text",
+        "lookup_reportable_conditions",
+        "validate_fhir_extraction",
+        "lookup_displayname",
+    ]
 
     static func parse(_ output: String) -> [GemmaToolCall] {
         var calls: [GemmaToolCall] = []
@@ -46,6 +83,41 @@ enum ToolCallParser {
             }
         }
         return calls
+    }
+
+    /// Strict-mode parse for grammar-on agent turns. Returns `.failure` on
+    /// any structural problem instead of silently dropping calls. Emits
+    /// `.success([])` only when the output legitimately contains no tool
+    /// calls (final-answer turn) — that's how the AgentRunner distinguishes
+    /// "JSON-final-answer turn, stop the loop" from "broken tool call".
+    ///
+    /// Behaviour contract (used by AgentRunner.run):
+    ///   - 0 open tags + non-empty body → `.success([])` (final answer; the
+    ///     ExtractionParser path takes over).
+    ///   - Open tag without close tag → `.failure(.unterminatedToolCall)`
+    ///     even if the body so far parses; truncation is a parse failure.
+    ///   - Body doesn't start with `call:NAME{` → `.failure(.malformedBody)`.
+    ///   - Tool name not in `registeredToolNames` → `.failure(.unknownToolName)`.
+    static func parseStrict(_ output: String) -> Result<[GemmaToolCall], ToolCallParseError> {
+        var calls: [GemmaToolCall] = []
+        var cursor = output.startIndex
+        while let openRange = output.range(of: openTag, range: cursor..<output.endIndex) {
+            cursor = openRange.upperBound
+            guard let closeRange = output.range(of: closeTag, range: cursor..<output.endIndex) else {
+                let prefix = String(output[openRange.upperBound..<output.endIndex])
+                return .failure(.unterminatedToolCall(prefix: prefix))
+            }
+            let body = String(output[openRange.upperBound..<closeRange.lowerBound])
+            cursor = closeRange.upperBound
+            guard let call = parseOne(body) else {
+                return .failure(.malformedBody(body: body))
+            }
+            if !registeredToolNames.contains(call.name) {
+                return .failure(.unknownToolName(name: call.name))
+            }
+            calls.append(call)
+        }
+        return .success(calls)
     }
 
     /// Parse a single body like "call:NAME{key:value,...}".

@@ -36,6 +36,16 @@ struct AgentTrace {
     var turns: [AgentTurn] = []
     var toolEvents: [AgentToolEvent] = []
     var finalExtraction: ParsedExtraction?
+    /// Number of turns where the strict tool-call parser raised — i.e. the
+    /// model emitted something that *looked* like a tool call (open tag
+    /// present) but the grammar/parser couldn't recover a structured call.
+    /// Target under proposals-2026-04-25.md Rank 4: 0 across 27 × 3 cases.
+    var unrecoverableParseFailures: Int = 0
+    /// Whether the tool-call grammar was active for this run (true once the
+    /// first tool-response turn fires, since AgentRunner only constrains
+    /// post-response turns). Recorded in the trace so the bench harness
+    /// can correlate failure counts with grammar mode.
+    var grammarEngaged: Bool = false
 }
 
 struct AgentTurn {
@@ -43,6 +53,9 @@ struct AgentTurn {
     let rawOutput: String
     let toolCalls: [GemmaToolCall]
     let elapsedSeconds: Double
+    /// True when the grammar was applied to this specific turn (not just
+    /// the run as a whole). Useful for debug overlays and the bench TSV.
+    var grammarConstrained: Bool = false
 }
 
 struct AgentToolEvent {
@@ -173,13 +186,18 @@ final class AgentRunner {
     private let systemPrompt: String
     private let maxTurns: Int
     private let maxTokensPerTurn: Int
+    /// Optional GBNF text applied to engines that support it. Loaded once
+    /// at init time from the bundled `cliniq_toolcall.gbnf`; nil when the
+    /// resource is missing (e.g. older builds) so behaviour matches pre-c18.
+    private let toolCallGrammar: String?
 
     init(
         engine: any InferenceEngine,
         tools: [AgentTool] = AgentTools.defaults(),
         systemPrompt: String = AgentRunner.defaultSystemPrompt,
         maxTurns: Int = 10,
-        maxTokensPerTurn: Int = 2048
+        maxTokensPerTurn: Int = 2048,
+        toolCallGrammar: String? = AgentRunner.loadBundledToolCallGrammar()
     ) {
         self.engine = engine
         self.tools = tools
@@ -187,6 +205,19 @@ final class AgentRunner {
         self.systemPrompt = systemPrompt
         self.maxTurns = maxTurns
         self.maxTokensPerTurn = maxTokensPerTurn
+        self.toolCallGrammar = toolCallGrammar
+    }
+
+    /// Return the embedded GBNF grammar string for tool-call constraints.
+    /// Source of truth is `apps/mobile/convert/cliniq_toolcall.gbnf`; the
+    /// `ToolCallGrammarResource.gbnf` constant is a byte-identical mirror
+    /// embedded in code so the iOS target doesn't need a bundled-resource
+    /// project change. See `ToolCallGrammarResource.swift` for the sync rule.
+    ///
+    /// `nonisolated` so it can be used as a default-arg value from
+    /// non-MainActor contexts; the Swift constant is immutable.
+    nonisolated static func loadBundledToolCallGrammar() -> String? {
+        return ToolCallGrammarResource.gbnf
     }
 
     static let defaultSystemPrompt: String = """
@@ -208,6 +239,16 @@ final class AgentRunner {
 
     /// Run the agent loop against a clinical narrative. Returns the parsed
     /// final extraction plus a full trace of turns and tool events.
+    ///
+    /// Grammar policy (proposals-2026-04-25.md Rank 4):
+    ///   - Turn 0 (after the user message) runs unconstrained — the model
+    ///     hasn't seen any tool result yet, so it's safe to let it think.
+    ///   - Turns ≥1 (after at least one `<|tool_response|>` has been
+    ///     appended to the prompt) engage the bundled GBNF, which limits
+    ///     the model to either a well-formed tool-call block or a final
+    ///     JSON answer — exactly the two legal continuations.
+    /// On engines that don't support grammar (LiteRT-LM, stub) the grammar
+    /// argument is accepted-and-ignored, so this method is backend-agnostic.
     func run(narrative: String) async throws -> AgentTrace {
         var trace = AgentTrace()
         var prompt = GemmaToolTemplate.renderInitial(
@@ -215,21 +256,60 @@ final class AgentRunner {
             tools: tools,
             user: narrative
         )
+        // Tracks whether the previous turn appended a tool response — only
+        // then do we engage the grammar. Mirrors agent_pipeline.py's
+        // `last_appended_role == "tool"` check.
+        var previousTurnEmittedToolResponse = false
 
         for turnIndex in 0..<maxTurns {
             let turnStart = Date()
             var rawOutput = ""
-            let stream = try await engine.generate(prompt: prompt, maxTokens: maxTokensPerTurn)
+            // Conditional grammar: pass it only when we know the prompt
+            // ends with a tool response — turn 0 (user only) and after a
+            // model-final turn (which we already early-return from) never
+            // reach here with grammar engaged.
+            let activeGrammar: String? =
+                (previousTurnEmittedToolResponse ? toolCallGrammar : nil)
+            let stream = try await engine.generate(
+                prompt: prompt,
+                maxTokens: maxTokensPerTurn,
+                grammar: activeGrammar
+            )
             for try await chunk in stream {
                 rawOutput += chunk.text
             }
             let elapsed = Date().timeIntervalSince(turnStart)
-            let calls = ToolCallParser.parse(rawOutput)
+            // Strict-mode parse when the grammar is on — the parser must
+            // succeed because the sampler was constrained; if it doesn't,
+            // count it as an unrecoverable failure (proposals.md target: 0).
+            // When grammar is off we use the tolerant parser the agent
+            // has always used (no behaviour regression on unconstrained turns).
+            let calls: [GemmaToolCall]
+            if activeGrammar != nil {
+                trace.grammarEngaged = true
+                let strict = ToolCallParser.parseStrict(rawOutput)
+                switch strict {
+                case .success(let parsed):
+                    calls = parsed
+                case .failure(let err):
+                    trace.unrecoverableParseFailures += 1
+                    // Fall back to tolerant parse so the loop still tries to
+                    // make progress — but the failure is recorded so the
+                    // bench harness can detect it.
+                    calls = ToolCallParser.parse(rawOutput)
+                    #if DEBUG
+                    print("AgentRunner: grammar-on parse failure on turn \(turnIndex): \(err)")
+                    #endif
+                }
+            } else {
+                calls = ToolCallParser.parse(rawOutput)
+            }
             trace.turns.append(AgentTurn(
                 index: turnIndex,
                 rawOutput: rawOutput,
                 toolCalls: calls,
-                elapsedSeconds: elapsed
+                elapsedSeconds: elapsed,
+                grammarConstrained: activeGrammar != nil
             ))
 
             if calls.isEmpty {
@@ -253,8 +333,11 @@ final class AgentRunner {
                 ))
                 prompt += GemmaToolTemplate.renderToolResponse(name: call.name, response: result)
             }
-            // Open the next assistant turn so the model continues.
+            // Open the next assistant turn so the model continues. We just
+            // appended a tool response, so the *next* iteration's grammar
+            // gate flips on.
             prompt += PromptBuilder.turnModelOpen
+            previousTurnEmittedToolResponse = true
         }
 
         // Hit max_turns without a final answer; salvage whatever JSON we have.

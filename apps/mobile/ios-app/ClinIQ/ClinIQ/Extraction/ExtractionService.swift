@@ -113,7 +113,16 @@ final class ExtractionService: ObservableObject {
         // extraction directly from the RAG hit. Mirrors Python's
         // agent_pipeline.py --fast-path-rag-threshold gate.
         let fpStart = Date()
-        if let fp = RagSearch.fastPathHit(narrative: narrative) {
+        // Inject EicrPreparser.isNegated as the negation predicate so the
+        // fast-path uses the same NegEx rule as Tier-3 lookup. The closure
+        // hop (instead of RagSearch importing EicrPreparser directly)
+        // keeps RagSearch self-contained for the validate_rag.swift CLI.
+        if let fp = RagSearch.fastPathHit(
+            narrative: narrative,
+            isNegated: { txt, s, e in
+                EicrPreparser.isNegated(in: txt, matchStart: s, matchEnd: e)
+            }
+        ) {
             var fast = ParsedExtraction()
             fast.raw = narrative
             fast.conditions = [

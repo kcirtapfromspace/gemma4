@@ -22,7 +22,15 @@
 import Foundation
 
 final class StubInferenceEngine: InferenceEngine {
-    func generate(prompt: String, maxTokens: Int) async throws -> AsyncThrowingStream<InferenceChunk, Error> {
+    func generate(
+        prompt: String,
+        maxTokens: Int,
+        grammar: String? = nil
+    ) async throws -> AsyncThrowingStream<InferenceChunk, Error> {
+        // Stub is rule-based — there's no token sampler to constrain, so we
+        // accept-and-ignore the grammar. The output JSON shape already
+        // matches the validator's expected schema.
+        _ = grammar
         let userBlock = Self.extractUserBlock(from: prompt)
         let json = Self.buildJSON(for: userBlock)
         return AsyncThrowingStream { continuation in

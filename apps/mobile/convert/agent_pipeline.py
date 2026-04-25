@@ -256,8 +256,25 @@ def run_agent(
     temperature: float = 0.0,
     max_tokens: int = 3072,
     verbose: bool = False,
+    tool_call_grammar: str | None = None,
 ) -> tuple[dict, list[dict]]:
-    """Run the Gemma 4 agent loop. Returns (final_extraction, trace)."""
+    """Run the Gemma 4 agent loop. Returns (final_extraction, trace).
+
+    ``tool_call_grammar`` — optional GBNF text. NOTE on llama-server (>=b6000):
+    the OpenAI-compatible ``/v1/chat/completions`` endpoint **rejects**
+    ``grammar`` whenever ``tools`` is set ("Cannot use custom grammar
+    constraints with tools."), because the ``--jinja`` path already applies
+    an internal tool-call grammar derived from the rendered chat template.
+    We therefore drop the ``grammar`` field on chat-completions turns; the
+    parameter is kept for API symmetry with the iOS ``AgentRunner`` path
+    (where ``LlamaCppInferenceEngine.applyGrammar`` *does* honour it,
+    because ToolCallParser is looser than llama-server's internal grammar
+    and IS the parse-failure surface the GBNF was authored to lock).
+    See proposals-2026-04-25.md Rank 4 for the rationale.
+    """
+    # Force-disable on Python: llama-server's tool-call path already grammar-locks
+    # the wire format. Sending our GBNF here would 400 the request.
+    _ = tool_call_grammar
     messages: list[dict] = [
         {"role": "system", "content": system},
         {"role": "user", "content": narrative},
@@ -271,6 +288,11 @@ def run_agent(
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        # NOTE: not setting ``payload["grammar"]`` here — llama-server's
+        # /v1/chat/completions rejects grammar when tools is set. The
+        # internal tool-grammar from the chat template is sufficient for
+        # the Python path; the explicit GBNF applies only on the iOS
+        # AgentRunner. See ``run_agent`` docstring.
         t0 = time.time()
         resp = chat(endpoint, payload)
         elapsed = time.time() - t0
@@ -468,6 +490,15 @@ def main() -> None:
         "--out-json",
         default="apps/mobile/convert/build/agent_bench.json",
     )
+    ap.add_argument(
+        "--tool-call-grammar",
+        default=None,
+        help=(
+            "Optional GBNF file (e.g. apps/mobile/convert/cliniq_toolcall.gbnf) "
+            "applied to llama-server on tool-response turns to lock the "
+            "tool-call wire format. See proposals-2026-04-25.md Rank 4."
+        ),
+    )
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument(
         "--fast-path-rag-threshold",
@@ -484,6 +515,9 @@ def main() -> None:
         help="Disable the c19 single-turn fast-path; always run the agent loop.",
     )
     args = ap.parse_args()
+    grammar_text: str | None = None
+    if args.tool_call_grammar:
+        grammar_text = Path(args.tool_call_grammar).read_text()
 
     cases: list[dict] = []
     for p in args.cases:
@@ -503,7 +537,7 @@ def main() -> None:
         path_label = "agent"
         try:
             # Try the c19 single-turn fast-path first. On miss, fall through
-            # to the agent loop.
+            # to the agent loop with the optional tool-call grammar.
             fp_result = (
                 None
                 if args.no_fast_path
@@ -517,7 +551,10 @@ def main() -> None:
                 n_fast_path_hits += 1
             else:
                 extraction, trace = run_agent(
-                    case["user"], endpoint=args.endpoint, verbose=args.verbose
+                    case["user"],
+                    endpoint=args.endpoint,
+                    verbose=args.verbose,
+                    tool_call_grammar=grammar_text,
                 )
         except URLError as exc:
             print(f"  ERR {cid}: {exc}", flush=True)

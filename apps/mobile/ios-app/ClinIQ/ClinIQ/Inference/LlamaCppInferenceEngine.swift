@@ -71,14 +71,27 @@ private actor LlamaContext {
         // 1024-token batch is enough to prefill our ~700-token prompts without
         // splitting. Adjust if the system prompt grows.
         self.batch = llama_batch_init(1024, 0, 1)
+        self.vocab = llama_model_get_vocab(model)
+        self.sampling = Self.makeDefaultSampler()
+    }
+
+    /// Build the default sampler chain — low-temp greedy-leaning. Extracted
+    /// so `applyGrammar(_:)` can rebuild the chain with a grammar sampler
+    /// at the head when the agent loop requests constrained decoding.
+    ///
+    /// The C bridge imports `llama_sampler_chain_init` as returning an
+    /// implicitly-unwrapped optional; storing into a `let` strips that, so
+    /// we force-unwrap on the boundary (`init` failure here is fatal —
+    /// we'd already be unable to sample anything).
+    private static func makeDefaultSampler() -> UnsafeMutablePointer<llama_sampler> {
         let sparams = llama_sampler_chain_default_params()
-        self.sampling = llama_sampler_chain_init(sparams)
+        let chain: UnsafeMutablePointer<llama_sampler> = llama_sampler_chain_init(sparams)
         // Greedy-leaning sampler: low temp + deterministic final draw so the
         // scoring script gets reproducible outputs. JSON extraction doesn't
         // need creativity.
-        llama_sampler_chain_add(self.sampling, llama_sampler_init_temp(0.2))
-        llama_sampler_chain_add(self.sampling, llama_sampler_init_dist(1234))
-        self.vocab = llama_model_get_vocab(model)
+        llama_sampler_chain_add(chain, llama_sampler_init_temp(0.2))
+        llama_sampler_chain_add(chain, llama_sampler_init_dist(1234))
+        return chain
     }
 
     deinit {
@@ -193,6 +206,44 @@ private actor LlamaContext {
         isDone = false
     }
 
+    /// Replace the active sampler chain with a grammar-constrained version.
+    /// `grammar` is raw GBNF text (the contents of a `.gbnf` file). On parse
+    /// failure (`llama_sampler_init_grammar` returns NULL) the previous
+    /// sampler is preserved and `false` is returned so the caller can
+    /// surface the failure rather than silently sampling unconstrained.
+    ///
+    /// Call `restoreDefaultSampler()` after the constrained turn finishes
+    /// to return to the standard low-temp chain. AgentRunner does this at
+    /// the end of each `generate(...)` call so subsequent turns aren't
+    /// accidentally constrained.
+    func applyGrammar(_ grammar: String) -> Bool {
+        // `llama_sampler_init_grammar` returns NULL on parse failure; trap
+        // the Optional explicitly so we can return false to the caller.
+        let newGrammar: UnsafeMutablePointer<llama_sampler>? = grammar.withCString { gptr in
+            "root".withCString { rptr in
+                llama_sampler_init_grammar(vocab, gptr, rptr)
+            }
+        }
+        guard let g = newGrammar else { return false }
+        // Rebuild the chain: grammar at the head (so it filters the logits
+        // BEFORE temp/dist), then the existing temp + dist.
+        let sparams = llama_sampler_chain_default_params()
+        let chain: UnsafeMutablePointer<llama_sampler> = llama_sampler_chain_init(sparams)
+        llama_sampler_chain_add(chain, g)
+        llama_sampler_chain_add(chain, llama_sampler_init_temp(0.2))
+        llama_sampler_chain_add(chain, llama_sampler_init_dist(1234))
+        llama_sampler_free(sampling)
+        sampling = chain
+        return true
+    }
+
+    /// Reset the sampler to the unconstrained default. Idempotent — safe to
+    /// call even when the current sampler is already the default.
+    func restoreDefaultSampler() {
+        llama_sampler_free(sampling)
+        sampling = Self.makeDefaultSampler()
+    }
+
     // MARK: - Internal helpers
 
     private func tokenize(text: String, addBOS: Bool) throws -> [llama_token] {
@@ -305,13 +356,28 @@ final class LlamaCppInferenceEngine: InferenceEngine {
         }
     }
 
-    func generate(prompt: String, maxTokens: Int)
-        async throws -> AsyncThrowingStream<InferenceChunk, Error>
+    func generate(
+        prompt: String,
+        maxTokens: Int,
+        grammar: String? = nil
+    ) async throws -> AsyncThrowingStream<InferenceChunk, Error>
     {
         let ctx = try await ensureLoaded()
         // Reset previous KV state so each call is independent. For a
         // multi-turn chat we'd preserve state and only append.
         await ctx.reset()
+        // Apply the grammar BEFORE prefill so the constraint is live for
+        // the very first sampled token. On parse failure surface a clear
+        // error rather than degrading silently to unconstrained decoding.
+        if let grammar = grammar, !grammar.isEmpty {
+            let ok = await ctx.applyGrammar(grammar)
+            if !ok {
+                throw InferenceError.runtimeFailure(
+                    "llama_sampler_init_grammar returned NULL — GBNF failed to parse. " +
+                    "Check apps/mobile/convert/cliniq_toolcall.gbnf for syntax errors."
+                )
+            }
+        }
         let promptTokens = try await ctx.prefill(text: prompt, maxTokens: maxTokens)
         _ = promptTokens
 
@@ -330,8 +396,16 @@ final class LlamaCppInferenceEngine: InferenceEngine {
                             break
                         }
                     }
+                    // Always restore the default sampler so a grammar-on
+                    // turn doesn't bleed into the next (unconstrained) call.
+                    if grammar != nil {
+                        await ctx.restoreDefaultSampler()
+                    }
                     continuation.finish()
                 } catch {
+                    if grammar != nil {
+                        await ctx.restoreDefaultSampler()
+                    }
                     continuation.finish(throwing: error)
                 }
             }

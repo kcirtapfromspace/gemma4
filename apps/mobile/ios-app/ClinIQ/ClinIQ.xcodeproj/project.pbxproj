@@ -36,6 +36,7 @@
 		D13C130E00000101D13C130E /* AgentRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130E00000102D13C130E /* AgentRunner.swift */; };
 		D13C130F00000101D13C130F /* GemmaToolTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130F00000102D13C130F /* GemmaToolTemplate.swift */; };
 		D13C131A00000101D13C131A /* ToolCallParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131A00000102D13C131A /* ToolCallParser.swift */; };
+		D13C132A00000101D13C132A /* ToolCallGrammarResource.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C132A00000102D13C132A /* ToolCallGrammarResource.swift */; };
 		D13C131B00000101D13C131B /* ProvenanceBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131B00000102D13C131B /* ProvenanceBadge.swift */; };
 		D13C131E00000101D13C131E /* ProvenanceLegend.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131E00000102D13C131E /* ProvenanceLegend.swift */; };
 		D13C131C00000101D13C131C /* SpeechDictationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131C00000102D13C131C /* SpeechDictationService.swift */; };
@@ -85,6 +86,7 @@
 		D13C130E00000102D13C130E /* AgentRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRunner.swift; sourceTree = "<group>"; };
 		D13C130F00000102D13C130F /* GemmaToolTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GemmaToolTemplate.swift; sourceTree = "<group>"; };
 		D13C131A00000102D13C131A /* ToolCallParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolCallParser.swift; sourceTree = "<group>"; };
+		D13C132A00000102D13C132A /* ToolCallGrammarResource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolCallGrammarResource.swift; sourceTree = "<group>"; };
 		D13C131B00000102D13C131B /* ProvenanceBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvenanceBadge.swift; sourceTree = "<group>"; };
 		D13C131E00000102D13C131E /* ProvenanceLegend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvenanceLegend.swift; sourceTree = "<group>"; };
 		D13C131C00000102D13C131C /* SpeechDictationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechDictationService.swift; sourceTree = "<group>"; };
@@ -276,6 +278,7 @@
 				D13C130E00000102D13C130E /* AgentRunner.swift */,
 				D13C130F00000102D13C130F /* GemmaToolTemplate.swift */,
 				D13C131A00000102D13C131A /* ToolCallParser.swift */,
+				D13C132A00000102D13C132A /* ToolCallGrammarResource.swift */,
 			);
 			path = Extraction;
 			sourceTree = "<group>";
@@ -432,6 +435,7 @@
 				D13C130E00000101D13C130E /* AgentRunner.swift in Sources */,
 				D13C130F00000101D13C130F /* GemmaToolTemplate.swift in Sources */,
 				D13C131A00000101D13C131A /* ToolCallParser.swift in Sources */,
+				D13C132A00000101D13C132A /* ToolCallGrammarResource.swift in Sources */,
 				D13C131B00000101D13C131B /* ProvenanceBadge.swift in Sources */,
 				D13C131E00000101D13C131E /* ProvenanceLegend.swift in Sources */,
 				D13C131C00000101D13C131C /* SpeechDictationService.swift in Sources */,

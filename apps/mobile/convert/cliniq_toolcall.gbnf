@@ -1,0 +1,104 @@
+# GBNF grammar for ClinIQ tool-call wire format (Gemma 4 native function-calling).
+#
+# Locks the ONE failure mode that makes ToolCallParser bail: malformed bracket
+# / quote / comma syntax inside the tool-call payload. With this grammar live,
+# every model output is either:
+#
+#   (a) a single "<|tool_call>call:NAME{...}<tool_call|>" block that the
+#       Swift ArgParser + Python JSON loader can both parse cleanly, or
+#   (b) a final-answer JSON object with the validator's expected 3-array shape.
+#
+# Rules constrained:
+#   - tool-name must be one of 4 registered tools (mistyped names are
+#     impossible, removing the "unknown tool 'extract_codes'" branch).
+#   - keys are unquoted identifier-ish, values are sentinel-quoted strings
+#     (Gemma 4's <|"|>) OR JSON-quoted strings (the drift fallback the
+#     parser already tolerates) OR int / true / false / null OR arrays /
+#     objects of the same.
+#   - balanced brackets are enforced: the model can't legally emit `<eos>`
+#     mid-payload.
+#
+# Mechanism on the Python side: passed as `grammar` body parameter on each
+# llama-server /v1/chat/completions call inside agent_pipeline.py, but ONLY
+# on tool-response turns (turn 0 + final-answer turns run unconstrained
+# because they're already short and well-behaved).
+#
+# Mechanism on the Swift side: AgentRunner passes the loaded grammar string
+# to LlamaCppInferenceEngine.beginAgentTurn(grammar:) which initializes a
+# llama_sampler_init_grammar sampler in the chain. ToolCallParser.parseStrict
+# bubbles parse errors instead of silently dropping them so we can detect
+# coverage gaps fast.
+#
+# Bench harness: apps/mobile/convert/bench_toolcall_grammar.py runs the agent
+# loop ×3 over the combined-27 bench with grammar on/off and counts
+# unrecoverable parse failures (target 0).
+
+root            ::= tool-call | final-answer
+
+# ----------------------------------------------------------------------------
+# (a) Tool-call wire format
+#
+# Each turn that constructs a tool call starts with the literal token
+# "<|tool_call>" (one of Gemma 4's special tokens) and ends with the
+# closing literal "<tool_call|>". Between them, "call:" + tool-name +
+# brace-delimited argument body.
+
+tool-call       ::= "<|tool_call>" "call:" tool-name "{" arg-list? "}" "<tool_call|>"
+
+# Registered tools — adding a new tool means adding it here AND wiring it
+# in agent_pipeline.TOOLS / AgentTools.defaults().
+tool-name       ::= "extract_codes_from_text"
+                  | "lookup_reportable_conditions"
+                  | "validate_fhir_extraction"
+                  | "lookup_displayname"
+
+# Argument list: comma-separated key:value pairs, optional trailing comma
+# tolerated by the parsers but not generated.
+arg-list        ::= arg-pair ("," arg-pair)*
+arg-pair        ::= ws key ws ":" ws value ws
+
+# Keys: bareword identifier or sentinel-quoted string (both forms appear
+# in the wild — see ToolCallParser.readKey).
+key             ::= identifier | sentinel-string | json-string
+identifier      ::= [a-zA-Z_] [a-zA-Z0-9_]*
+
+# Values: any of the JSON-ish primitives + nested arrays/objects.
+value           ::= sentinel-string | json-string | number | bool | null | array | object
+array           ::= "[" ws (value (ws "," ws value)*)? ws "]"
+object          ::= "{" ws (arg-pair (ws "," ws arg-pair)*)? ws "}"
+
+# Numbers: int or decimal, no leading + sign (matches Python json + Swift Int/Double).
+number          ::= "-"? ("0" | [1-9] [0-9]*) ("." [0-9]+)? (("e" | "E") ("+" | "-")? [0-9]+)?
+bool            ::= "true" | "false"
+null            ::= "null"
+
+# Strings: TWO accepted forms — the Gemma 4 5-char sentinel <|"|> and
+# standard JSON double-quotes. Both terminate at their matching opener;
+# neither allows the opener inside the body.
+sentinel-string ::= "<|\"|>" sentinel-body "<|\"|>"
+sentinel-body   ::= ([^<] | "<" [^|] | "<|" [^"])*
+json-string     ::= "\"" json-body "\""
+json-body       ::= ([^"\\] | "\\" .)*
+
+# ----------------------------------------------------------------------------
+# (b) Final-answer JSON
+#
+# The model's terminal turn — when it has finished orchestrating tools —
+# emits a plain JSON object with the three arrays the validator scores.
+# Mirrors apps/mobile/convert/cliniq_extraction.gbnf but stricter: digit-only
+# code strings, no markdown fences, no leading prose.
+
+final-answer    ::= ws "{" ws "\"conditions\"" ws ":" ws code-array ws ","
+                       ws "\"loincs\""     ws ":" ws code-array ws ","
+                       ws "\"rxnorms\""    ws ":" ws code-array ws "}" ws
+
+# Code arrays accept digit-and-dash strings (LOINC has dashes; SNOMED and
+# RxNorm don't). Empty arrays are legal (and common — most narratives lack
+# at least one of the three categories).
+code-array      ::= "[" ws (code-string (ws "," ws code-string)*)? ws "]"
+code-string     ::= "\"" [0-9] [0-9-]* "\""
+
+# ----------------------------------------------------------------------------
+# Whitespace
+
+ws              ::= [ \t\n]*

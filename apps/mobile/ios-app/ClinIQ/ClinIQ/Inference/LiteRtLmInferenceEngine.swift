@@ -115,9 +115,20 @@ final class LiteRtLmInferenceEngine: InferenceEngine {
         }
     }
 
-    func generate(prompt: String, maxTokens: Int)
-        async throws -> AsyncThrowingStream<InferenceChunk, Error>
+    func generate(
+        prompt: String,
+        maxTokens: Int,
+        grammar: String? = nil
+    ) async throws -> AsyncThrowingStream<InferenceChunk, Error>
     {
+        // LiteRT-LM 0.10.x doesn't expose grammar sampling on the public
+        // Swift surface (only top-k / top-p). Accept-and-ignore: the
+        // caller (AgentRunner) gets the same stream signature, but the
+        // tool-call payload is not constrained on this backend.
+        // Tracked in LITERTLM_BACKEND.md. Note: as of c17 LiteRT-LM is
+        // dead-on-arrival anyway (Jinja runtime fails on the bundled
+        // chat template — see results.tsv row 46).
+        _ = grammar
         // Load + make fresh session per call so each extraction is
         // independent (mirror of LlamaCpp's `ctx.reset()`).
         let loaded = try ensureLoaded()
@@ -164,9 +175,13 @@ final class LiteRtLmInferenceEngine: InferenceEngine {
 final class LiteRtLmInferenceEngine: InferenceEngine {
     init(backend: Int = 0) {}
     static func resolveModelPath() -> String? { nil }
-    func generate(prompt: String, maxTokens: Int)
-        async throws -> AsyncThrowingStream<InferenceChunk, Error>
+    func generate(
+        prompt: String,
+        maxTokens: Int,
+        grammar: String? = nil
+    ) async throws -> AsyncThrowingStream<InferenceChunk, Error>
     {
+        _ = grammar
         throw InferenceError.backendUnavailable(
             "LiteRtLm Swift package not linked into this build. See LITERTLM_BACKEND.md."
         )
