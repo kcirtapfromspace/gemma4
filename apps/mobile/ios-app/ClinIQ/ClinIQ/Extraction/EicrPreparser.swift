@@ -22,7 +22,13 @@ import Foundation
 /// "I extracted 50711007 because line 4 says 'Hep C' (lookup tier, conf 0.85)".
 /// Confidence floors mirror apps/mobile/convert/regex_preparser.py.
 struct CodeProvenance {
-    enum Tier: String { case inline, cda, lookup, rag }
+    /// `.ragFast` is the c19 single-turn agent fast-path tier: tier-1 was
+    /// empty, RAG returned a high-confidence hit (≥0.7), and the matched
+    /// phrase is not in NegEx scope, so we skip the agent loop entirely
+    /// and emit the RAG hit directly. Reuses the `.rag` purple in the UI
+    /// per design but kept distinct so bench rows can disambiguate
+    /// fast-path vs. agent-mediated RAG.
+    enum Tier: String { case inline, cda, lookup, rag, ragFast = "rag_fast" }
     let code: String
     let display: String
     let system: String      // "SNOMED" / "LOINC" / "RxNorm"
@@ -40,6 +46,11 @@ enum EicrPreparser {
     static let tierConfidenceInline: Double = 0.99
     static let tierConfidenceCDA: Double = 0.99
     static let tierConfidenceLookup: Double = 0.85
+    /// Floor used when the c19 single-turn fast-path emits a synthetic
+    /// extraction from a RAG hit. Actual confidence is `hit.score`,
+    /// clipped to ≥ this floor so the chip doesn't render an unhelpful
+    /// "70%" when hit.score is exactly the trigger threshold.
+    static let tierConfidenceRagFastFloor: Double = 0.70
 
     // MARK: - Tier 1 — inline parenthesized codes
     //

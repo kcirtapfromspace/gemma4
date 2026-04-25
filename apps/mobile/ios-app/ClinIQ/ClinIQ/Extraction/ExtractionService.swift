@@ -68,6 +68,12 @@ final class ExtractionService: ObservableObject {
     /// Tier order:
     ///   1. `EicrPreparser` — deterministic regex/CDA/lookup. If it finds
     ///      any code, return immediately (single-digit ms, no LLM).
+    ///   1b. **c19 fast-path**: tier-1 empty + `RagSearch.fastPathHit()`
+    ///       returns a top hit ≥0.70 with at least one non-negated
+    ///       occurrence of the matched phrase → fabricate the extraction
+    ///       from the RAG hit (no LLM). Drops the long-tail agent-tier
+    ///       median latency from ~13 s to <1 s. Provenance tier
+    ///       `.ragFast`. Per proposals-2026-04-25 Rank 2.
     ///   2. LLM via the active engine (LiteRT-LM, llama.cpp, or stub),
     ///      with the engine's existing tolerant JSON parser on the output.
     ///
@@ -98,6 +104,45 @@ final class ExtractionService: ObservableObject {
             isRunning = false
             activeBackendLabel = "Deterministic preparser"
             return det
+        }
+
+        // Tier 1b — c19 single-turn fast-path. Tier-1 came back empty;
+        // before paying the agent's multi-turn LLM cost, ask RAG whether
+        // the narrative names a known reportable condition with high
+        // confidence and a non-negated mention. If so, synthesize an
+        // extraction directly from the RAG hit. Mirrors Python's
+        // agent_pipeline.py --fast-path-rag-threshold gate.
+        let fpStart = Date()
+        if let fp = RagSearch.fastPathHit(narrative: narrative) {
+            var fast = ParsedExtraction()
+            fast.raw = narrative
+            fast.conditions = [
+                ParsedCondition(code: fp.hit.code,
+                                system: fp.hit.system,
+                                display: fp.hit.display)
+            ]
+            fast.matches = [
+                CodeProvenance(
+                    code: fp.hit.code,
+                    display: fp.hit.display,
+                    system: fp.hit.system,
+                    bucket: "snomed",
+                    tier: .ragFast,
+                    confidence: max(EicrPreparser.tierConfidenceRagFastFloor,
+                                    fp.hit.score),
+                    sourceText: fp.span.text,
+                    sourceOffset: fp.span.location,
+                    sourceLength: fp.span.length,
+                    alias: fp.hit.matchedPhrase,
+                    sourceURL: fp.hit.sourceURL
+                )
+            ]
+            lastElapsed = Date().timeIntervalSince(fpStart) + detElapsed
+            lastTokens = 0
+            tokensPerSecond = 0
+            isRunning = false
+            activeBackendLabel = "RAG fast-path"
+            return fast
         }
 
         // Tier 2 — Gemma 4 agent loop. The model orchestrates the same

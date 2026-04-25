@@ -83,10 +83,11 @@ struct ProvenanceBadge: View {
 
     private var tierLabel: String {
         switch provenance.tier {
-        case .inline: return "INLINE"
-        case .cda:    return "CDA"
-        case .lookup: return "LOOKUP"
-        case .rag:    return "RAG"
+        case .inline:  return "INLINE"
+        case .cda:     return "CDA"
+        case .lookup:  return "LOOKUP"
+        case .rag:     return "RAG"
+        case .ragFast: return "RAG · FAST"
         }
     }
 
@@ -94,12 +95,15 @@ struct ProvenanceBadge: View {
         // Color encodes confidence-by-construction: parenthesized inline
         // codes and CDA XML are explicit assertions (green/teal), lookup
         // is a curated displayName match (amber), RAG is open-search
-        // retrieval over CDC NNDSS / WHO IDSR (purple).
+        // retrieval over CDC NNDSS / WHO IDSR (purple). The c19 fast-path
+        // (`.ragFast`) reuses RAG purple — the latency story is "look at
+        // the chip, no agent loop spun up" rather than a new color.
         switch provenance.tier {
-        case .inline: return Color(red: 0.13, green: 0.50, blue: 0.27)
-        case .cda:    return Color(red: 0.10, green: 0.46, blue: 0.55)
-        case .lookup: return Color(red: 0.74, green: 0.51, blue: 0.10)
-        case .rag:    return Color(red: 0.50, green: 0.30, blue: 0.65)
+        case .inline:  return Color(red: 0.13, green: 0.50, blue: 0.27)
+        case .cda:     return Color(red: 0.10, green: 0.46, blue: 0.55)
+        case .lookup:  return Color(red: 0.74, green: 0.51, blue: 0.10)
+        case .rag:     return Color(red: 0.50, green: 0.30, blue: 0.65)
+        case .ragFast: return Color(red: 0.50, green: 0.30, blue: 0.65)
         }
     }
 

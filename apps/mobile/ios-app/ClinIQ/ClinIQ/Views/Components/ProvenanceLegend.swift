@@ -39,7 +39,9 @@ struct ProvenanceLegend: View {
                     legendRow(.lookup, "LOOKUP",
                               "Display-name match against the curated reportable-conditions table, ~85% conf.")
                     legendRow(.rag, "RAG",
-                              "Retrieved against on-device CDC NNDSS / WHO IDSR — open semantic match, variable conf.")
+                              "Retrieved against on-device CDC NNDSS / WHO IDSR — agent-mediated, multi-turn.")
+                    legendRow(.ragFast, "RAG · FAST",
+                              "Single-turn shortcut: same RAG store, ≥70% conf hit, no LLM agent loop. <1 s.")
                 }
                 .padding(.top, 2)
             }
@@ -79,12 +81,15 @@ struct ProvenanceLegend: View {
 
     /// Mirror of ProvenanceBadge.tierColor — kept identical so the legend
     /// chip and the row chip read as the same color across the screen.
+    /// `.ragFast` reuses the RAG purple by design (latency story, not a
+    /// new color story).
     private func tierColor(_ tier: CodeProvenance.Tier) -> Color {
         switch tier {
-        case .inline: return Color(red: 0.13, green: 0.50, blue: 0.27)
-        case .cda:    return Color(red: 0.10, green: 0.46, blue: 0.55)
-        case .lookup: return Color(red: 0.74, green: 0.51, blue: 0.10)
-        case .rag:    return Color(red: 0.50, green: 0.30, blue: 0.65)
+        case .inline:  return Color(red: 0.13, green: 0.50, blue: 0.27)
+        case .cda:     return Color(red: 0.10, green: 0.46, blue: 0.55)
+        case .lookup:  return Color(red: 0.74, green: 0.51, blue: 0.10)
+        case .rag:     return Color(red: 0.50, green: 0.30, blue: 0.65)
+        case .ragFast: return Color(red: 0.50, green: 0.30, blue: 0.65)
         }
     }
 }
