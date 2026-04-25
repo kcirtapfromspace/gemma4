@@ -27,6 +27,12 @@ struct ReviewFlowView: View {
 
     @State private var phase: Phase = .intro
     @State private var draft = ReviewDraft()
+    /// Toggles the "View FHIR Bundle" sheet on the Review screen. The
+    /// sheet renders BundleBuilder.bundleJSON(from:) — a structurally
+    /// R4-valid Bundle assembled on-device from the current draft. Lets
+    /// a judge tap and inspect the same shape that score_fhir.py
+    /// validates 35/35 on combined-27 + adv4.
+    @State private var showingBundleSheet = false
 
     enum Phase {
         case intro      // waiting to start
@@ -361,6 +367,17 @@ struct ReviewFlowView: View {
                     }
                 }
 
+                if !draft.isEmpty {
+                    Button {
+                        showingBundleSheet = true
+                    } label: {
+                        Label("View FHIR Bundle", systemImage: "doc.text.magnifyingglass")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .padding(.top, 2)
+                }
+
                 HStack(spacing: 10) {
                     Button(role: .cancel) {
                         dismiss()
@@ -384,6 +401,9 @@ struct ReviewFlowView: View {
             .padding(16)
         }
         .background(ClinIQTheme.pageBackground)
+        .sheet(isPresented: $showingBundleSheet) {
+            FHIRBundleSheet(json: BundleBuilder.bundleJSON(from: draft))
+        }
     }
 
     private var metaBanner: some View {

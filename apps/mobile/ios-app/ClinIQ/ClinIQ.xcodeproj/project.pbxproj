@@ -37,8 +37,10 @@
 		D13C130F00000101D13C130F /* GemmaToolTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130F00000102D13C130F /* GemmaToolTemplate.swift */; };
 		D13C131A00000101D13C131A /* ToolCallParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131A00000102D13C131A /* ToolCallParser.swift */; };
 		D13C132A00000101D13C132A /* ToolCallGrammarResource.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C132A00000102D13C132A /* ToolCallGrammarResource.swift */; };
+		D13C133000000101D13C1330 /* BundleBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C133000000102D13C1330 /* BundleBuilder.swift */; };
 		D13C131B00000101D13C131B /* ProvenanceBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131B00000102D13C131B /* ProvenanceBadge.swift */; };
 		D13C131E00000101D13C131E /* ProvenanceLegend.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131E00000102D13C131E /* ProvenanceLegend.swift */; };
+		D13C133100000101D13C1331 /* FHIRBundleSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C133100000102D13C1331 /* FHIRBundleSheet.swift */; };
 		D13C131C00000101D13C131C /* SpeechDictationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131C00000102D13C131C /* SpeechDictationService.swift */; };
 		D13C131D00000101D13C131D /* DictationButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131D00000102D13C131D /* DictationButton.swift */; };
 		D13C130900000101D13C1309 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130900000102D13C1309 /* RootView.swift */; };
@@ -87,8 +89,10 @@
 		D13C130F00000102D13C130F /* GemmaToolTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GemmaToolTemplate.swift; sourceTree = "<group>"; };
 		D13C131A00000102D13C131A /* ToolCallParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolCallParser.swift; sourceTree = "<group>"; };
 		D13C132A00000102D13C132A /* ToolCallGrammarResource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolCallGrammarResource.swift; sourceTree = "<group>"; };
+		D13C133000000102D13C1330 /* BundleBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleBuilder.swift; sourceTree = "<group>"; };
 		D13C131B00000102D13C131B /* ProvenanceBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvenanceBadge.swift; sourceTree = "<group>"; };
 		D13C131E00000102D13C131E /* ProvenanceLegend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvenanceLegend.swift; sourceTree = "<group>"; };
+		D13C133100000102D13C1331 /* FHIRBundleSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FHIRBundleSheet.swift; sourceTree = "<group>"; };
 		D13C131C00000102D13C131C /* SpeechDictationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechDictationService.swift; sourceTree = "<group>"; };
 		D13C131D00000102D13C131D /* DictationButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationButton.swift; sourceTree = "<group>"; };
 		D13C130900000102D13C1309 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -192,6 +196,7 @@
 				D13C131300000102D13C1313 /* EntityRow.swift */,
 				D13C131B00000102D13C131B /* ProvenanceBadge.swift */,
 				D13C131E00000102D13C131E /* ProvenanceLegend.swift */,
+				D13C133100000102D13C1331 /* FHIRBundleSheet.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -279,6 +284,7 @@
 				D13C130F00000102D13C130F /* GemmaToolTemplate.swift */,
 				D13C131A00000102D13C131A /* ToolCallParser.swift */,
 				D13C132A00000102D13C132A /* ToolCallGrammarResource.swift */,
+				D13C133000000102D13C1330 /* BundleBuilder.swift */,
 			);
 			path = Extraction;
 			sourceTree = "<group>";
@@ -436,8 +442,10 @@
 				D13C130F00000101D13C130F /* GemmaToolTemplate.swift in Sources */,
 				D13C131A00000101D13C131A /* ToolCallParser.swift in Sources */,
 				D13C132A00000101D13C132A /* ToolCallGrammarResource.swift in Sources */,
+				D13C133000000101D13C1330 /* BundleBuilder.swift in Sources */,
 				D13C131B00000101D13C131B /* ProvenanceBadge.swift in Sources */,
 				D13C131E00000101D13C131E /* ProvenanceLegend.swift in Sources */,
+				D13C133100000101D13C1331 /* FHIRBundleSheet.swift in Sources */,
 				D13C131C00000101D13C131C /* SpeechDictationService.swift in Sources */,
 				D13C131D00000101D13C131D /* DictationButton.swift in Sources */,
 				D13C130900000101D13C1309 /* RootView.swift in Sources */,
