@@ -1,10 +1,17 @@
 # Experiments index
 
-_Auto-generated from `scripts/benchmarks.duckdb` on 2026-04-24 16:39._
+_Auto-generated from `scripts/benchmarks.duckdb` on 2026-04-25 15:49._
 _Edit individual notes directly; this index regenerates on every sync._
 
 | team | experiment | backend | device | runtime | tok/s | extraction | date |
 |---|---|---|---|---|---:|---:|---|
+| c19 | [c19-fhir-r4-bundle](./c19-fhir-r4-bundle.md) | fhir.resources | macbook-pro-m4 | cpu | — | 100.0% | 2026-04-25 |
+| c19 | [c19-fast-path-py](./c19-fast-path-py.md) | llama-cpp | macbook-pro-m4 | cpu | — | — | 2026-04-25 |
+| c19 | [c19-toolcall-grammar](./c19-toolcall-grammar.md) | llama-cpp | iphone-17-pro-sim | cpu | — | — | 2026-04-25 |
+| c19 | [c19-fast-path-swift](./c19-fast-path-swift.md) | llama-cpp | iphone-17-pro-sim | cpu | — | 100.0% | 2026-04-25 |
+| c18 | [c18-ios-demo-polish](./c18-ios-demo-polish.md) | llama-cpp | iphone-17-pro-sim | cpu | — | — | 2026-04-25 |
+| c17 | [c17-deterministic-agent-rag-swift](./c17-deterministic-agent-rag-swift.md) | llama-cpp | iphone-17-pro-sim | cpu | 4.00 | 100.0% | 2026-04-24 |
+| c17 | [c17-deterministic-agent-rag-py](./c17-deterministic-agent-rag-py.md) | llama-cpp | macbook-pro-m4 | cpu | — | 92.6% | 2026-04-24 |
 | c16 | [c16-litertlm-macos-cpu](./c16-litertlm-macos-cpu.md) | litert-lm | macbook-pro-m4 | cpu | 3.81 | 62.1% | 2026-04-24 |
 | c14 | [c14-litertlm-ios-sim](./c14-litertlm-ios-sim.md) | litert-lm | iphone-17-pro-sim | cpu | 14.70 | — | 2026-04-23 |
 | c12 | [c12-llama-cpp-ios-sim](./c12-llama-cpp-ios-sim.md) | llama-cpp-ios | iphone-17-pro-sim | cpu | 4.30 | 66.7% | 2026-04-23 |

@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.command' 2>/dev/null | grep -qE 'scripts/(benchmark|publish_benchmarks)\\.py' && python3 \"${CLAUDE_PROJECT_DIR:-$PWD}/scripts/sync_experiment_notes.py\" || true",
+            "command": "jq -r '.tool_input.command' 2>/dev/null | grep -qE 'scripts/(benchmark|publish_benchmarks)\\.py' && \"${CLAUDE_PROJECT_DIR:-$PWD}/scripts/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR:-$PWD}/scripts/sync_experiment_notes.py\" || true",
             "timeout": 30,
             "statusMessage": "Syncing experiment notes (duckdb → docs/ + Obsidian)…"
           }
