@@ -108,7 +108,11 @@ struct ProvenanceBadge: View {
     }
 
     private var confidenceLabel: String {
-        let pct = Int((provenance.confidence * 100).rounded())
+        // RAG token-overlap scores can exceed 1.0 (phrase + token + long-
+        // token bonuses), so clamp at the display boundary — confidence
+        // is a probability-like, not a raw score.
+        let clipped = min(1.0, max(0.0, provenance.confidence))
+        let pct = Int((clipped * 100).rounded())
         return "conf \(pct)%"
     }
 

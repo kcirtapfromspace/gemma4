@@ -152,6 +152,33 @@ Meds: nirmatrelvir 150 MG / ritonavir 100 MG (RxNorm 2599543)
                                    postalCode: "97201",
                                    facilityName: "Field Clinic, Remote Site 04")
 
-        return [covid, meningitis, hiv, drafting]
+        // --- Draft: long-tail narrative without inline codes ---
+        // Tier 1 deterministic preparser comes back empty here; the c19
+        // Rank 2 fast-path catches the "valley fever" mention via RAG
+        // (top hit ≥ 0.70, non-negated) and emits the SNOMED code with
+        // tier .ragFast. Lets a live demo show the new "RAG · FAST"
+        // provenance chip without firing the slow agent loop.
+        let valleyFever = ClinicalCase(narrative: """
+Patient: Sofia Reyes
+Gender: F
+DOB: 1968-11-04
+Location: Bakersfield, CA 93301
+Facility: Field Clinic, Remote Site 04
+Encounter: 2026-04-25
+Reason: 3 weeks of dry cough, fatigue, low-grade fevers after returning from a desert hiking trip.
+Exam: chest auscultation with scattered crackles, no respiratory distress.
+Imaging: chest X-ray patchy infiltrates, classic valley fever clinical picture.
+Plan: serology pending; supportive care; return precautions reviewed.
+""",
+                                       status: .draft,
+                                       createdAt: cal.date(byAdding: .minute, value: -1, to: now) ?? now)
+        valleyFever.patient = Patient(givenName: "Sofia",
+                                      familyName: "Reyes",
+                                      gender: "F",
+                                      birthDate: cal.date(from: DateComponents(year: 1968, month: 11, day: 4)),
+                                      postalCode: "93301",
+                                      facilityName: "Field Clinic, Remote Site 04")
+
+        return [covid, meningitis, hiv, drafting, valleyFever]
     }
 }

@@ -75,6 +75,20 @@ struct CasesTab: View {
                 {
                     reviewTarget = first
                 }
+                // c19 hook — pick the draft whose narrative does NOT carry
+                // inline (SNOMED|LOINC|RxNorm ...) parentheticals, so the
+                // tier-1 preparser returns empty and the c19 RAG fast-path
+                // lights up. Lets a screenshot harness reach the new
+                // "RAG · FAST" chip without typing.
+                if env["CLINIQ_OPEN_FAST_PATH_REVIEW"] == "1",
+                   let target = allCases.first(where: { c in
+                       guard c.conditions.isEmpty && c.labs.isEmpty && c.medications.isEmpty else { return false }
+                       let n = c.narrative.lowercased()
+                       return !n.contains("(snomed") && !n.contains("(loinc") && !n.contains("(rxnorm")
+                   })
+                {
+                    reviewTarget = target
+                }
                 if env["CLINIQ_OPEN_CASE_DETAIL"] == "1",
                    let first = allCases.first(where: { !$0.conditions.isEmpty })
                 {
