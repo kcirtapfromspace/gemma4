@@ -19,6 +19,11 @@ Cargo.lock
 # Demo video recordings
 demo-video/
 
+# Personal Claude Code settings (contains Obsidian API key etc.)
+.claude/settings.local.json
+# Local worktrees (Claude Code auto-creates; cumulatively ~2 GB)
+.claude/worktrees/
+
 # OS
 .DS_Store
 
@@ -29,3 +34,10 @@ demo-video/
 apps/mobile/ios-app/ClinIQ/build/
 apps/mobile/ios-app/screenshots-c13/
 models/cliniq-gemma4-e2b-v2-Q3_K_M.gguf
+
+# LLVM coverage profiles (build artifact)
+*.profraw
+
+# Local Python venv lockfile artifacts left by uv (Python __pycache__
+# already covered above)
+*.egg-info/

@@ -53,13 +53,14 @@ struct NewCaseView: View {
                 }
 
                 Section {
+                    DictationButton(narrative: $narrative)
                     TextEditor(text: $narrative)
                         .frame(minHeight: 170)
                         .font(.callout)
                         .scrollContentBackground(.hidden)
                         .overlay(alignment: .topLeading) {
                             if narrative.isEmpty {
-                                Text("Describe the visit: presenting symptoms, exposures, relevant labs, treatment...")
+                                Text("Type or dictate the visit: symptoms, exposures, labs, treatment...")
                                     .foregroundStyle(.tertiary)
                                     .font(.callout)
                                     .padding(.top, 10)
@@ -79,7 +80,7 @@ struct NewCaseView: View {
                         }
                     }
                 } footer: {
-                    Text("On-device AI will extract reportable conditions, labs, medications, and vitals in the next step. Nothing leaves the device until you review and queue it.")
+                    Text("Speech is transcribed on-device. On-device AI then extracts reportable conditions, labs, medications, and vitals. Nothing leaves the device until you review and queue it.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

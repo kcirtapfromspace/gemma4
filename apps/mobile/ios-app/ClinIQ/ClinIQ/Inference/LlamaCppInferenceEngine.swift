@@ -236,15 +236,17 @@ private actor LlamaContext {
 /// `InferenceEngine` implementation backed by the vendored llama.cpp
 /// xcframework. Loads lazily on first `generate(...)` call.
 final class LlamaCppInferenceEngine: InferenceEngine {
-    // Candidate GGUF filenames, in preference order. The fine-tune is
-    // preferred; falls back to the stock base if the former isn't found.
+    // Candidate GGUF filenames, in preference order. Base Gemma 4 wins
+    // because the agent loop (AgentRunner) needs the base model's native
+    // tool-calling chat template — our compact fine-tune was trained on
+    // direct extraction only and emits malformed tool calls. The deterministic
+    // preparser (run BEFORE the LLM in ExtractionService) handles the
+    // inline-code cases that the fine-tune was originally targeting, so
+    // dropping the fine-tune from agent mode doesn't lose accuracy.
     static let candidateModelNames: [String] = [
-        // v2 LoRA (Kaggle kernel 26, 2026-04-24). r=32, target_modules
-        // drops the 40 KV-shared k/v_proj no-ops, +50 diversified
-        // training examples targeting code-elision + neg-lab degen.
+        "gemma-4-E2B-it-Q3_K_M",
         "cliniq-gemma4-e2b-v2-Q3_K_M",
         "cliniq-gemma4-e2b-Q3_K_M",
-        "gemma-4-E2B-it-Q3_K_M",
         "cliniq-gemma4-e2b-Q2_K",
     ]
 

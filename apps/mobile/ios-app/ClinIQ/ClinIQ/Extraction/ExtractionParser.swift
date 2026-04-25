@@ -19,6 +19,10 @@ struct ParsedExtraction {
     var medications: [ParsedMedication] = []
     var vitals: ParsedVitals?
     var raw: String = ""
+    /// Per-code provenance from the deterministic preparser or the agent's
+    /// extract_codes_from_text tool. Empty when the legacy raw-LLM path
+    /// produces this extraction (LLM JSON output has no source spans).
+    var matches: [CodeProvenance] = []
 }
 
 struct ParsedCondition {

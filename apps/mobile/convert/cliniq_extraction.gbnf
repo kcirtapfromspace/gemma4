@@ -1,0 +1,35 @@
+# GBNF grammar for ClinIQ eICR extraction output.
+#
+# Forces the LLM to emit a JSON object with exactly the three array keys the
+# validator scores against, with digit-only string values for the codes.
+#
+# This kills two known int4 failure modes:
+#   1. negative_lab "SNOMED: SNOMED: 428000..." zero-stream — "SNOMED:" is not
+#      a valid token under code-string, so the sampler renormalizes onto digits.
+#   2. complex_multi early-stop at "oral thrush" — the grammar requires balanced
+#      brackets, so the model can't legally emit EOS mid-array.
+#
+# The validator (apps/mobile/convert/validate_all_cases.py:score_extraction)
+# uses re.search on each expected code, so as long as the codes appear
+# anywhere in a valid JSON shape, the scoring works.
+
+root        ::= ws "{" ws conditions ws "," ws loincs ws "," ws rxnorms ws "}" ws
+conditions  ::= "\"conditions\"" ws ":" ws snomed-array
+loincs      ::= "\"loincs\"" ws ":" ws loinc-array
+rxnorms     ::= "\"rxnorms\"" ws ":" ws rxnorm-array
+
+snomed-array ::= "[" ws (snomed-code (ws "," ws snomed-code)*)? ws "]"
+loinc-array  ::= "[" ws (loinc-code  (ws "," ws loinc-code )*)? ws "]"
+rxnorm-array ::= "[" ws (rxnorm-code (ws "," ws rxnorm-code)*)? ws "]"
+
+# SNOMED CT identifiers are 6-18 digits; the bench cases use 6-9, so cap to
+# discourage runaway digit emission while still allowing real SNOMED IDs.
+snomed-code ::= "\"" [0-9] [0-9] [0-9] [0-9] [0-9] [0-9] [0-9]? [0-9]? [0-9]? "\""
+
+# LOINC: 1-7 digits, dash, single check digit.
+loinc-code  ::= "\"" [0-9] [0-9]? [0-9]? [0-9]? [0-9]? [0-9]? [0-9]? "-" [0-9] "\""
+
+# RxNorm RXCUI: 1-9 digits.
+rxnorm-code ::= "\"" [0-9] [0-9]? [0-9]? [0-9]? [0-9]? [0-9]? [0-9]? [0-9]? [0-9]? "\""
+
+ws ::= [ \t\n]*
