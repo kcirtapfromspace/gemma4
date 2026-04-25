@@ -24,6 +24,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 _TOKEN_RE = re.compile(r"\b[a-z0-9][a-z0-9-]+\b", re.IGNORECASE)
 _APOSTROPHE_RE = re.compile(r"['‘’]s?\b", re.IGNORECASE)
@@ -137,6 +138,152 @@ def search(query: str, *, top_k: int = 3, min_score: float = 0.2) -> list[RagHit
             alt_names=list(entry.get("alt_names", [])),
         ))
     return out
+
+
+# -----------------------------------------------------------------------------
+# Fast-path gate (c19 Rank 2)
+#
+# Single-turn shortcut: when tier-1 (deterministic_extract) is empty AND RAG
+# returns a high-confidence hit AND the matched phrase isn't in NegEx scope,
+# skip the agent loop and synthesise the extraction directly from the RAG
+# hit. Drops agent-tier-only median latency from ~13 s to <1 s on the long-
+# tail cases (Legionnaires, C diff, valley fever, Marburg, RMSF, etc.).
+#
+# Mirror of `RagSearch.fastPathHit` in
+# apps/mobile/ios-app/ClinIQ/ClinIQ/Extraction/RagSearch.swift. Keep them in
+# sync; precision must stay 1.000 — any new false positive kills the
+# proposal per Rank 2's kill criterion.
+
+# Threshold mirrors RagSearch.fastPathThreshold in Swift.
+FAST_PATH_THRESHOLD: float = 0.70
+
+# Negation predicate: (text, match_start, match_end) -> bool.
+# Caller injects so this module stays free of regex_preparser imports
+# (avoids circular imports — regex_preparser is the lookup tier, not the
+# RAG tier).
+IsNegated = Callable[[str, int, int], bool]
+
+
+def _never_negated(text: str, start: int, end: int) -> bool:
+    """No-op negation predicate. Tests / CLIs that don't want NegEx pass this."""
+    return False
+
+
+@dataclass(frozen=True)
+class FastPathSpan:
+    """Where in the narrative the matched phrase landed.
+
+    Mirror of `RagSearch.FastPathSpan` in Swift. UTF-16 offsets in Swift; in
+    Python we use plain `str` indices (UTF-32 codepoints) because that's
+    what consumers in `agent_pipeline.py` and downstream callers use. The
+    location/length are equivalent for ASCII clinical text — every case in
+    the bench is ASCII — but if a non-ASCII narrative ever flows through,
+    the Python span won't byte-for-byte match the Swift span. Acceptable
+    for current scope.
+    """
+    text: str
+    location: int
+    length: int
+
+
+@dataclass(frozen=True)
+class FastPathHit:
+    """One fast-path hit + the literal matched span.
+
+    Returned only when:
+      1. top RAG score >= threshold (default 0.70)
+      2. there exists at least one occurrence of `hit.matched_phrase` in
+         the narrative that is NOT in NegEx scope.
+    Caller must ensure deterministic extraction is empty before calling.
+    """
+    hit: RagHit
+    span: FastPathSpan
+
+
+def _first_non_negated_span(
+    phrase: str,
+    narrative: str,
+    is_negated: IsNegated,
+) -> FastPathSpan | None:
+    """Scan `narrative` for every case-insensitive occurrence of `phrase`.
+
+    Return the first occurrence that is NOT in NegEx scope per the
+    caller-provided predicate. Returns None when every occurrence is
+    suppressed ("ruled out Legionnaires" with no other mention).
+
+    Uses literal substring search (not regex) so phrases containing
+    metacharacters ("C. trachomatis", "Plasmodium malariae malaria")
+    match without escaping.
+    """
+    trimmed = phrase.strip()
+    if not trimmed:
+        return None
+    needle = trimmed.lower()
+    haystack = narrative.lower()
+    n = len(needle)
+    start = 0
+    while start <= len(haystack) - n:
+        idx = haystack.find(needle, start)
+        if idx < 0:
+            break
+        end = idx + n
+        if not is_negated(narrative, idx, end):
+            return FastPathSpan(text=narrative[idx:end], location=idx, length=n)
+        start = end
+    return None
+
+
+def first_asserted_span(
+    narrative: str,
+    hit: RagHit,
+    is_negated: IsNegated = _never_negated,
+) -> FastPathSpan | None:
+    """First non-negated occurrence of `hit.matched_phrase` in `narrative`.
+
+    Why only `matched_phrase` (not alt_names + display)? altName fallback
+    is too loose: a short alias like "Cocci" (for Coccidioidomycosis)
+    matches the genus prefix in "Coccidioides serology negative for valley
+    fever" at an unrelated offset, defeating NegEx on the actual diagnosis.
+    `matched_phrase` is the exact phrase that earned RAG's score in the
+    first place — if THAT span is suppressed, the hit is suppressed. If
+    `matched_phrase` is None (token-overlap-only hit, never an exact phrase
+    match), the fast-path declines and falls through to the agent.
+
+    Mirrors RagSearch.firstAssertedSpan in Swift. Conservative rule per
+    ios-eng's c19 fix (commit 926c8ef).
+    """
+    matched = hit.matched_phrase
+    if not matched:
+        return None
+    return _first_non_negated_span(matched, narrative, is_negated)
+
+
+def fast_path_hit(
+    narrative: str,
+    threshold: float = FAST_PATH_THRESHOLD,
+    is_negated: IsNegated = _never_negated,
+) -> FastPathHit | None:
+    """Top-level fast-path gate.
+
+    Returns a FastPathHit if every condition holds:
+      - top RAG score >= threshold
+      - at least one non-negated occurrence of the matched phrase per
+        the caller-provided `is_negated` predicate
+
+    Otherwise returns None — caller falls through to the agent loop.
+
+    Mirrors RagSearch.fastPathHit in Swift.
+    """
+    hits = search(narrative, top_k=1, min_score=threshold)
+    if not hits:
+        return None
+    top = hits[0]
+    if top.score < threshold:
+        return None
+    span = first_asserted_span(narrative, top, is_negated=is_negated)
+    if span is None:
+        return None
+    return FastPathHit(hit=top, span=span)
 
 
 def main() -> None:

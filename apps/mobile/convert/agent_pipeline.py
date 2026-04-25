@@ -33,8 +33,13 @@ from urllib.request import Request, urlopen
 # Local — relies on regex_preparser being importable from this directory.
 sys.path.insert(0, str(Path(__file__).parent))
 from regex_preparser import extract as deterministic_extract  # noqa: E402
-from regex_preparser import _load_lookup  # noqa: E402
-from rag_search import search as rag_search  # noqa: E402
+from regex_preparser import _load_lookup, _is_negated  # noqa: E402
+from rag_search import (  # noqa: E402
+    FAST_PATH_THRESHOLD,
+    FastPathHit,
+    fast_path_hit,
+    search as rag_search,
+)
 
 DEFAULT_ENDPOINT = "http://127.0.0.1:8090"
 DEFAULT_SYSTEM = (
@@ -331,6 +336,70 @@ def run_agent(
     return _parse_extraction(last_content), trace
 
 
+# -----------------------------------------------------------------------------
+# Fast-path gate (c19 Rank 2)
+#
+# Mirror of `ExtractionService.run(narrative:)` in
+# apps/mobile/ios-app/ClinIQ/ClinIQ/Extraction/ExtractionService.swift, the
+# inserted block between Tier 1 (deterministic) and Tier 2 (agent loop).
+
+
+def try_fast_path(
+    narrative: str,
+    *,
+    threshold: float = FAST_PATH_THRESHOLD,
+    use_negex: bool = True,
+) -> tuple[dict, list[dict]] | None:
+    """Run the fast-path gate. Returns (extraction, trace) on hit, else None.
+
+    Gate (matching Swift):
+      1. deterministic_extract returns no codes (none of conditions/loincs/rxnorms)
+      2. RAG top hit score >= threshold (default 0.70)
+      3. matched_phrase has at least one non-negated occurrence in the narrative
+
+    On hit, emit a single synthetic trace entry tagged 'fast_path' and a
+    SNOMED-only extraction (the reportable_conditions DB is keyed on
+    diseases, so loincs/rxnorms are always empty here).
+
+    `use_negex=False` skips Tier-3 NegEx in the gate. Used by the CLI parity
+    probes (validate_fast_path.py) to test the gate's matched-phrase rule
+    in isolation.
+    """
+    t0 = time.time()
+    det = deterministic_extract(narrative)
+    det_dict = det.to_provenance_dict() if hasattr(det, "to_provenance_dict") else {}
+    det_codes = (det_dict.get("conditions") or []) + (
+        det_dict.get("loincs") or []
+    ) + (det_dict.get("rxnorms") or [])
+    if det_codes:
+        return None  # Tier 1 already has answers — fast-path doesn't apply.
+
+    is_negated = _is_negated if use_negex else (lambda *_args: False)
+    fp = fast_path_hit(narrative, threshold=threshold, is_negated=is_negated)
+    if fp is None:
+        return None
+
+    elapsed = time.time() - t0
+    extraction = {
+        "conditions": [fp.hit.code] if fp.hit.system.upper() == "SNOMED" else [],
+        "loincs": [fp.hit.code] if fp.hit.system.upper() == "LOINC" else [],
+        "rxnorms": [fp.hit.code] if fp.hit.system.upper() == "RXNORM" else [],
+    }
+    trace = [{
+        "turn": 0,
+        "fast_path": True,
+        "elapsed_s": round(elapsed, 3),
+        "rag_hit": fp.hit.to_dict(),
+        "matched_span": {
+            "text": fp.span.text,
+            "location": fp.span.location,
+            "length": fp.span.length,
+        },
+        "extraction": extraction,
+    }]
+    return extraction, trace
+
+
 def _parse_extraction(content: str) -> dict:
     """Best-effort JSON parse — strips markdown fencing and null-likes."""
     text = content.strip()
@@ -400,6 +469,20 @@ def main() -> None:
         default="apps/mobile/convert/build/agent_bench.json",
     )
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument(
+        "--fast-path-rag-threshold",
+        type=float,
+        default=FAST_PATH_THRESHOLD,
+        help=(
+            "Fast-path RAG score threshold (default 0.70, mirror of Swift "
+            "RagSearch.fastPathThreshold). Set to a value >1.0 to disable."
+        ),
+    )
+    ap.add_argument(
+        "--no-fast-path",
+        action="store_true",
+        help="Disable the c19 single-turn fast-path; always run the agent loop.",
+    )
     args = ap.parse_args()
 
     cases: list[dict] = []
@@ -414,39 +497,58 @@ def main() -> None:
 
     rows: list[dict] = []
     total_m = total_e = total_fp = perfect = 0
+    n_fast_path_hits = 0
     for idx, case in enumerate(cases, 1):
         cid = case["case_id"]
+        path_label = "agent"
         try:
-            extraction, trace = run_agent(
-                case["user"], endpoint=args.endpoint, verbose=args.verbose
+            # Try the c19 single-turn fast-path first. On miss, fall through
+            # to the agent loop.
+            fp_result = (
+                None
+                if args.no_fast_path
+                else try_fast_path(
+                    case["user"], threshold=args.fast_path_rag_threshold
+                )
             )
+            if fp_result is not None:
+                extraction, trace = fp_result
+                path_label = "fast"
+                n_fast_path_hits += 1
+            else:
+                extraction, trace = run_agent(
+                    case["user"], endpoint=args.endpoint, verbose=args.verbose
+                )
         except URLError as exc:
             print(f"  ERR {cid}: {exc}", flush=True)
             rows.append({"case_id": cid, "error": str(exc)})
             continue
 
-        m, e, fp = score(extraction, case)
+        m, e, fpc = score(extraction, case)
         total_m += m
         total_e += e
-        total_fp += fp
-        if e and m == e and fp == 0:
+        total_fp += fpc
+        if e and m == e and fpc == 0:
             perfect += 1
 
         n_calls = sum(1 for t in trace if t.get("tool_result"))
-        marker = "OK " if (m == e and fp == 0) else "MISS"
-        fp_tag = f" FP={fp}" if fp else ""
+        marker = "OK " if (m == e and fpc == 0) else "MISS"
+        fp_tag = f" FP={fpc}" if fpc else ""
+        latency = trace[0].get("elapsed_s") if path_label == "fast" else None
+        latency_tag = f" {latency*1000:.0f}ms" if latency is not None else ""
         print(
             f"  {marker} {idx:2d}/{len(cases)} {cid:34s} {m}/{e}{fp_tag}  "
-            f"({n_calls} tool calls, {len(trace)} turns)",
+            f"[{path_label}{latency_tag}, {n_calls} tool calls, {len(trace)} turns)",
             flush=True,
         )
         rows.append({
             "case_id": cid,
             "matched": m,
             "expected": e,
-            "false_positives": fp,
+            "false_positives": fpc,
             "extraction": extraction,
             "n_tool_calls": n_calls,
+            "path": path_label,
             "trace": trace,
         })
 
@@ -462,6 +564,11 @@ def main() -> None:
         f"recall={recall:.3f} precision={precision:.3f} F1={f1:.3f} "
         f"({perfect}/{len(cases)} perfect)"
     )
+    if not args.no_fast_path and len(cases):
+        print(
+            f"Fast-path: {n_fast_path_hits}/{len(cases)} cases "
+            f"({100*n_fast_path_hits/len(cases):.0f}%) hit before agent loop"
+        )
     print(f"Trace: {args.out_json}")
 
 
