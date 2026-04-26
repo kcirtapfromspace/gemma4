@@ -88,16 +88,37 @@ final class ExtractionService: ObservableObject {
         lastElapsed = 0
         tokensPerSecond = 0
 
-        // Tier 1 — deterministic preparser. Short-circuits the LLM whenever
-        // the input contains inline parenthesized codes, CDA XML attrs, or
-        // displayNames in the curated lookup table. Carries per-code
-        // provenance (tier + source span + confidence) into the review UI.
+        // Tier 1 — deterministic preparser. Carries per-code provenance
+        // (tier + source span + confidence) into the review UI.
+        //
+        // Short-circuit gate (c20 Candidate D, see
+        // tools/autoresearch/c20-llm-tuning-2026-04-25.md "Live finding from
+        // grammar bench"): the prior gate `det.hasAnyDeterministic` fired on
+        // any code, so cases like adv3_rmsf_rag where deterministic only
+        // recovered the RxNorm via lookup (and missed the SNOMED that lives
+        // in the RAG database) would short-circuit and the agent could
+        // never fill the gap. The agent path recovered both targets at
+        // 2/2 when invoked.
+        //
+        // Refined gate fires when EITHER:
+        //   (a) at least one code came from an explicit-assertion tier —
+        //       inline parenthesized "(SNOMED ...)" or CDA <code/> XML —
+        //       i.e. the author named the code outright, low FP risk; or
+        //   (b) deterministic populated >=2 of the 3 buckets
+        //       (conditions / loincs / rxnorms), so we already have a
+        //       multi-axis answer and the marginal agent recall isn't worth
+        //       the latency.
+        // Otherwise (single-bucket lookup-only result), fall through to the
+        // fast-path / agent so the LLM can backfill the missing axis. Keeps
+        // F1=1.000 on combined-27 unchanged (every case there hits at least
+        // one inline/CDA tier or fills >=2 buckets) and recovers
+        // adv3_rmsf_rag + adv3_valley_fever_rag from 1/2 → 2/2.
         let detStart = Date()
         let detResult = EicrPreparser.extractWithProvenance(narrative)
         var det = detResult.extraction
         det.matches = detResult.provenance
         let detElapsed = Date().timeIntervalSince(detStart)
-        if det.hasAnyDeterministic {
+        if det.shortCircuitsLLM {
             lastElapsed = detElapsed
             lastTokens = 0
             tokensPerSecond = 0
@@ -123,29 +144,77 @@ final class ExtractionService: ObservableObject {
                 EicrPreparser.isNegated(in: txt, matchStart: s, matchEnd: e)
             }
         ) {
-            var fast = ParsedExtraction()
+            // c20 adv6 fix (Bug 5 follow-on): START from det and merge the
+            // RAG hit. Det may carry lookup-tier matches (e.g. a drug
+            // alias) that should NOT be discarded just because RAG
+            // backfilled the missing condition. `adv3_rmsf_rag` style
+            // cases drop from 2/2 to 1/2 if we replace.
+            var fast = det
             fast.raw = narrative
-            fast.conditions = [
-                ParsedCondition(code: fp.hit.code,
-                                system: fp.hit.system,
-                                display: fp.hit.display)
-            ]
-            fast.matches = [
-                CodeProvenance(
-                    code: fp.hit.code,
-                    display: fp.hit.display,
-                    system: fp.hit.system,
-                    bucket: "snomed",
-                    tier: .ragFast,
-                    confidence: max(EicrPreparser.tierConfidenceRagFastFloor,
-                                    fp.hit.score),
-                    sourceText: fp.span.text,
-                    sourceOffset: fp.span.location,
-                    sourceLength: fp.span.length,
-                    alias: fp.hit.matchedPhrase,
-                    sourceURL: fp.hit.sourceURL
+            let sysu = fp.hit.system.uppercased()
+            let codeAlreadyPresent: Bool = {
+                switch sysu {
+                case "SNOMED":
+                    return fast.conditions.contains { $0.code == fp.hit.code }
+                case "LOINC":
+                    return fast.labs.contains { $0.code == fp.hit.code }
+                case "RXNORM":
+                    return fast.medications.contains { $0.code == fp.hit.code }
+                default:
+                    return true
+                }
+            }()
+            if !codeAlreadyPresent {
+                switch sysu {
+                case "SNOMED":
+                    fast.conditions.append(
+                        ParsedCondition(code: fp.hit.code,
+                                        system: fp.hit.system,
+                                        display: fp.hit.display)
+                    )
+                case "LOINC":
+                    fast.labs.append(
+                        ParsedLab(code: fp.hit.code,
+                                  system: fp.hit.system,
+                                  display: fp.hit.display,
+                                  interpretation: nil,
+                                  value: nil,
+                                  unit: nil)
+                    )
+                case "RXNORM":
+                    fast.medications.append(
+                        ParsedMedication(code: fp.hit.code,
+                                         system: fp.hit.system,
+                                         display: fp.hit.display)
+                    )
+                default:
+                    break
+                }
+                let bucket: String = {
+                    switch sysu {
+                    case "SNOMED": return "snomed"
+                    case "LOINC": return "loinc"
+                    case "RXNORM": return "rxnorm"
+                    default: return "snomed"
+                    }
+                }()
+                fast.matches.append(
+                    CodeProvenance(
+                        code: fp.hit.code,
+                        display: fp.hit.display,
+                        system: fp.hit.system,
+                        bucket: bucket,
+                        tier: .ragFast,
+                        confidence: max(EicrPreparser.tierConfidenceRagFastFloor,
+                                        fp.hit.score),
+                        sourceText: fp.span.text,
+                        sourceOffset: fp.span.location,
+                        sourceLength: fp.span.length,
+                        alias: fp.hit.matchedPhrase,
+                        sourceURL: fp.hit.sourceURL
+                    )
                 )
-            ]
+            }
             lastElapsed = Date().timeIntervalSince(fpStart) + detElapsed
             lastTokens = 0
             tokensPerSecond = 0

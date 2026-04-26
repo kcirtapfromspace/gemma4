@@ -27,7 +27,7 @@
   ],
   "loincs": [
     {"code": "78929-3",  "aliases": ["Zika virus IgM Ab", "Zika virus IgM antibody"]},
-    {"code": "78012-2",  "aliases": ["Strep A Ag rapid", "rapid antigen detection test for group A Streptococcus", "rapid strep test", "Strep test"]},
+    {"code": "78012-2",  "aliases": ["Strep A Ag rapid", "rapid antigen detection test for group A Streptococcus", "rapid antigen detection test", "rapid strep test", "strep rapid antigen", "strep antigen", "Strep test"]},
     {"code": "41513-3",  "aliases": ["Varicella zoster virus DNA NAA", "VZV DNA NAA"]},
     {"code": "5193-8",   "aliases": ["Hepatitis B surface Ag", "HBV surface Ag", "HBsAg"]},
     {"code": "71773-2",  "aliases": ["Bordetella pertussis DNA NAA"]},
@@ -42,7 +42,7 @@
     {"code": "16832-8",  "aliases": ["Escherichia coli O157 Ag"]},
     {"code": "38379-4",  "aliases": ["Mycobacterium tuberculosis complex DNA", "Xpert MTB/RIF", "MTB/RIF"]},
     {"code": "6386-1",   "aliases": ["Dengue virus IgM Ab"]},
-    {"code": "100343-3", "aliases": ["Influenza A H5 RNA", "Influenza A H5"]},
+    {"code": "100343-3", "aliases": ["Influenza A H5 RNA", "Influenza A H5", "H5 RNA NAA", "H5N1 RNA NAA", "H5N1 RNA", "H5 RNA"]},
     {"code": "96741-4",  "aliases": ["Monkeypox virus DNA by PCR", "Monkeypox virus DNA"]},
     {"code": "31933-7",  "aliases": ["RSV antigen by direct fluorescent antibody", "Respiratory syncytial virus Ag", "RSV antigen"]},
     {"code": "589-7",    "aliases": ["Salmonella culture", "Salmonella sp identified"]},

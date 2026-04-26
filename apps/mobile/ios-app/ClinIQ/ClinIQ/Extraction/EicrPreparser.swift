@@ -110,15 +110,37 @@ enum EicrPreparser {
     // so "negative for COVID, positive for influenza" doesn't suppress
     // influenza too. Patterns mirror apps/mobile/convert/regex_preparser.py.
     private static let negTriggers = NSRegularExpression.cached(
-        pattern: #"\b(?:ruled\s+out|negative\s+for|no\s+evidence\s+of|no\s+signs?\s+of|no\s+history\s+of|denies|without|absent|not\s+detected|not\s+positive\s+for|not\s+suspected|exclud(?:e|ed|es|ing)|differential\s+(?:diagnosis|dx))\b"#,
+        pattern: #"\b(?:ruled\s+out|negative\s+for|no\s+evidence\s+of|no\s+current\s+evidence\s+of|no\s+signs?\s+of|no\s+history\s+of|denies|without|absent|not\s+detected|not\s+positive\s+for|not\s+suspected|not\s+invoking|do(?:es)?\s+not\s+have|did\s+not\s+have|not\s+eligible\s+for|exclud(?:e|ed|es|ing)|differential\s+(?:diagnosis|dx|includ(?:ed|es|ing)))\b"#,
         options: [.caseInsensitive]
     )
+    // c20 adv6 fix: comma added so "no history of stroke, history of HIV"
+    // does NOT leak the "no history of" trigger across the comma into the
+    // following positive clause. Mirror of `_NEG_TERMINATORS` in
+    // apps/mobile/convert/regex_preparser.py.
     private static let negTerminators = NSRegularExpression.cached(
-        pattern: #"(?:\bbut\b|\bhowever\b|\balthough\b|\bexcept\b|\.\s|;|\n|<)"#,
+        pattern: #"(?:\bbut\b|\bhowever\b|\balthough\b|\bexcept\b|\.\s|;|\n|<|,)"#,
         options: [.caseInsensitive]
     )
     private static let negWindowBefore = 60
     private static let negWindowAfter = 30
+
+    // Post-hoc NegEx triggers — phrases where the disease name precedes the
+    // negation marker ("Zika serology came back negative", "Influenza A
+    // returned negative"). These multi-word constructions can be more than
+    // 30 chars after the alias due to intervening lab/method tokens, so we
+    // scan a wider clause-bounded window (capped at 80 chars). Each pattern
+    // is highly discriminative so over-firing is minimal.
+    // Mirror of `_POSTHOC_NEG_TRIGGERS` in
+    // apps/mobile/convert/regex_preparser.py.
+    private static let postHocNegTriggers = NSRegularExpression.cached(
+        pattern: #"\b(?:came\s+back\s+negative|returned\s+negative|(?:was|is|were|are)\s+negative|reported\s+negative|results?\s+(?:was|were|is|are)\s+negative|IgM\s+negative|IgG\s+negative)\b"#,
+        options: [.caseInsensitive]
+    )
+    private static let postHocTerminators = NSRegularExpression.cached(
+        pattern: #"(?:\.\s|;|\n|,)"#,
+        options: [.caseInsensitive]
+    )
+    private static let postHocWindowAfter = 80
 
     /// True if the alias span at [matchStart, matchEnd) sits in negation scope.
     static func isNegated(in text: String, matchStart: Int, matchEnd: Int) -> Bool {
@@ -153,6 +175,20 @@ enum EicrPreparser {
             return true
         }
 
+        // Post-hoc forward scan — wider clause-bounded window for very
+        // specific multi-word negation constructions ("X came back negative").
+        let postHocEnd = min(total, matchEnd + postHocWindowAfter)
+        let postHocRange = NSRange(location: matchEnd, length: postHocEnd - matchEnd)
+        var postHocSpanEnd = postHocEnd
+        if let firstTerm = postHocTerminators.firstMatch(in: text, range: postHocRange) {
+            postHocSpanEnd = firstTerm.range.location
+        }
+        let postHocSpan = NSRange(location: matchEnd, length: postHocSpanEnd - matchEnd)
+        if postHocSpan.length > 0,
+           postHocNegTriggers.firstMatch(in: text, range: postHocSpan) != nil {
+            return true
+        }
+
         return false
     }
 
@@ -171,9 +207,15 @@ enum EicrPreparser {
     /// render "I extracted X because line Y says Z" tap-throughs and by the
     /// Gemma 4 agent's `extract_codes_from_text` tool to surface the same
     /// data to the model.
-    static func extractWithProvenance(_ text: String)
+    static func extractWithProvenance(_ rawText: String)
         -> (extraction: ParsedExtraction, provenance: [CodeProvenance])
     {
+        // c20 adv6 fix: NFKC normalize so non-breaking space (U+00A0),
+        // smart quotes, em/en dashes etc. collapse to ASCII forms before
+        // regex matching. `precomposedStringWithCompatibilityMapping` is
+        // Swift's NFKC equivalent. Mirror of `unicodedata.normalize("NFKC", ...)`
+        // in apps/mobile/convert/regex_preparser.py extract().
+        let text = rawText.precomposedStringWithCompatibilityMapping
         var out = ParsedExtraction()
         out.raw = text
 
@@ -352,9 +394,38 @@ private extension String {
 }
 
 extension ParsedExtraction {
-    /// True if the deterministic preparser found at least one code in any category.
+    /// True if the deterministic preparser found at least one code in any
+    /// category. Used by the agent path to confirm a non-empty result; NOT
+    /// used as the LLM short-circuit gate any more — see `shortCircuitsLLM`.
     var hasAnyDeterministic: Bool {
         !conditions.isEmpty || !labs.isEmpty || !medications.isEmpty
+    }
+
+    /// True iff the deterministic result is strong enough to bypass the
+    /// LLM/RAG agent loop. c20 final cleanup — Cand D refinement (see
+    /// `tools/autoresearch/c20-llm-tuning-2026-04-25.md`).
+    ///
+    /// Fires ONLY when at least one match came from an explicit-assertion
+    /// tier (inline `(SNOMED 12345)` or CDA `<code .../>`). Lookup-tier-only
+    /// results — including multi-bucket lookup-only — fall through to the
+    /// fast-path / agent so the LLM can verify them against context.
+    ///
+    /// Why drop the old `bucketCount >= 2` clause? Bug 5 from adv6:
+    /// `adv6_long_form_admission_note` had two lookup-tier FPs (varicella
+    /// from "no varicella series", CBC from "CBC: WBC...") that span 2
+    /// buckets, short-circuiting before the agent / RAG fast-path could
+    /// recover the actual diagnosis (measles). Lookup-tier matches are
+    /// inherently ambiguous — alias→code mapping carries no contextual
+    /// confidence — so they should not gate the LLM out.
+    ///
+    /// For previously-short-circuiting cases with correct lookup-only
+    /// results (e.g. adv2_h5n1_avian_flu, adv2_mpox), the fast-path
+    /// merge logic in `ExtractionService` preserves the lookup matches
+    /// and adds the RAG hit, so the extraction stays correct.
+    var shortCircuitsLLM: Bool {
+        return matches.contains { m in
+            m.tier == .inline || m.tier == .cda
+        }
     }
 }
 

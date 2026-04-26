@@ -36,6 +36,15 @@ enum RagSearch {
     /// Per proposals-2026-04-25 Rank 2.
     static let fastPathThreshold: Double = 0.70
 
+    /// c20 final cleanup: short alt_names like 'CRE', 'RSV', 'TB', 'HUS'
+    /// are 3-4 char acronyms that substring-match into unrelated English
+    /// words ("CRE" → "saCREd", "DM" → "Madam"). When the matched candidate
+    /// is a short alt_name, require a word-bounded match in the narrative
+    /// so "Providence Sacred Heart" no longer triggers the Carbapenem-
+    /// resistant Enterobacteriaceae phrase bonus. Mirror of `_SHORT_ALT_MAX_LEN`
+    /// in apps/mobile/convert/rag_search.py.
+    static let shortAltMaxLen: Int = 4
+
     private static let tokenRe: NSRegularExpression = {
         // swiftlint:disable:next force_try
         try! NSRegularExpression(pattern: #"\b[a-z0-9][a-z0-9-]+\b"#, options: [.caseInsensitive])
@@ -52,6 +61,23 @@ enum RagSearch {
         return apostropheRe.stringByReplacingMatches(
             in: text, range: range, withTemplate: ""
         )
+    }
+
+    /// Word-bounded case-insensitive search for short alt_name acronyms.
+    /// Both args MUST already be lower-cased and apostrophe-normalized.
+    /// Used to filter out spurious 3-4 char acronym substring matches
+    /// inside longer words ("CRE" inside "Sacred", "DM" inside "Madam").
+    /// Mirror of `_short_alt_word_bounded` in apps/mobile/convert/rag_search.py.
+    private static func wordBoundedContains(_ needle: String, in haystack: String) -> Bool {
+        let escaped = NSRegularExpression.escapedPattern(for: needle)
+        let pattern = "\\b" + escaped + "\\b"
+        guard let regex = try? NSRegularExpression(pattern: pattern,
+                                                   options: [.caseInsensitive])
+        else {
+            return haystack.contains(needle)  // fall back to substring on regex error
+        }
+        let range = NSRange(haystack.startIndex..., in: haystack)
+        return regex.firstMatch(in: haystack, range: range) != nil
     }
 
     private static func tokens(_ text: String) -> Set<String> {
@@ -84,11 +110,24 @@ enum RagSearch {
             let altNames = entry.altNames
 
             // 1. Exact-phrase bonus
+            // Walk display first, then altNames. Display is the canonical
+            // name (always long enough not to false-positive on substrings);
+            // altNames may be short acronyms, so apply a word-boundary check
+            // for those (≤ shortAltMaxLen chars). Mirror of the Python rule
+            // in apps/mobile/convert/rag_search.py.
             var matchedPhrase: String? = nil
             var phraseBonus = 0.0
-            for candidate in [entry.display] + altNames {
+            let candidates: [(String, Bool)] =
+                [(entry.display, false)] + altNames.map { ($0, true) }
+            for (candidate, isAlt) in candidates {
                 let candNorm = normalize(candidate).lowercased()
-                if qLower.contains(candNorm) {
+                let matched: Bool
+                if isAlt && candNorm.count <= shortAltMaxLen {
+                    matched = wordBoundedContains(candNorm, in: qLower)
+                } else {
+                    matched = qLower.contains(candNorm)
+                }
+                if matched {
                     if 1.0 > phraseBonus { phraseBonus = 1.0 }
                     if matchedPhrase == nil { matchedPhrase = candidate }
                 }

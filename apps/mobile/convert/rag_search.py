@@ -29,10 +29,31 @@ from typing import Callable
 _TOKEN_RE = re.compile(r"\b[a-z0-9][a-z0-9-]+\b", re.IGNORECASE)
 _APOSTROPHE_RE = re.compile(r"['‘’]s?\b", re.IGNORECASE)
 
+# c20 final cleanup: short alt_names like 'CRE', 'RSV', 'TB', 'HUS' are
+# 3-4-char acronyms that substring-match into unrelated English words
+# ("CRE" → "saCREd", "presented"; "RSV" → "obseRVing"; "DM" → "Madam").
+# When the matched candidate is a short alt_name, require a word-bounded
+# match in the narrative so "Providence Sacred Heart" no longer triggers
+# the Carbapenem-resistant Enterobacteriaceae phrase bonus. Threshold ≤ 4
+# chars chosen to cover all curated 2-4 char acronyms (lues, WNV, EEE, GC,
+# MRSA, CRE, HME, RMSF, POWV, HPS, MHF, EVD, RSV, MERS, HUS, VRE, DM, HTN).
+_SHORT_ALT_MAX_LEN = 4
+
 
 def _normalize(text: str) -> str:
     """Strip apostrophes and possessives so 'Legionnaires'' matches 'Legionnaires'."""
     return _APOSTROPHE_RE.sub("", text)
+
+
+def _short_alt_word_bounded(alt_lower: str, q_lower: str) -> bool:
+    """Word-bounded case-insensitive search for short alt_name acronyms.
+
+    Both args MUST already be lower-cased and apostrophe-normalized. Used
+    to filter out spurious 3-4 char acronym substring matches inside
+    longer words ("CRE" inside "Sacred", "DM" inside "Madam").
+    """
+    pattern = re.compile(r"\b" + re.escape(alt_lower) + r"\b")
+    return pattern.search(q_lower) is not None
 _DEFAULT_DB_PATH = Path(__file__).parent / "reportable_conditions.json"
 _DB_CACHE: list[dict] | None = None
 
@@ -93,10 +114,27 @@ def search(query: str, *, top_k: int = 3, min_score: float = 0.2) -> list[RagHit
         # 1. Exact-phrase bonus — strongest signal
         matched_phrase: str | None = None
         phrase_bonus = 0.0
-        for candidate in [display] + alt_names:
-            if _normalize(candidate).lower() in q_lower:
-                phrase_bonus = max(phrase_bonus, 1.0)
-                matched_phrase = matched_phrase or candidate
+        # Walk display first, then alt_names. Display is the canonical name
+        # (always long enough not to false-positive on substrings); alt_names
+        # may be short acronyms, so apply a word-boundary check for those.
+        for cand_idx, candidate in enumerate([display] + alt_names):
+            cand_norm = _normalize(candidate).lower()
+            if cand_idx == 0:
+                # `display` — substring match, original behavior.
+                if cand_norm in q_lower:
+                    phrase_bonus = max(phrase_bonus, 1.0)
+                    matched_phrase = matched_phrase or candidate
+            else:
+                # `alt_names[cand_idx-1]` — short acronyms (≤4 chars) get
+                # a word-bounded match to avoid "CRE" hitting "Sacred".
+                if len(cand_norm) <= _SHORT_ALT_MAX_LEN:
+                    if _short_alt_word_bounded(cand_norm, q_lower):
+                        phrase_bonus = max(phrase_bonus, 1.0)
+                        matched_phrase = matched_phrase or candidate
+                else:
+                    if cand_norm in q_lower:
+                        phrase_bonus = max(phrase_bonus, 1.0)
+                        matched_phrase = matched_phrase or candidate
 
         # 2. Token overlap
         e_tokens = _tokens(_normalize(display))

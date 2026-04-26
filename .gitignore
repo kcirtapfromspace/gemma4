@@ -44,3 +44,8 @@ models/cliniq-gemma4-e2b-v2-Q3_K_M.gguf
 
 # Generated FHIR Bundles + agent_pipeline trace JSONs (regenerable)
 apps/mobile/convert/build/
+
+# Playwright session cache (frontend-eng agent uses this for screenshots)
+.playwright-mcp/
+# Stray Playwright captures
+homepage-test*.png

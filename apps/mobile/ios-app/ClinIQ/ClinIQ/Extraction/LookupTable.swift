@@ -108,7 +108,7 @@ enum LookupTable {
 
     static let loincs: [LookupEntry] = [
         LookupEntry(code: "78929-3",  aliases: ["Zika virus IgM Ab", "Zika virus IgM antibody"]),
-        LookupEntry(code: "78012-2",  aliases: ["Strep A Ag rapid", "rapid antigen detection test for group A Streptococcus", "rapid strep test", "Strep test"]),
+        LookupEntry(code: "78012-2",  aliases: ["Strep A Ag rapid", "rapid antigen detection test for group A Streptococcus", "rapid antigen detection test", "rapid strep test", "strep rapid antigen", "strep antigen", "Strep test"]),
         LookupEntry(code: "41513-3",  aliases: ["Varicella zoster virus DNA NAA", "VZV DNA NAA"]),
         LookupEntry(code: "5193-8",   aliases: ["Hepatitis B surface Ag", "HBV surface Ag", "HBsAg"]),
         LookupEntry(code: "71773-2",  aliases: ["Bordetella pertussis DNA NAA"]),
@@ -123,7 +123,7 @@ enum LookupTable {
         LookupEntry(code: "16832-8",  aliases: ["Escherichia coli O157 Ag"]),
         LookupEntry(code: "38379-4",  aliases: ["Mycobacterium tuberculosis complex DNA", "Xpert MTB/RIF", "MTB/RIF"]),
         LookupEntry(code: "6386-1",   aliases: ["Dengue virus IgM Ab"]),
-        LookupEntry(code: "100343-3", aliases: ["Influenza A H5 RNA", "Influenza A H5"]),
+        LookupEntry(code: "100343-3", aliases: ["Influenza A H5 RNA", "Influenza A H5", "H5 RNA NAA", "H5N1 RNA NAA", "H5N1 RNA", "H5 RNA"]),
         LookupEntry(code: "96741-4",  aliases: ["Monkeypox virus DNA by PCR", "Monkeypox virus DNA"]),
         LookupEntry(code: "31933-7",  aliases: ["RSV antigen by direct fluorescent antibody", "Respiratory syncytial virus Ag", "RSV antigen"]),
         LookupEntry(code: "589-7",    aliases: ["Salmonella culture", "Salmonella sp identified"]),

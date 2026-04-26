@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -183,6 +184,7 @@ _NEG_TRIGGERS = re.compile(
     r"ruled\s+out"
     r"|negative\s+for"
     r"|no\s+evidence\s+of"
+    r"|no\s+current\s+evidence\s+of"
     r"|no\s+signs?\s+of"
     r"|no\s+history\s+of"
     r"|denies"
@@ -191,20 +193,57 @@ _NEG_TRIGGERS = re.compile(
     r"|not\s+detected"
     r"|not\s+positive\s+for"
     r"|not\s+suspected"
+    r"|not\s+invoking"
+    r"|do(?:es)?\s+not\s+have"
+    r"|did\s+not\s+have"
+    r"|not\s+eligible\s+for"
     r"|exclud(?:e|ed|es|ing)"
     r"|excluded"
-    r"|differential\s+(?:diagnosis|dx)"
+    r"|differential\s+(?:diagnosis|dx|includ(?:ed|es|ing))"
     r")\b",
     re.IGNORECASE,
 )
 # Tokens that close the scope of a negation trigger.
+# c20 adv6 fix: comma added so "no history of stroke, history of HIV"
+# does NOT leak the "no history of" trigger past the comma into the
+# next clause and incorrectly suppress HIV (`adv6_neg_enumeration_*`).
 _NEG_TERMINATORS = re.compile(
-    r"(?:\bbut\b|\bhowever\b|\balthough\b|\bexcept\b|\.\s|;|\n|<)",
+    r"(?:\bbut\b|\bhowever\b|\balthough\b|\bexcept\b|\.\s|;|\n|<|,)",
     re.IGNORECASE,
 )
 # Window size in characters (≈ 6-8 words on typical clinical prose).
 _NEG_WINDOW_BEFORE = 60
 _NEG_WINDOW_AFTER = 30
+
+# Post-hoc NegEx triggers — phrases where the disease name precedes the
+# negation marker ("Zika serology came back negative", "Influenza A returned
+# negative"). The standard `_NEG_TRIGGERS` pattern is checked in a 30-char
+# after-window, but post-hoc constructions often have intervening lab/method
+# tokens between the disease name and the trigger ("Zika virus IgM antibody
+# serology came back negative" — "came back negative" is ~33 chars after
+# "Zika"). To handle these without widening the broad `_NEG_TRIGGERS` window,
+# we add a focused post-hoc scan with a slightly larger window (80 chars),
+# clause-bounded, that ONLY matches these very specific multi-word
+# constructions — over-firing risk is minimal because each pattern is highly
+# discriminative.
+_POSTHOC_NEG_TRIGGERS = re.compile(
+    r"\b(?:"
+    r"came\s+back\s+negative"
+    r"|returned\s+negative"
+    r"|(?:was|is|were|are)\s+negative"
+    r"|reported\s+negative"
+    r"|results?\s+(?:was|were|is|are)\s+negative"
+    r"|IgM\s+negative"
+    r"|IgG\s+negative"
+    r")\b",
+    re.IGNORECASE,
+)
+# Conservative post-hoc window: scan up to next clause terminator (.; \n,)
+# capped at 80 chars. The cap is wider than the broad 30-char window because
+# the post-hoc triggers above are highly specific multi-word phrases — false
+# positives on these in non-clinical prose are vanishingly rare.
+_POSTHOC_WINDOW_AFTER = 80
+_POSTHOC_TERMINATORS = re.compile(r"(?:\.\s|;|\n|,)", re.IGNORECASE)
 
 
 def _is_negated(text: str, match_start: int, match_end: int) -> bool:
@@ -212,6 +251,9 @@ def _is_negated(text: str, match_start: int, match_end: int) -> bool:
 
     Scans a window on each side, finding the nearest terminator first to clip
     the search range, then checks for any negation trigger in the clipped span.
+    Also runs a focused post-hoc scan for phrasings like "X came back
+    negative" where the trigger sits after the disease name and may exceed the
+    standard 30-char after-window.
     """
     # Backward window — clip to nearest terminator on the left of the match.
     left_window = text[max(0, match_start - _NEG_WINDOW_BEFORE):match_start]
@@ -227,6 +269,16 @@ def _is_negated(text: str, match_start: int, match_end: int) -> bool:
     first_term = _NEG_TERMINATORS.search(right_window)
     post_span = right_window[:first_term.start()] if first_term else right_window
     if _NEG_TRIGGERS.search(post_span):
+        return True
+
+    # Post-hoc forward scan — wider window for very specific multi-word
+    # negation constructions. Clause-bounded by the post-hoc terminator set
+    # (which includes ',' since "X came back negative, so we treated Y..."
+    # closes the X clause).
+    posthoc_window = text[match_end:min(len(text), match_end + _POSTHOC_WINDOW_AFTER)]
+    posthoc_term = _POSTHOC_TERMINATORS.search(posthoc_window)
+    posthoc_span = posthoc_window[:posthoc_term.start()] if posthoc_term else posthoc_window
+    if _POSTHOC_NEG_TRIGGERS.search(posthoc_span):
         return True
 
     return False
@@ -361,6 +413,13 @@ def extract(
       cda      <code code="…" codeSystem="…"/>
       lookup   curated displayName aliases (NegEx-suppressed)
     """
+    # c20 adv6 fix: NFKC normalize so non-breaking spaces (U+00A0),
+    # smart quotes, em/en dashes, and other typographic Unicode are
+    # collapsed to ASCII forms before regex matching. Lookup-table
+    # aliases use ASCII `\s` / `\b`; without normalization a phrase
+    # like "Bordetella\xa0pertussis" silently misses
+    # (`adv6_unicode_typography_*`).
+    text = unicodedata.normalize("NFKC", text)
     matches: list[CodeMatch] = []
     matches.extend(_extract_inline(text))
     matches.extend(_extract_cda_matches(text))

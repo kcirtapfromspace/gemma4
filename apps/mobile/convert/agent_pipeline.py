@@ -390,11 +390,19 @@ def try_fast_path(
     t0 = time.time()
     det = deterministic_extract(narrative)
     det_dict = det.to_provenance_dict() if hasattr(det, "to_provenance_dict") else {}
-    det_codes = (det_dict.get("conditions") or []) + (
-        det_dict.get("loincs") or []
-    ) + (det_dict.get("rxnorms") or [])
-    if det_codes:
-        return None  # Tier 1 already has answers — fast-path doesn't apply.
+    # c20 adv6 fix (Bug 5): gate on EXPLICIT-ASSERTION tier presence, not on
+    # any det code. The previous gate `if det_codes: return None` short-
+    # circuited whenever the lookup tier emitted ANY match — including
+    # *false positives* (e.g. `adv6_long_form_admission_note` had varicella
+    # + CBC FPs from lookup, blocking measles via RAG). Lookup matches
+    # carry inherent ambiguity (alias→code, NegEx-suppressed but not
+    # contextually validated), so they should NOT block the RAG fallback.
+    # Only inline `(SNOMED 12345)` and CDA `<code .../>` are explicit
+    # author assertions worth gating on; this mirrors `_det_short_circuits_llm`
+    # in bench_fastpath_threshold.py and `shortCircuitsLLM` in
+    # EicrPreparser.swift (c20 Candidate D).
+    if any(m.tier in ("inline", "cda") for m in det.matches):
+        return None  # Tier 1 has explicit-assertion answers — fast-path skipped.
 
     is_negated = _is_negated if use_negex else (lambda *_args: False)
     fp = fast_path_hit(narrative, threshold=threshold, is_negated=is_negated)
@@ -402,10 +410,25 @@ def try_fast_path(
         return None
 
     elapsed = time.time() - t0
+    # c20 adv6 fix (Bug 5 follow-on): merge any existing det lookup-tier
+    # matches with the RAG hit so we don't drop a correctly-matched
+    # rxnorm/loinc when RAG fills the missing condition. Without merging,
+    # `adv3_rmsf_rag` (det: doxycycline rxnorm; RAG: rmsf snomed) drops
+    # to 1/2 because we'd emit only the snomed.
+    base_conditions = list(det_dict.get("conditions") or [])
+    base_loincs = list(det_dict.get("loincs") or [])
+    base_rxnorms = list(det_dict.get("rxnorms") or [])
+    sysu = fp.hit.system.upper()
+    if sysu == "SNOMED" and fp.hit.code not in base_conditions:
+        base_conditions.append(fp.hit.code)
+    elif sysu == "LOINC" and fp.hit.code not in base_loincs:
+        base_loincs.append(fp.hit.code)
+    elif sysu == "RXNORM" and fp.hit.code not in base_rxnorms:
+        base_rxnorms.append(fp.hit.code)
     extraction = {
-        "conditions": [fp.hit.code] if fp.hit.system.upper() == "SNOMED" else [],
-        "loincs": [fp.hit.code] if fp.hit.system.upper() == "LOINC" else [],
-        "rxnorms": [fp.hit.code] if fp.hit.system.upper() == "RXNORM" else [],
+        "conditions": base_conditions,
+        "loincs": base_loincs,
+        "rxnorms": base_rxnorms,
     }
     trace = [{
         "turn": 0,
