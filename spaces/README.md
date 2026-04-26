@@ -96,6 +96,8 @@ Same Python pipeline, no demo-specific tuning. Source: `tools/autoresearch/resul
 | FHIR R4 validity (combined-54, `fhir.resources.R4B`) | — | — | — | **54/54** Bundles parse via pydantic structural validator |
 | FHIR R4 validity (combined-54, HL7 `validator_cli.jar` 6.9.7) | — | — | — | **30/54** pass canonical validator. 24 fails are all "Unknown code" terminology-snapshot mismatches (LOINC ≥2.83, RxNorm post-03/2026, SNOMED post-20250201) — 0 structural / cardinality / invariant errors. |
 | Adversarial-4 (deterministic + lookup) | 1.000 | 1.000 | 1.000 | 8/8 perfect after curated H5N1 / strep LOINC aliases |
+| Combined-11 (Jetson Orin NX 8GB, k8s) | **1.000** | **1.000** | **1.000** | **11/11 perfect, 11/11 R4-valid** end-to-end on a Talos-hosted llama-server pod (same base Gemma 4 E2B GGUF, same Python pipeline). Endpoint decodes at **~0.97 tok/s** — agent tier needs `--ctx-size > 2048` to fit multi-turn loops; deterministic + fast-path tiers (~70% of combined-54) run identically to Mac. See [`tools/autoresearch/jetson-bench-2026-04-26.md`](../tools/autoresearch/jetson-bench-2026-04-26.md). |
+| External CDA (HL7 STU 1.1 / 1.3.0 / 3.1.1, agent path with chunker) | **0.993** | 0.989 | 0.997 | **5/7 perfect, 356/360 matched** on the chunked Gemma 4 agent path. 7 HL7 reference CDA samples (50–200KB each, 25–60K tokens) split on `</section>` / `</component>` boundaries (~14KB / 4000 tok per chunk) and merged. Pre-chunker the agent path 400'd on all 7 (Gemma 4 E2B per-slot context = 8K). The 2 misses are 1–3 codes each on the largest pertussis CDAs; deterministic-only stays at F1=1.000. See `tools/autoresearch/c20-llm-tuning-2026-04-25.md` § "Long-context CDA chunking". |
 
 ### External validation
 
