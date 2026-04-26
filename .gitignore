@@ -49,3 +49,5 @@ apps/mobile/convert/build/
 .playwright-mcp/
 # Stray Playwright captures
 homepage-test*.png
+scripts/.venv/
+scripts/_gen_adv7.py

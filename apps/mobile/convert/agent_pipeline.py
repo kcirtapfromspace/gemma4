@@ -78,6 +78,30 @@ def tool_extract_codes_from_text(args: dict) -> dict:
     return res.to_provenance_dict()
 
 
+def tool_extract_codes_from_current_chunk(args: dict) -> dict:
+    """Chunker-only zero-arg variant of `extract_codes_from_text`.
+
+    Declared with no parameters so the model has nothing to echo back into
+    its tool-call wire format — keeping the call short (~50 tok) regardless
+    of chunk size. The runtime injects the current chunk's text via the
+    `inject_text_into_extract` parameter on `run_agent`. If the runtime
+    didn't inject (i.e. somebody invoked this tool outside the chunked
+    loop), the function returns an explicit error so the model knows
+    something is wrong.
+    """
+    text = args.get("text") or ""
+    if not text:
+        return {
+            "error": (
+                "extract_codes_from_current_chunk requires runtime injection "
+                "of chunk text. Call extract_codes_from_text(text=...) on "
+                "non-chunked input."
+            ),
+        }
+    res = deterministic_extract(text)
+    return res.to_provenance_dict()
+
+
 def tool_validate_fhir_extraction(args: dict) -> dict:
     extraction = args.get("extraction") or {}
     issues: list[str] = []
@@ -122,35 +146,58 @@ def tool_lookup_reportable_conditions(args: dict) -> dict:
 
 TOOLS: dict[str, callable] = {
     "extract_codes_from_text": tool_extract_codes_from_text,
+    "extract_codes_from_current_chunk": tool_extract_codes_from_current_chunk,
     "validate_fhir_extraction": tool_validate_fhir_extraction,
     "lookup_displayname": tool_lookup_displayname,
     "lookup_reportable_conditions": tool_lookup_reportable_conditions,
 }
 
-TOOL_SCHEMAS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "extract_codes_from_text",
-            "description": (
-                "Extract SNOMED, LOINC, and RxNorm codes from clinical "
-                "narrative text using a deterministic 3-tier extractor "
-                "(inline parenthesized codes + CDA XML attribute parsing + "
-                "curated displayName lookup with NegEx negation suppression). "
-                "Returns three arrays of code strings. Run this FIRST."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "text": {
-                        "type": "string",
-                        "description": "Raw clinical narrative.",
-                    }
-                },
-                "required": ["text"],
+_EXTRACT_TOOL_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "extract_codes_from_text",
+        "description": (
+            "Extract SNOMED, LOINC, and RxNorm codes from clinical "
+            "narrative text using a deterministic 3-tier extractor "
+            "(inline parenthesized codes + CDA XML attribute parsing + "
+            "curated displayName lookup with NegEx negation suppression). "
+            "Returns three arrays of code strings. Run this FIRST."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "Raw clinical narrative.",
+                }
             },
+            "required": ["text"],
         },
     },
+}
+
+# Chunker-only zero-arg variant. The schema declares no parameters, so the
+# model can't echo a 10KB chunk back into its tool-call wire format — its
+# decode budget is freed up for the JSON answer. The runtime substitutes
+# the current chunk's text inside `run_agent` (see
+# `inject_text_into_extract`).
+_EXTRACT_CHUNK_TOOL_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "extract_codes_from_current_chunk",
+        "description": (
+            "Extract SNOMED, LOINC, and RxNorm codes from the CURRENT "
+            "document chunk (the user message you just received). Use this "
+            "in chunked mode INSTEAD of extract_codes_from_text. Takes no "
+            "arguments — the runtime substitutes the chunk text. Returns "
+            "three arrays of code strings."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+    },
+}
+
+TOOL_SCHEMAS = [
+    _EXTRACT_TOOL_SCHEMA,
     {
         "type": "function",
         "function": {
@@ -232,6 +279,16 @@ TOOL_SCHEMAS = [
     },
 ]
 
+# Chunker-mode tool list — drops the text-arg `extract_codes_from_text` in
+# favour of the zero-arg `extract_codes_from_current_chunk`. Other tools
+# (lookup_*, validate_fhir_extraction) are unchanged. Used by
+# `run_agent_chunked` so the model can't blow its decode budget echoing
+# the chunk back as a JSON-string tool argument.
+CHUNK_TOOL_SCHEMAS = [
+    _EXTRACT_CHUNK_TOOL_SCHEMA,
+    *[s for s in TOOL_SCHEMAS if s["function"]["name"] != "extract_codes_from_text"],
+]
+
 
 # -----------------------------------------------------------------------------
 # Agent loop
@@ -258,6 +315,8 @@ def run_agent(
     verbose: bool = False,
     tool_call_grammar: str | None = None,
     chat_timeout: float = 900.0,
+    inject_text_into_extract: str | None = None,
+    tools_override: list[dict] | None = None,
 ) -> tuple[dict, list[dict]]:
     """Run the Gemma 4 agent loop. Returns (final_extraction, trace).
 
@@ -282,10 +341,11 @@ def run_agent(
     ]
     trace: list[dict] = []
 
+    active_tools = tools_override if tools_override is not None else TOOL_SCHEMAS
     for turn in range(max_turns):
         payload = {
             "messages": messages,
-            "tools": TOOL_SCHEMAS,
+            "tools": active_tools,
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
@@ -329,6 +389,21 @@ def run_agent(
                 except json.JSONDecodeError as exc:
                     result = {"error": f"argument JSON decode failed: {exc}"}
                 else:
+                    # Chunker shortcut (c20 long-context fix): when running per
+                    # chunk, the model is told NOT to echo the chunk back via
+                    # `text` — instead it calls the zero-arg variant
+                    # `extract_codes_from_current_chunk`, and we inject the
+                    # chunk text here. Re-encoding 10KB of XML as a
+                    # JSON-string arg would otherwise blow the model's
+                    # decode budget on a single tool call. Applies only to
+                    # the chunk extract tool; lookup_* / validate_* keep
+                    # their declared args.
+                    if (
+                        inject_text_into_extract is not None
+                        and fn == "extract_codes_from_current_chunk"
+                    ):
+                        args = dict(args) if isinstance(args, dict) else {}
+                        args["text"] = inject_text_into_extract
                     impl = TOOLS.get(fn)
                     if impl is None:
                         result = {"error": f"unknown tool '{fn}'"}
@@ -532,6 +607,341 @@ def try_fast_path(
     return extraction, trace
 
 
+# -----------------------------------------------------------------------------
+# Long-context chunker (c20 follow-up — external CDA agent path)
+#
+# Gemma 4 E2B has an 8K context window. HL7's reference CDA eICR samples are
+# 50–200 KB of XML — well beyond that. The deterministic preparser already
+# handles full-size CDAs at any scale (regex over `<code .../>` attributes),
+# but the *agent path* — `/v1/chat/completions` with the entire CDA in the
+# user message — 400s on context overflow.
+#
+# This chunker splits oversized inputs on structured CDA boundaries
+# (</section>, </component>, </entryRelationship> in priority order, and
+# `\n\n` as a fallback for non-CDA narratives), runs `run_agent` on each
+# chunk with an explicit "this is one slice of a larger document" instruction,
+# and merges the per-chunk extractions (deduped per bucket, provenance and
+# timing summed). For inputs at or below the budget the chunker bypasses
+# straight to `run_agent` so combined-54 (small narratives) is unaffected.
+#
+# 6000 tokens / ~21 KB chars-per-chunk leaves room for the system prompt
+# (~600 tok), tool-call JSON, and per-turn responses inside the 8K window.
+
+# NB: the running llama-server has an 8192-token effective context window
+# (`/props` → `n_ctx=8192`, even though the GGUF metadata advertises 131072
+# train ctx). Sub-budget = 8192 − system_prompt(~700) − tool_schemas in
+# the chat template (~1800) − response budget (~1500) ≈ 4200 tokens for the
+# user message itself. We pick 3000 to leave a safety buffer for the
+# tool-result turns (where the appended JSON inflates context further).
+CHUNK_TOKEN_BUDGET = 4000
+CHARS_PER_TOKEN = 3.5  # rough chars→tokens estimate (CDA XML is dense ASCII)
+CHUNK_CHAR_BUDGET = int(CHUNK_TOKEN_BUDGET * CHARS_PER_TOKEN)  # ~14000 chars
+
+# Priority-ordered split boundaries. Higher-priority boundaries (CDA section
+# close tags) yield clean clinical-area-aligned chunks; lower-priority ones
+# are fallbacks for documents whose section sizes exceed CHUNK_CHAR_BUDGET.
+# `</entry>` (CDA clinical-statement entry close) and `\n` (any newline)
+# protect against splitting mid-`<code .../>` element — without them the
+# chunker can bisect a `code="X" codeSystem="OID"` attribute pair, which
+# blinds the deterministic regex to that single code.
+_CHUNK_BOUNDARIES_PRIORITY = (
+    "</section>",
+    "</component>",
+    "</entryRelationship>",
+    "</entry>",
+    "</observation>",
+    "</organizer>",
+    # Last-resort general-purpose boundary: ">\n" matches the close of any
+    # XML element followed by a newline (the standard pretty-print pattern
+    # in HL7 sample CDAs). Crucially it splits AFTER an element finishes,
+    # never inside one — so a `<code code="X" codeSystem="OID" .../>` will
+    # never be bisected. Bare "\n" is unsafe because the slab can land
+    # mid-element, leaving the "after \n" tail as `<code code="X" code` (no
+    # closing tag) and the deterministic regex misses that code.
+    ">\n",
+    "\n",
+)
+
+
+def _estimate_tokens(text: str) -> int:
+    """Cheap chars→tokens estimate. ~3.5 chars/token for ASCII XML."""
+    return int(len(text) / CHARS_PER_TOKEN)
+
+
+def _split_on_boundary(text: str, boundary: str, max_chars: int) -> list[tuple[str, bool]]:
+    """Greedily pack `boundary`-delimited segments into chunks ≤ max_chars.
+
+    Returns a list of (chunk_text, used_boundary) tuples. `used_boundary`
+    is False when the no-boundary fallback fired (the chunk is a fixed-
+    size slab cut at an arbitrary char position) — the caller drills into
+    such chunks with a lower-priority boundary even if the slab fits in
+    `max_chars`. `True` when the chunk ends just after a boundary
+    occurrence (and is therefore structurally clean — safe to ship to the
+    LLM without further refinement).
+
+    When the slab fallback would cut mid-XML-element (i.e. the slab ends
+    while inside an open `<...` tag, e.g. `<code code="X" codeSyst`), the
+    chunker BACKS UP cursor to the last `<` so the partial element moves
+    to the next chunk and the deterministic regex sees the FULL
+    `<code .../>` in some chunk. Without this guardrail a single split
+    can blind the regex to a code (observed: LOINC `20570-8` in
+    `cdc_eicr_stu1_3_pertussis_long_form`).
+
+    Never drops bytes: ``''.join(t for t, _ in result) == text``.
+    """
+    if boundary not in text:
+        return [(text, False)]
+    pieces: list[tuple[str, bool]] = []
+    cursor = 0
+    while cursor < len(text):
+        end = min(cursor + max_chars, len(text))
+        slice_ = text[cursor:end]
+        b_pos = slice_.rfind(boundary)
+        if b_pos < 0:
+            # No boundary in window — slab fallback. Back up to the last
+            # `<` if we'd otherwise cut mid-element (slab tail contains an
+            # unclosed `<`). When backing up isn't profitable (last `<` is
+            # at offset 0 → would yield an empty chunk), just emit the
+            # slab as-is.
+            slab_end = end
+            if end < len(text):
+                tail_lt = slice_.rfind("<")
+                tail_gt = slice_.rfind(">")
+                if tail_lt > tail_gt and tail_lt > 0:
+                    slab_end = cursor + tail_lt
+            pieces.append((text[cursor:slab_end], False))
+            cursor = slab_end
+            if cursor >= len(text):
+                break
+            continue
+        split_at = cursor + b_pos + len(boundary)
+        pieces.append((text[cursor:split_at], True))
+        cursor = split_at
+    return pieces
+
+
+def _split_for_chunking(text: str, max_chars: int = CHUNK_CHAR_BUDGET) -> list[str]:
+    """Split `text` into chunks ≤ max_chars on the best-available boundary.
+
+    Tries `_CHUNK_BOUNDARIES_PRIORITY` in order (CDA close tags first, then
+    newline as the last-resort smallest-grain boundary). A chunk emitted
+    by the no-boundary fallback (a fixed-size slab) is re-tried with the
+    next-priority boundary even if it already fits the budget — without
+    this, a 14KB body with no `</section>` close inside it would never
+    drill down to `\\n` and would frequently bisect a `<code/>` element
+    on the slab boundary.
+
+    Never drops bytes: ``''.join(_split_for_chunking(text)) == text``.
+    """
+    annotated: list[tuple[str, bool]] = [(text, False)]  # start as unrefined
+    for boundary in _CHUNK_BOUNDARIES_PRIORITY:
+        # Stop once every chunk is structurally clean (`used=True`) and
+        # within budget — no further refinement needed.
+        if all(used and len(c) <= max_chars for c, used in annotated):
+            break
+        next_chunks: list[tuple[str, bool]] = []
+        for c, used in annotated:
+            if used and len(c) <= max_chars:
+                next_chunks.append((c, True))
+            else:
+                next_chunks.extend(_split_on_boundary(c, boundary, max_chars))
+        annotated = next_chunks
+    return [c for c, _ in annotated]
+
+
+# Bucket guard: drop only `null`/empty placeholders, NOT codes that look
+# atypical for their bucket. The HL7 reference CDA samples include a few
+# loincs entries that aren't `\d+-\d+` (e.g. `21812002`, `C3841750` —
+# these are author-assigned slot codes the deterministic extractor faithfully
+# preserves). A pattern-based bucket filter wrongly drops them and trims
+# 2 codes off the chunked agent's loincs recall. The cross-bucket bleed we
+# originally feared (SNOMED 420008001 echoed into loincs) didn't show up
+# on the post-relaxation re-run; if it returns, address with provenance-
+# driven filtering instead of pattern matching.
+
+
+def _bucket_filter(bucket: str, value: str) -> bool:
+    """Return True if `value` is a non-empty, non-null code."""
+    v = (value or "").strip()
+    if not v or v.lower() == "null":
+        return False
+    return True
+
+
+def _merge_extractions(extractions: list[dict]) -> dict:
+    """Dedup + merge per-chunk extractions while preserving order.
+
+    Drops codes that don't match their bucket's wire-format pattern (e.g.
+    the model occasionally echoes a SNOMED into loincs after a tool
+    result lists both kinds of codes — without this guard we'd ship a
+    9-digit numeric in the loincs array and fail downstream FHIR
+    R4 validation).
+    """
+    out = {"conditions": [], "loincs": [], "rxnorms": []}
+    seen = {k: set() for k in out}
+    for ext in extractions:
+        for k in out:
+            for v in (ext.get(k) or []):
+                vs = str(v)
+                if not _bucket_filter(k, vs):
+                    continue
+                if vs not in seen[k]:
+                    seen[k].add(vs)
+                    out[k].append(vs)
+    return out
+
+
+CHUNK_SYSTEM_SUFFIX = (
+    "\n\nIMPORTANT — CHUNKED INPUT: The user message you are about to "
+    "receive is ONE SLICE of a larger CDA / clinical document; other slices "
+    "are processed separately and merged downstream. Emit codes ONLY for "
+    "content present in THIS slice. Do not speculate about content in other "
+    "sections you cannot see. If this slice contains no extractable codes, "
+    "return {\"conditions\": [], \"loincs\": [], \"rxnorms\": []}.\n\n"
+    "TOOL-CALL CONVENTION (chunked mode): use "
+    "`extract_codes_from_current_chunk` (no arguments — the runtime "
+    "substitutes the chunk text) instead of `extract_codes_from_text`. "
+    "Calling the zero-arg variant first is mandatory; it's MUCH cheaper "
+    "than echoing the chunk back as a JSON string. Other tools "
+    "(`lookup_displayname`, `lookup_reportable_conditions`, "
+    "`validate_fhir_extraction`) take their arguments as declared."
+)
+
+
+def run_agent_chunked(
+    narrative: str,
+    *,
+    endpoint: str = DEFAULT_ENDPOINT,
+    system: str = DEFAULT_SYSTEM,
+    max_turns: int = 10,
+    temperature: float = 0.0,
+    max_tokens: int = 3072,
+    verbose: bool = False,
+    tool_call_grammar: str | None = None,
+    chat_timeout: float = 900.0,
+    force_chunk: bool = False,
+) -> tuple[dict, list[dict]]:
+    """Chunk-aware wrapper around `run_agent`.
+
+    1. If `narrative` fits in ≤CHUNK_TOKEN_BUDGET tokens AND not force_chunk,
+       calls `run_agent` directly and returns its (extraction, trace) verbatim.
+    2. Otherwise splits on structured CDA boundaries (</section> >
+       </component> > </entryRelationship> > paragraph), runs `run_agent`
+       per chunk with a chunk-aware system prompt suffix, merges the
+       per-chunk extractions (dedup per bucket), and concatenates traces
+       with a `chunk_index` annotation on every entry.
+
+    Returns (merged_extraction, combined_trace) in the same shape as
+    `run_agent` so callers don't need to special-case the output.
+    """
+    if not force_chunk and _estimate_tokens(narrative) <= CHUNK_TOKEN_BUDGET:
+        return run_agent(
+            narrative,
+            endpoint=endpoint,
+            system=system,
+            max_turns=max_turns,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            verbose=verbose,
+            tool_call_grammar=tool_call_grammar,
+            chat_timeout=chat_timeout,
+        )
+
+    chunks = _split_for_chunking(narrative)
+    chunk_system = system + CHUNK_SYSTEM_SUFFIX
+    if verbose:
+        print(
+            f"  chunked: {len(narrative)} chars → {len(chunks)} chunks "
+            f"(budget={CHUNK_CHAR_BUDGET} chars/{CHUNK_TOKEN_BUDGET} tok)"
+        )
+
+    per_chunk_extractions: list[dict] = []
+    combined_trace: list[dict] = []
+    total_elapsed = 0.0
+    for ci, chunk in enumerate(chunks):
+        if verbose:
+            print(
+                f"  chunk {ci+1}/{len(chunks)}: {len(chunk)} chars "
+                f"(~{_estimate_tokens(chunk)} tok)"
+            )
+        ext, tr = run_agent(
+            chunk,
+            endpoint=endpoint,
+            system=chunk_system,
+            max_turns=max_turns,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            verbose=verbose,
+            tool_call_grammar=tool_call_grammar,
+            chat_timeout=chat_timeout,
+            inject_text_into_extract=chunk,
+            tools_override=CHUNK_TOOL_SCHEMAS,
+        )
+        # Salvage path: when the agent doesn't return a final JSON within
+        # `max_turns` (chunk-6 of long CDAs frequently keep looking up
+        # uncurated LOINCs and burn the turn budget), fall back to the
+        # deterministic tool result for this chunk. The CDA's `<code/>`
+        # attributes are authoritative ground truth, so the agent's
+        # follow-up lookups can't add value beyond what extract_codes
+        # already returned. Without this salvage, a single under-budget
+        # chunk drops 1–2 codes from the merged extraction.
+        ext_total = (
+            len(ext.get("conditions") or [])
+            + len(ext.get("loincs") or [])
+            + len(ext.get("rxnorms") or [])
+        )
+        if ext_total == 0:
+            for entry in tr:
+                if (
+                    entry.get("tool_result") == "extract_codes_from_current_chunk"
+                    and isinstance(entry.get("result"), dict)
+                ):
+                    res = entry["result"]
+                    salvaged = {
+                        "conditions": list(res.get("conditions") or []),
+                        "loincs": list(res.get("loincs") or []),
+                        "rxnorms": list(res.get("rxnorms") or []),
+                    }
+                    sal_total = (
+                        len(salvaged["conditions"])
+                        + len(salvaged["loincs"])
+                        + len(salvaged["rxnorms"])
+                    )
+                    if sal_total > 0:
+                        if verbose:
+                            print(
+                                f"    salvaged {sal_total} codes from "
+                                f"deterministic tool result"
+                            )
+                        ext = salvaged
+                    break
+        per_chunk_extractions.append(ext)
+        for entry in tr:
+            entry = dict(entry)
+            entry["chunk_index"] = ci
+            entry["chunk_chars"] = len(chunk)
+            combined_trace.append(entry)
+            if isinstance(entry.get("elapsed_s"), (int, float)):
+                total_elapsed += entry["elapsed_s"]
+
+    merged = _merge_extractions(per_chunk_extractions)
+    # Preface the trace with a chunker summary so downstream tooling can see
+    # n_chunks / total wall-clock without scanning every entry.
+    summary = {
+        "chunker": True,
+        "n_chunks": len(chunks),
+        "input_chars": len(narrative),
+        "input_est_tokens": _estimate_tokens(narrative),
+        "chunk_char_budget": CHUNK_CHAR_BUDGET,
+        "elapsed_s": round(total_elapsed, 2),
+        "per_chunk_chars": [len(c) for c in chunks],
+    }
+    return merged, [summary] + combined_trace
+
+
+# -----------------------------------------------------------------------------
+
+
 def _parse_extraction(content: str) -> dict:
     """Best-effort JSON parse — strips markdown fencing and null-likes."""
     text = content.strip()
@@ -651,6 +1061,16 @@ def main() -> None:
             "to bound per-case wall clock (e.g. 3-4 on Jetson Orin NX)."
         ),
     )
+    ap.add_argument(
+        "--chunked",
+        action="store_true",
+        help=(
+            "Force `run_agent_chunked` for every case (even small narratives). "
+            "Use to exercise the chunker on the regression corpus. Without "
+            "this flag, oversized inputs (>~21KB / ~6000 tok) auto-route to "
+            "the chunked path; smaller inputs go straight to `run_agent`."
+        ),
+    )
     args = ap.parse_args()
     grammar_text: str | None = None
     if args.tool_call_grammar:
@@ -717,15 +1137,39 @@ def main() -> None:
                 path_label = "fast"
                 n_fast_path_hits += 1
             else:
-                extraction, trace = run_agent(
-                    case["user"],
-                    endpoint=args.endpoint,
-                    verbose=args.verbose,
-                    tool_call_grammar=grammar_text,
-                    max_tokens=args.max_tokens,
-                    chat_timeout=args.chat_timeout,
-                    max_turns=args.max_turns,
+                # Auto-detect oversized input. Inputs estimated to exceed the
+                # chunker's per-chunk budget (~6000 tok) route through
+                # `run_agent_chunked`. The `--chunked` flag forces chunking
+                # even on small narratives (regression test for the chunker
+                # bypass logic). For chunked cases, path_label becomes
+                # "agent-chunked" so the bench summary distinguishes them.
+                user_text = case["user"]
+                needs_chunk = (
+                    args.chunked
+                    or _estimate_tokens(user_text) > CHUNK_TOKEN_BUDGET
                 )
+                if needs_chunk:
+                    extraction, trace = run_agent_chunked(
+                        user_text,
+                        endpoint=args.endpoint,
+                        verbose=args.verbose,
+                        tool_call_grammar=grammar_text,
+                        max_tokens=args.max_tokens,
+                        chat_timeout=args.chat_timeout,
+                        max_turns=args.max_turns,
+                        force_chunk=args.chunked,
+                    )
+                    path_label = "agent-chunked"
+                else:
+                    extraction, trace = run_agent(
+                        user_text,
+                        endpoint=args.endpoint,
+                        verbose=args.verbose,
+                        tool_call_grammar=grammar_text,
+                        max_tokens=args.max_tokens,
+                        chat_timeout=args.chat_timeout,
+                        max_turns=args.max_turns,
+                    )
         except (URLError, TimeoutError, OSError) as exc:
             # Don't kill the whole bench on a single slow Jetson case; record
             # the error and move on. Mac runs almost never hit this; the
