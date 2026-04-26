@@ -72,20 +72,51 @@ def _display_for(system: str, code: str) -> str | None:
 
 
 def _coding(system: str, code: str, *, display: str | None = None) -> dict:
-    out: dict[str, Any] = {
+    """Build a Coding entry. Display string is intentionally OMITTED.
+
+    Background: the HL7-published `validator_cli.jar` (canonical R4 ref)
+    enforces terminology binding on `Coding.display` — it looks the code
+    up against the configured terminology service and rejects any display
+    string that isn't one of the canonical names for that code. Our
+    curated lookup table uses short, human-readable aliases (e.g.
+    "SARS-CoV-2 RNA NAA+probe Ql Resp") which are not the canonical LOINC
+    display ("SARS-CoV-2 (COVID-19) RNA [Presence] in Respiratory system
+    specimen by NAA with probe detection"). Including them generates
+    "Wrong Display Name" errors that mask real validation findings.
+
+    The `display` field is OPTIONAL per FHIR R4 — Coding.display has
+    cardinality 0..1 — and downstream consumers (iOS UI, Gradio Space)
+    surface human-readable names via the lookup table directly, not via
+    `Coding.display`. Dropping it keeps the Bundle JSON spec-pure
+    against the canonical validator while preserving every other
+    feature.
+    """
+    return {
         "system": SYSTEM_URI[system.upper()],
         "code": code,
     }
-    resolved_display = display or _display_for(system, code)
-    if resolved_display:
-        out["display"] = resolved_display
-    return out
 
 
 def _meta_with_source(source_url: str | None) -> dict | None:
     if not source_url:
         return None
     return {"source": source_url}
+
+
+def _entry_id_and_full_url(prefix: str, code: str) -> tuple[str, str]:
+    """Build a stable resource id + fullUrl for a Bundle entry.
+
+    The HL7 canonical validator enforces invariant `bdl-7` ("a fullUrl
+    SHALL be unique in a bundle, or else entries with the same fullUrl
+    SHALL have different meta.versionId") AND requires `fullUrl` on every
+    entry of a `collection` Bundle (otherwise relative subject references
+    can't be resolved). We synthesize a urn:uuid-style identifier from
+    the prefix + code so the same extraction always produces the same
+    Bundle (deterministic, diff-friendly).
+    """
+    rid = f"{prefix}-{code}"
+    full_url = f"urn:cliniq:{rid}"
+    return rid, full_url
 
 
 def _condition_entry(
@@ -98,9 +129,11 @@ def _condition_entry(
     "must support" in US Core and many strict validators reject Bundles
     that omit it.
     """
+    rid, full_url = _entry_id_and_full_url("condition", code)
     resource: dict[str, Any] = {
         "resourceType": "Condition",
-        "subject": {"reference": f"Patient/{patient_ref}"},
+        "id": rid,
+        "subject": {"reference": f"urn:cliniq:patient-{patient_ref}"},
         "code": {"coding": [_coding("SNOMED", code)]},
         "clinicalStatus": {
             "coding": [{
@@ -112,23 +145,25 @@ def _condition_entry(
     meta = _meta_with_source(source_url)
     if meta:
         resource["meta"] = meta
-    return {"resource": resource}
+    return {"fullUrl": full_url, "resource": resource}
 
 
 def _observation_entry(
     code: str, *, patient_ref: str, source_url: str | None = None
 ) -> dict:
     """Single LOINC → Observation resource. R4 required: status, code."""
+    rid, full_url = _entry_id_and_full_url("observation", code)
     resource: dict[str, Any] = {
         "resourceType": "Observation",
+        "id": rid,
         "status": "final",
         "code": {"coding": [_coding("LOINC", code)]},
-        "subject": {"reference": f"Patient/{patient_ref}"},
+        "subject": {"reference": f"urn:cliniq:patient-{patient_ref}"},
     }
     meta = _meta_with_source(source_url)
     if meta:
         resource["meta"] = meta
-    return {"resource": resource}
+    return {"fullUrl": full_url, "resource": resource}
 
 
 def _medication_statement_entry(
@@ -141,16 +176,24 @@ def _medication_statement_entry(
     extracted entity (we know it was recorded in the eICR; we don't have
     administration / completion semantics).
     """
+    rid, full_url = _entry_id_and_full_url("medication-statement", code)
+    # R4 MedicationStatement.status value set:
+    #   active | completed | entered-in-error | intended | stopped |
+    #   on-hold | unknown | not-taken
+    # ('recorded' is an R5 value — R4's HL7-validator rejects it.) Use
+    # `unknown` because we extracted the medication code but have no
+    # signal on whether the patient is currently taking it.
     resource: dict[str, Any] = {
         "resourceType": "MedicationStatement",
-        "status": "recorded",
+        "id": rid,
+        "status": "unknown",
         "medicationCodeableConcept": {"coding": [_coding("RXNORM", code)]},
-        "subject": {"reference": f"Patient/{patient_ref}"},
+        "subject": {"reference": f"urn:cliniq:patient-{patient_ref}"},
     }
     meta = _meta_with_source(source_url)
     if meta:
         resource["meta"] = meta
-    return {"resource": resource}
+    return {"fullUrl": full_url, "resource": resource}
 
 
 def _patient_entry(patient_id: str = DEFAULT_PATIENT_ID) -> dict:
@@ -160,7 +203,9 @@ def _patient_entry(patient_id: str = DEFAULT_PATIENT_ID) -> dict:
     we deliberately don't carry them through. Judges care that resources
     resolve their `subject` references, not about specific demographics.
     """
+    full_url = f"urn:cliniq:patient-{patient_id}"
     return {
+        "fullUrl": full_url,
         "resource": {
             "resourceType": "Patient",
             "id": patient_id,
