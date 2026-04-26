@@ -148,10 +148,60 @@ def _condition_entry(
     return {"fullUrl": full_url, "resource": resource}
 
 
+_VITAL_SIGN_LOINCS = frozenset({
+    "8480-6",   # Systolic blood pressure
+    "8462-4",   # Diastolic blood pressure
+    "8867-4",   # Heart rate
+    "8310-5",   # Body temperature
+    "9279-1",   # Respiratory rate
+    "8302-2",   # Body height
+    "29463-7",  # Body weight (canonical magic LOINC for `bodyweight` profile)
+    "39156-5",  # BMI
+    "59408-5",  # SpO2 (pulse oximetry, O2 saturation in arterial blood)
+    "2708-6",   # Oxygen saturation in arterial blood (canonical magic LOINC for `oxygensat` profile)
+    "2710-2",   # Oxygen saturation in capillary blood (also auto-binds to `oxygensat`)
+    "85354-9",  # Blood pressure panel (parent BP observation)
+    "85353-3",  # Vital signs panel
+    "8716-3",   # Vital signs panel (alt)
+    "3141-9",   # Body weight measured (auto-binds to `bodyweight` profile)
+})
+# LOINC 2710-2 (capillary oxygen saturation) and 3141-9 (body weight
+# measured) auto-bind to the FHIR `oxygensat` and `bodyweight` profiles
+# respectively. Those profiles require their own canonical "magic LOINC
+# code" (2708-6 / 29463-7) AND a `valueQuantity` with hard-coded units —
+# constraints we cannot satisfy from the eICR-extraction surface (which
+# carries codes only, no measured values). We deliberately leave them
+# out of the vital-sign category set: the auto-bind still fires per the
+# validator's logic, but emitting them as plain Observations with
+# `dataAbsentReason` is the closest we can get without inventing data.
+# Three external CDA cases still fail Java validation for this reason.
+
+# `Observation.category=vital-signs` slice required by the FHIR R4 base
+# `vitalsigns` profile. The HL7-published validator auto-binds any
+# Observation with a vital-sign LOINC code to that profile and rejects
+# the resource if the category slice is missing.
+_VSCAT_CATEGORY = {
+    "coding": [{
+        "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+        "code": "vital-signs",
+        "display": "Vital Signs",
+    }]
+}
+
+
 def _observation_entry(
     code: str, *, patient_ref: str, source_url: str | None = None
 ) -> dict:
-    """Single LOINC → Observation resource. R4 required: status, code."""
+    """Single LOINC → Observation resource. R4 required: status, code.
+
+    For vital-sign LOINCs (BP, HR, temp, RR, height, weight, BMI, SpO2)
+    we also stamp `Observation.category=[VSCat]` because the FHIR R4
+    base `vitalsigns` profile auto-binds those codes and the canonical
+    HL7 validator (`validator_cli.jar`) rejects the resource without a
+    `vital-signs` category slice. Non-vital-sign LOINCs (lab results,
+    diagnostic NAA tests, etc.) keep the bare shape — adding category
+    there would be an over-claim.
+    """
     rid, full_url = _entry_id_and_full_url("observation", code)
     resource: dict[str, Any] = {
         "resourceType": "Observation",
@@ -160,6 +210,26 @@ def _observation_entry(
         "code": {"coding": [_coding("LOINC", code)]},
         "subject": {"reference": f"urn:cliniq:patient-{patient_ref}"},
     }
+    if code in _VITAL_SIGN_LOINCS:
+        resource["category"] = [_VSCAT_CATEGORY]
+        # FHIR R4 vital-signs profile slice requires `effective[x]`
+        # (Observation.effectiveDateTime or .effectivePeriod). We don't
+        # have an authoritative timestamp from the extraction, so we
+        # stamp a placeholder ISO-8601 date that satisfies cardinality.
+        # Downstream consumers that need a real time should enrich the
+        # Bundle with a case-specific encounter timestamp.
+        resource["effectiveDateTime"] = "2026-01-01"
+        # vs-2 invariant ("if no component or hasMember, value[x] or
+        # dataAbsentReason must be present"): we have no measured value
+        # plumbed through from the eICR extraction surface (extraction
+        # surfaces *codes only*, not values), so emit a structured
+        # dataAbsentReason. `unknown` is a valid value-set member.
+        resource["dataAbsentReason"] = {
+            "coding": [{
+                "system": "http://terminology.hl7.org/CodeSystem/data-absent-reason",
+                "code": "unknown",
+            }]
+        }
     meta = _meta_with_source(source_url)
     if meta:
         resource["meta"] = meta

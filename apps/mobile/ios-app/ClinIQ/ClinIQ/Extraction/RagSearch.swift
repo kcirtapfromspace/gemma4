@@ -80,6 +80,22 @@ enum RagSearch {
         return regex.firstMatch(in: haystack, range: range) != nil
     }
 
+    /// Case-SENSITIVE word-bounded search for short uppercase acronym
+    /// alt_names. Curated alt_names like "CRE", "RSV", "MRSA", "MERS",
+    /// "WNV" are uppercase acronyms by convention. Lowercase tokens that
+    /// happen to spell the same letters MUST NOT match — they're never
+    /// the intended clinical concept. Mirror of
+    /// `_short_alt_uppercase_word` in apps/mobile/convert/rag_search.py.
+    private static func uppercaseWordBounded(_ needle: String, in originalQuery: String) -> Bool {
+        if needle != needle.uppercased() { return false }
+        let escaped = NSRegularExpression.escapedPattern(for: needle)
+        let pattern = "\\b" + escaped + "\\b"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [])
+        else { return false }
+        let range = NSRange(originalQuery.startIndex..., in: originalQuery)
+        return regex.firstMatch(in: originalQuery, range: range) != nil
+    }
+
     private static func tokens(_ text: String) -> Set<String> {
         let range = NSRange(text.startIndex..., in: text)
         var out = Set<String>()
@@ -123,7 +139,17 @@ enum RagSearch {
                 let candNorm = normalize(candidate).lowercased()
                 let matched: Bool
                 if isAlt && candNorm.count <= shortAltMaxLen {
-                    matched = wordBoundedContains(candNorm, in: qLower)
+                    // c20 final pass: uppercase acronyms (CRE, RSV, MRSA,
+                    // MERS, WNV) require a case-sensitive word match
+                    // against the ORIGINAL narrative so lowercase tokens
+                    // never slip through. Lowercase short alt_names (e.g.
+                    // "lues" for syphilis) keep the prior word-bounded
+                    // case-insensitive behaviour.
+                    if candidate == candidate.uppercased() {
+                        matched = uppercaseWordBounded(candidate, in: query)
+                    } else {
+                        matched = wordBoundedContains(candNorm, in: qLower)
+                    }
                 } else {
                     matched = qLower.contains(candNorm)
                 }

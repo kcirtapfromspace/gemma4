@@ -237,7 +237,7 @@ TOOL_SCHEMAS = [
 # Agent loop
 
 
-def chat(endpoint: str, payload: dict, timeout: float = 300.0) -> dict:
+def chat(endpoint: str, payload: dict, timeout: float = 900.0) -> dict:
     req = Request(
         f"{endpoint}/v1/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
@@ -257,6 +257,7 @@ def run_agent(
     max_tokens: int = 3072,
     verbose: bool = False,
     tool_call_grammar: str | None = None,
+    chat_timeout: float = 900.0,
 ) -> tuple[dict, list[dict]]:
     """Run the Gemma 4 agent loop. Returns (final_extraction, trace).
 
@@ -294,7 +295,7 @@ def run_agent(
         # the Python path; the explicit GBNF applies only on the iOS
         # AgentRunner. See ``run_agent`` docstring.
         t0 = time.time()
-        resp = chat(endpoint, payload)
+        resp = chat(endpoint, payload, timeout=chat_timeout)
         elapsed = time.time() - t0
         choice = resp["choices"][0]
         msg = choice["message"]
@@ -307,6 +308,10 @@ def run_agent(
             "tool_calls": msg.get("tool_calls"),
             "elapsed_s": round(elapsed, 2),
             "tokens": resp.get("usage", {}).get("completion_tokens"),
+            # llama-server `timings` field: prompt_per_second / predicted_per_second
+            # are the per-call decode speed. Captured here so edge-vs-Mac benches
+            # can derive prompt_tok_s / predicted_tok_s without re-running.
+            "timings": resp.get("timings"),
         })
         if verbose:
             print(f"  turn {turn}: finish={finish} elapsed={elapsed:.1f}s "
@@ -365,6 +370,74 @@ def run_agent(
 # apps/mobile/ios-app/ClinIQ/ClinIQ/Extraction/ExtractionService.swift, the
 # inserted block between Tier 1 (deterministic) and Tier 2 (agent loop).
 
+import re as _re
+
+_HISTORY_HEADER_RE = _re.compile(
+    r"\b(?:"
+    r"Problem\s+list"
+    r"|Past\s+medical\s+history"
+    r"|PMH"
+    r"|Past\s+history"
+    r"|Comorbidit(?:y|ies)"
+    r"|Chronic\s+conditions"
+    r"|Active\s+problems?"
+    r"|Family\s+history"
+    r"|Social\s+history"
+    r")\s*[:\n]",
+    _re.IGNORECASE,
+)
+# Headers that close a history block — the matched phrase is in an "active"
+# section if it sits between an active-section header and the next history
+# block, OR before the first history header.
+_ACTIVE_HEADER_RE = _re.compile(
+    r"\b(?:"
+    r"Reason\s+for\s+(?:visit|admission|ED\s+visit)"
+    r"|Reason"
+    r"|Encounter"
+    r"|Chief\s+complaint"
+    r"|Assessment(?:\s+and\s+Plan)?"
+    r"|Clinical\s+impression"
+    r"|Clinical\s+assessment"
+    r"|Final(?:\s+admission\s+diagnosis)?"
+    r"|Diagnosis"
+    r"|Dx"
+    r"|Workup"
+    r"|HPI"
+    r"|History\s+of\s+present\s+illness"
+    r")\s*[:\n]",
+    _re.IGNORECASE,
+)
+
+
+def _matched_phrase_in_history_block(narrative: str, location: int) -> bool:
+    """Heuristic: does `location` sit inside a history / problem-list block?
+
+    Walks backward from `location` looking for the nearest section header.
+    If the closest header (within 800 chars) is a history-style header,
+    the matched phrase is part of an enumerated comorbidity rather than
+    the active reason for visit, and the fast-path should decline.
+    Active-section headers (Reason, Encounter, Assessment, Dx, etc.)
+    return False — the match is in an active clinical assertion.
+
+    Falls back to False (assume active) when no header is found nearby
+    so simple narratives without explicit headers stay on the fast path.
+    """
+    window_start = max(0, location - 800)
+    pre = narrative[window_start:location]
+    # Find the LAST occurrence of either header type — whichever is closer
+    # to `location` wins.
+    last_history = None
+    for m in _HISTORY_HEADER_RE.finditer(pre):
+        last_history = m
+    last_active = None
+    for m in _ACTIVE_HEADER_RE.finditer(pre):
+        last_active = m
+    if last_history is None:
+        return False
+    if last_active is None:
+        return True
+    return last_history.start() > last_active.start()
+
 
 def try_fast_path(
     narrative: str,
@@ -407,6 +480,20 @@ def try_fast_path(
     is_negated = _is_negated if use_negex else (lambda *_args: False)
     fp = fast_path_hit(narrative, threshold=threshold, is_negated=is_negated)
     if fp is None:
+        return None
+
+    # c20 final pass: skip the fast-path when the matched phrase sits inside
+    # a non-active problem section (Problem list, PMH, Past medical history,
+    # Comorbidities, History of). Those sections enumerate chronic
+    # comorbidities — if the RAG hit fires on a stable history item rather
+    # than the active reason for visit, treating it as a new reportable
+    # condition over-claims (`adv6_polypharmacy_mixed_dose_formats`: TB+HIV
+    # were the active reportable conditions; "Type 2 diabetes mellitus"
+    # under Problem list correctly identified by RAG but NOT a reportable
+    # in this encounter). The active diagnosis on the line "Reason: 70-y
+    # woman with active pulmonary tuberculosis..." remains visible to the
+    # caller; fast-path declining lets the agent / det path stand.
+    if _matched_phrase_in_history_block(narrative, fp.span.location):
         return None
 
     elapsed = time.time() - t0
@@ -537,6 +624,33 @@ def main() -> None:
         action="store_true",
         help="Disable the c19 single-turn fast-path; always run the agent loop.",
     )
+    ap.add_argument(
+        "--max-tokens",
+        type=int,
+        default=3072,
+        help=(
+            "Per-turn max_tokens for the agent loop. Lower for slow edge "
+            "endpoints (e.g. 1024 on Jetson Orin NX where decode is ~1 tok/s)."
+        ),
+    )
+    ap.add_argument(
+        "--chat-timeout",
+        type=float,
+        default=900.0,
+        help=(
+            "HTTP timeout (seconds) per /v1/chat/completions call. Slow "
+            "edges may need >300 s; fast Macs can stay at default."
+        ),
+    )
+    ap.add_argument(
+        "--max-turns",
+        type=int,
+        default=10,
+        help=(
+            "Max agent-loop turns per case. Lower for slow edge endpoints "
+            "to bound per-case wall clock (e.g. 3-4 on Jetson Orin NX)."
+        ),
+    )
     args = ap.parse_args()
     grammar_text: str | None = None
     if args.tool_call_grammar:
@@ -555,20 +669,50 @@ def main() -> None:
     rows: list[dict] = []
     total_m = total_e = total_fp = perfect = 0
     n_fast_path_hits = 0
+    n_det_hits = 0
     for idx, case in enumerate(cases, 1):
         cid = case["case_id"]
         path_label = "agent"
         try:
-            # Try the c19 single-turn fast-path first. On miss, fall through
-            # to the agent loop with the optional tool-call grammar.
-            fp_result = (
-                None
-                if args.no_fast_path
-                else try_fast_path(
-                    case["user"], threshold=args.fast_path_rag_threshold
+            # Tier 1 short-circuit (mirror of `bench_fastpath_threshold._det_short_circuits_llm`
+            # and `EicrPreparser.shortCircuitsLLM` Cand D): if deterministic
+            # extraction has any explicit-assertion tier hit (inline `(SNOMED ...)` or
+            # CDA `<code .../>`), trust it and skip both fast-path and agent.
+            # Without this short-circuit, ~24/54 combined-54 cases that the
+            # Mac/iOS pipeline answers in <10 ms blow up to a multi-minute
+            # agent loop on a slow edge endpoint.
+            det = deterministic_extract(case["user"])
+            det_dict = det.to_provenance_dict()
+            if not args.no_fast_path and any(
+                m.tier in ("inline", "cda") for m in det.matches
+            ):
+                extraction = {
+                    "conditions": list(det_dict.get("conditions") or []),
+                    "loincs": list(det_dict.get("loincs") or []),
+                    "rxnorms": list(det_dict.get("rxnorms") or []),
+                }
+                trace = [{
+                    "turn": 0,
+                    "deterministic": True,
+                    "elapsed_s": 0.0,
+                    "extraction": extraction,
+                }]
+                path_label = "deterministic"
+                n_det_hits += 1
+                fp_result = None
+            else:
+                # Try the c19 single-turn fast-path. On miss, fall through
+                # to the agent loop with the optional tool-call grammar.
+                fp_result = (
+                    None
+                    if args.no_fast_path
+                    else try_fast_path(
+                        case["user"], threshold=args.fast_path_rag_threshold
+                    )
                 )
-            )
-            if fp_result is not None:
+            if path_label == "deterministic":
+                pass  # already handled
+            elif fp_result is not None:
                 extraction, trace = fp_result
                 path_label = "fast"
                 n_fast_path_hits += 1
@@ -578,8 +722,14 @@ def main() -> None:
                     endpoint=args.endpoint,
                     verbose=args.verbose,
                     tool_call_grammar=grammar_text,
+                    max_tokens=args.max_tokens,
+                    chat_timeout=args.chat_timeout,
+                    max_turns=args.max_turns,
                 )
-        except URLError as exc:
+        except (URLError, TimeoutError, OSError) as exc:
+            # Don't kill the whole bench on a single slow Jetson case; record
+            # the error and move on. Mac runs almost never hit this; the
+            # Jetson at ~1 tok/s decode can blow the 900 s/turn budget.
             print(f"  ERR {cid}: {exc}", flush=True)
             rows.append({"case_id": cid, "error": str(exc)})
             continue
@@ -625,6 +775,10 @@ def main() -> None:
         f"({perfect}/{len(cases)} perfect)"
     )
     if not args.no_fast_path and len(cases):
+        print(
+            f"Deterministic short-circuit: {n_det_hits}/{len(cases)} cases "
+            f"({100*n_det_hits/len(cases):.0f}%)"
+        )
         print(
             f"Fast-path: {n_fast_path_hits}/{len(cases)} cases "
             f"({100*n_fast_path_hits/len(cases):.0f}%) hit before agent loop"

@@ -72,6 +72,138 @@ enum EicrPreparser {
         options: [.caseInsensitive]
     )
 
+    // c20 Bug 7: clinical-statement label prefixes that legitimize an inline
+    // `(SNOMED 12345)` annotation. When NONE of these labels appears within
+    // `inlineLabelWindow` chars before the inline code AND the code is not
+    // in the curated lookup table, the inline tier refuses to emit. Mirror
+    // of `_INLINE_LABEL_RE` in apps/mobile/convert/regex_preparser.py.
+    private static let inlineLabelRe = NSRegularExpression.cached(
+        pattern: #"\b(?:Dx|Diagnosis|Diagnoses|Final|Final\s+admission\s+diagnosis|Reason(?:\s+for\s+(?:visit|ED\s+visit|admission))?|Assessment|Assessment\s+and\s+Plan|A/P|Plan|Impression|Clinical\s+impression|Clinical\s+assessment|Lab|Labs|Laboratory|Workup|Med|Meds|Medication|Medications|Rx|Treatment|Imaging|Microbiology|Pathology|Procedure|Problem(?:\s+list)?|History|PMH|Encounter|Vitals|Vital\s+signs)\s*:"#,
+        options: [.caseInsensitive]
+    )
+    private static let inlineLabelWindow = 60
+
+    /// Returns true if the inline code at [matchStart, matchEnd) sits within
+    /// `inlineLabelWindow` chars of a clinical-statement label
+    /// (`Dx:`, `Lab:`, `Reason for visit:`, ...). Used as the c20 Bug 7
+    /// gate alongside the curated-code allowlist.
+    static func hasInlineLabelPrefix(in text: String, matchStart: Int) -> Bool {
+        let windowStart = max(0, matchStart - inlineLabelWindow)
+        let range = NSRange(location: windowStart, length: matchStart - windowStart)
+        if range.length <= 0 { return false }
+        return inlineLabelRe.firstMatch(in: text, range: range) != nil
+    }
+
+    // c20 cross-axis bleed fix: when scanning for lookup-tier matches, mask
+    // CDA `<code .../>` attribute spans (and verbatim narrative duplicates
+    // of their displayName) with whitespace so an alt_name like "Zika"
+    // doesn't fire on a LOINC-display attribute that already belongs to a
+    // different-axis explicit code.
+    private static let displayNameAttrInTag = NSRegularExpression.cached(
+        pattern: #"\bdisplayName="([^"]+)""#,
+        options: []
+    )
+
+    /// Returns `text` with the contents of every CDA `<code .../>` tag (and
+    /// any same-string narrative duplicates of its `displayName` attr)
+    /// replaced by length-equal whitespace, so the lookup tier scans only
+    /// freeform narrative. Mirror of `_mask_cda_attributes` in
+    /// apps/mobile/convert/regex_preparser.py.
+    static func maskCdaAttributes(in text: String) -> String {
+        // Build a UTF-16 byte buffer so we can mask in place at NSRange
+        // offsets. Reassemble as a String at the end via the same encoding.
+        var utf16: [UInt16] = Array(text.utf16)
+        let nsText = text as NSString
+        let total = nsText.length
+        let fullRange = NSRange(location: 0, length: total)
+        var maskedDisplays: [String] = []
+        let space: UInt16 = 0x20
+
+        for tag in cdaTag.matches(in: text, range: fullRange) {
+            let r = tag.range
+            let oidRange = tag.range(at: 1)
+            guard oidRange.location != NSNotFound else { continue }
+            let oid = nsText.substring(with: oidRange)
+            guard cdaOidToBucket[oid] != nil else { continue }
+            let tagText = nsText.substring(with: r)
+            // Tag must carry a non-empty `code="..."` attribute for masking
+            // to apply (otherwise lookup needs to fire on the displayName,
+            // cf. `adv5_cda_displayname_no_code_attr`).
+            guard let codeMatch = codeAttr.firstMatch(in: tagText),
+                  let codeStr = codeMatch.group(1),
+                  !codeStr.isEmpty
+            else { continue }
+            if let dispMatch = displayNameAttrInTag.firstMatch(in: tagText),
+               let disp = dispMatch.group(1),
+               disp.count >= 8 {
+                maskedDisplays.append(disp)
+            }
+            // Mask the inside of the tag (keep the angle brackets).
+            let innerStart = r.location + 1
+            let innerEnd = r.location + r.length - 1
+            if innerEnd > innerStart {
+                for i in innerStart..<innerEnd where i < utf16.count {
+                    utf16[i] = space
+                }
+            }
+        }
+
+        // Second pass: blank out same-string duplicates in narrative cells.
+        if !maskedDisplays.isEmpty {
+            let sep = #"(?:[^A-Za-z0-9]|<[^>]{0,16}>){1,32}?"#
+            // Reassemble current state for regex scanning.
+            let tokenRe = try? NSRegularExpression(
+                pattern: #"[A-Za-z0-9][A-Za-z0-9\-]*"#,
+                options: []
+            )
+            for disp in maskedDisplays {
+                guard let tokenRe = tokenRe else { continue }
+                let dispNS = disp as NSString
+                let dispRange = NSRange(location: 0, length: dispNS.length)
+                let tokenMatches = tokenRe.matches(in: disp, range: dispRange)
+                guard tokenMatches.count >= 3 else { continue }
+                let tokens: [String] = tokenMatches.map { tm in
+                    NSRegularExpression.escapedPattern(for: dispNS.substring(with: tm.range))
+                }
+                let pattern = #"\b"# + tokens.joined(separator: sep) + #"\b"#
+                guard let dupRe = try? NSRegularExpression(pattern: pattern, options: []) else {
+                    continue
+                }
+                // Scan against the CURRENT masked buffer state.
+                let current = String(utf16CodeUnits: utf16, count: utf16.count) as String? ?? ""
+                let currentNS = current as NSString
+                let curRange = NSRange(location: 0, length: currentNS.length)
+                for m in dupRe.matches(in: current, range: curRange) {
+                    let mr = m.range
+                    let from = mr.location
+                    let to = mr.location + mr.length
+                    for i in from..<min(to, utf16.count) {
+                        utf16[i] = space
+                    }
+                }
+            }
+        }
+        return String(utf16CodeUnits: utf16, count: utf16.count) as String? ?? text
+    }
+
+    /// True when a short uppercase acronym alias (≤4 chars) is being used
+    /// as a section/data label rather than a clinical assertion. Example:
+    /// `CBC: WBC 4.2 (low)` — `CBC` introduces lab values, not a clinical
+    /// assertion. Mirror of `_is_label_header_use` in
+    /// apps/mobile/convert/regex_preparser.py.
+    static func isLabelHeaderUse(alias: String, in text: String, matchEnd: Int) -> Bool {
+        if alias.count > 4 || alias != alias.uppercased() { return false }
+        let utf16NS = text as NSString
+        let lookahead = min(4, utf16NS.length - matchEnd)
+        if lookahead <= 0 { return false }
+        let tail = utf16NS.substring(with: NSRange(location: matchEnd, length: lookahead))
+        // Allow up to 2 chars of whitespace then `:`.
+        guard let re = try? NSRegularExpression(pattern: #"^\s{0,2}:"#, options: []) else {
+            return tail.first == ":"
+        }
+        return re.firstMatch(in: tail, range: NSRange(location: 0, length: tail.utf16.count)) != nil
+    }
+
     // MARK: - Tier 2 — CDA XML attribute pairs
     //
     // CDA <code code="..." codeSystem="..."/> attribute order is unspecified;
@@ -142,6 +274,41 @@ enum EicrPreparser {
     )
     private static let postHocWindowAfter = 80
 
+    // c20 final pass: vaccine-context negation. "No varicella series" /
+    // "never received MMR booster" — disease/agent name is named only as
+    // a vaccine target, NOT as an active diagnosis. Mirror of
+    // `_VAX_PRE_TRIGGERS` and `_VAX_POST_NOUNS` in
+    // apps/mobile/convert/regex_preparser.py.
+    private static let vaxPreTriggers = NSRegularExpression.cached(
+        pattern: #"\b(?:no(?:t)?(?:\s+up\s+to\s+date(?:\s+on)?)?|never(?:\s+received|\s+had|\s+got)?|did\s+not\s+(?:receive|have|get)|missed|declined|refused|skipped)\b"#,
+        options: [.caseInsensitive]
+    )
+    private static let vaxPostNouns = NSRegularExpression.cached(
+        pattern: #"^\W{0,3}\S{0,30}?\s*\b(?:series|booster|vaccine|vaccination|immuniz\w*|shot|dose|MMR\b)"#,
+        options: [.caseInsensitive]
+    )
+
+    /// True when the alias is named in a "No <X> series/booster/vaccine"
+    /// context. Pre-window (12 chars): one of `no`/`never`/`missed`/etc.
+    /// Post-window (40 chars from match_end): a vaccine-context noun
+    /// (series/booster/vaccine/vaccination/immunization/shot/dose). Both
+    /// must be present — either alone is too loose.
+    static func isVaccineContextNegation(in text: String,
+                                         matchStart: Int,
+                                         matchEnd: Int) -> Bool {
+        let utf16Count = text.utf16.count
+        let preStart = max(0, matchStart - 12)
+        let preRange = NSRange(location: preStart, length: matchStart - preStart)
+        if preRange.length <= 0 { return false }
+        if vaxPreTriggers.firstMatch(in: text, range: preRange) == nil {
+            return false
+        }
+        let postEnd = min(utf16Count, matchEnd + 40)
+        let postRange = NSRange(location: matchEnd, length: postEnd - matchEnd)
+        if postRange.length <= 0 { return false }
+        return vaxPostNouns.firstMatch(in: text, range: postRange) != nil
+    }
+
     /// True if the alias span at [matchStart, matchEnd) sits in negation scope.
     static func isNegated(in text: String, matchStart: Int, matchEnd: Int) -> Bool {
         let utf16 = text.utf16
@@ -189,6 +356,17 @@ enum EicrPreparser {
             return true
         }
 
+        // c20 final pass: vaccine-context negation
+        // ("No varicella series", "never received MMR vaccine"). Long
+        // admission notes enumerate immunization history in this form;
+        // without this rule they leak vaccine-target diseases as if
+        // actively diagnosed. Mirror of `_is_vaccine_context_negation`.
+        if isVaccineContextNegation(in: text,
+                                    matchStart: matchStart,
+                                    matchEnd: matchEnd) {
+            return true
+        }
+
         return false
     }
 
@@ -222,10 +400,28 @@ enum EicrPreparser {
         var seen = SeenCodes()
         var prov: [CodeProvenance] = []
 
-        // Tier 1 — inline parenthesized labels
+        // Tier 1 — inline parenthesized labels.
+        //
+        // c20 Bug 7 gate: emit ONLY when (a) the code is curated in
+        // `LookupTable` (we already know about it) OR (b) a clinical
+        // statement label appears within `inlineLabelWindow` chars before
+        // the match. Adversarial bait substrings like "(SNOMED 99999999)"
+        // inside quoted internet-rumor prose carry no preceding label, so
+        // they fall through. Mirror of `_extract_inline` in
+        // apps/mobile/convert/regex_preparser.py.
         for hit in inlineSnomed.allMatches(in: text) {
             guard let code = hit.group(2) else { continue }
             let display = hit.group(1)?.trimmingChars() ?? code
+            // Locate the SNOMED token's position so we can window-check
+            // for a clinical-statement label preceding it.
+            // Window-check anchored at the END of the match (just past the
+            // closing paren). The fullMatch already swallows any preceding
+            // label so we look further back to be sure of catching the
+            // label even when the match span starts at the label itself.
+            let codeEnd = hit.result.range.location + hit.result.range.length
+            let curated = LookupTable.snomed.contains { $0.code == code }
+            let hasLabel = hasInlineLabelPrefix(in: text, matchStart: codeEnd)
+            if !curated && !hasLabel { continue }
             if seen.addCondition(code: code, system: "SNOMED", display: display, into: &out) {
                 let r = hit.result.range
                 prov.append(CodeProvenance(
@@ -241,6 +437,10 @@ enum EicrPreparser {
         for hit in inlineLoinc.allMatches(in: text) {
             guard let code = hit.group(2) else { continue }
             let display = hit.group(1)?.trimmingChars() ?? code
+            let codeEnd = hit.result.range.location + hit.result.range.length
+            let curated = LookupTable.loincs.contains { $0.code == code }
+            let hasLabel = hasInlineLabelPrefix(in: text, matchStart: codeEnd)
+            if !curated && !hasLabel { continue }
             if seen.addLab(code: code, system: "LOINC", display: display, into: &out) {
                 let r = hit.result.range
                 prov.append(CodeProvenance(
@@ -256,6 +456,10 @@ enum EicrPreparser {
         for hit in inlineRxNorm.allMatches(in: text) {
             guard let code = hit.group(2) else { continue }
             let display = hit.group(1)?.trimmingChars() ?? code
+            let codeEnd = hit.result.range.location + hit.result.range.length
+            let curated = LookupTable.rxnorms.contains { $0.code == code }
+            let hasLabel = hasInlineLabelPrefix(in: text, matchStart: codeEnd)
+            if !curated && !hasLabel { continue }
             if seen.addMedication(code: code, system: "RxNorm", display: display, into: &out) {
                 let r = hit.result.range
                 prov.append(CodeProvenance(
@@ -303,11 +507,20 @@ enum EicrPreparser {
             }
         }
 
-        // Tier 3 — displayName lookup (with NegEx suppression)
+        // Tier 3 — displayName lookup (with NegEx suppression).
+        //
+        // c20 cross-axis bleed fix: scan a masked copy of the narrative
+        // where CDA `<code .../>` attribute spans (and any verbatim
+        // duplicates of their `displayName`) are replaced with whitespace.
+        // This prevents "Zika" alt_name from firing on a LOINC's
+        // `displayName="Zika virus envelope..."` already accounted for by
+        // the CDA tier. Spans returned point into the original `text` for
+        // provenance fidelity.
+        let scanText = maskCdaAttributes(in: text)
         for entry in LookupTable.snomed {
-            if let alias = entry.firstAssertedAlias(in: text) {
+            if let alias = entry.firstAssertedAlias(in: scanText) {
                 if seen.addCondition(code: entry.code, system: "SNOMED", display: alias, into: &out) {
-                    let span = entry.firstAssertedSpan(in: text)
+                    let span = entry.firstAssertedSpan(in: scanText)
                     prov.append(CodeProvenance(
                         code: entry.code, display: alias, system: "SNOMED",
                         bucket: "snomed", tier: .lookup,
@@ -321,9 +534,9 @@ enum EicrPreparser {
             }
         }
         for entry in LookupTable.loincs {
-            if let alias = entry.firstAssertedAlias(in: text) {
+            if let alias = entry.firstAssertedAlias(in: scanText) {
                 if seen.addLab(code: entry.code, system: "LOINC", display: alias, into: &out) {
-                    let span = entry.firstAssertedSpan(in: text)
+                    let span = entry.firstAssertedSpan(in: scanText)
                     prov.append(CodeProvenance(
                         code: entry.code, display: alias, system: "LOINC",
                         bucket: "loinc", tier: .lookup,
@@ -337,9 +550,9 @@ enum EicrPreparser {
             }
         }
         for entry in LookupTable.rxnorms {
-            if let alias = entry.firstAssertedAlias(in: text) {
+            if let alias = entry.firstAssertedAlias(in: scanText) {
                 if seen.addMedication(code: entry.code, system: "RxNorm", display: alias, into: &out) {
-                    let span = entry.firstAssertedSpan(in: text)
+                    let span = entry.firstAssertedSpan(in: scanText)
                     prov.append(CodeProvenance(
                         code: entry.code, display: alias, system: "RxNorm",
                         bucket: "rxnorm", tier: .lookup,

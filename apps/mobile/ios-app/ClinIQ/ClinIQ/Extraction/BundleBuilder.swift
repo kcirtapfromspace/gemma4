@@ -163,6 +163,33 @@ enum BundleBuilder {
         return ["resource": resource]
     }
 
+    /// Vital-sign LOINC codes that auto-bind to the FHIR R4 base
+    /// `vitalsigns` profile. The HL7 reference validator rejects any
+    /// Observation with one of these codes if `Observation.category`
+    /// doesn't include the `vital-signs` slice. Mirror of
+    /// `_VITAL_SIGN_LOINCS` in apps/mobile/convert/fhir_bundle.py.
+    private static let vitalSignLoincs: Set<String> = [
+        "8480-6",   // Systolic blood pressure
+        "8462-4",   // Diastolic blood pressure
+        "8867-4",   // Heart rate
+        "8310-5",   // Body temperature
+        "9279-1",   // Respiratory rate
+        "8302-2",   // Body height
+        "29463-7",  // Body weight
+        "39156-5",  // BMI
+        "59408-5",  // SpO2
+        "85354-9",  // Blood pressure panel
+        "85353-3",  // Vital signs panel
+    ]
+
+    private static let vitalSignsCategory: [String: Any] = [
+        "coding": [[
+            "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+            "code": "vital-signs",
+            "display": "Vital Signs",
+        ]],
+    ]
+
     private static func observationEntry(
         code: String,
         display: String?,
@@ -175,6 +202,13 @@ enum BundleBuilder {
             "code": ["coding": [coding(system: "LOINC", code: code, display: display)]],
             "subject": ["reference": "Patient/\(patientRef)"],
         ]
+        // c20 final pass: stamp `category=[vital-signs]` for vital-sign
+        // LOINCs so the FHIR R4 base profile auto-binding passes the
+        // canonical HL7 validator. Mirror of `_observation_entry` in
+        // apps/mobile/convert/fhir_bundle.py.
+        if vitalSignLoincs.contains(code) {
+            resource["category"] = [vitalSignsCategory]
+        }
         if let url = sourceURL {
             resource["meta"] = ["source": url]
         }

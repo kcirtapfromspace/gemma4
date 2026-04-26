@@ -97,6 +97,58 @@ class CodeMatch:
 
 _DISPLAY_NAME_ATTR_RE = re.compile(r'\bdisplayName="([^"]+)"')
 
+# c20 Bug 7: clinical-statement label prefixes that legitimize an inline
+# `(SNOMED 12345)` / `(LOINC ...)` / `(RxNorm ...)` annotation. When NONE of
+# these labels appears within `_INLINE_LABEL_WINDOW` chars before the inline
+# code AND the code is not in the curated lookup table, the inline tier
+# refuses to emit. This blocks adversarial bait substrings like
+# "patient read on the internet that 'condition (SNOMED 99999999) has 90% mortality'"
+# from leaking into the extraction.
+#
+# Every legitimate combined-27/adv1-5 case uses one of these prefixes —
+# `Dx: Syphilis (SNOMED 76272004)`, `Lab: ... (LOINC ...)`, `Meds: ... (RxNorm ...)` —
+# so the gate keeps recall at 1.000 on those benches.
+_INLINE_LABEL_RE = re.compile(
+    r"\b(?:"
+    r"Dx|Diagnosis|Diagnoses|Final|Final\s+admission\s+diagnosis"
+    r"|Reason(?:\s+for\s+(?:visit|ED\s+visit|admission))?"
+    r"|Assessment|Assessment\s+and\s+Plan|A/P|Plan|Impression"
+    r"|Clinical\s+impression|Clinical\s+assessment"
+    r"|Lab|Labs|Laboratory|Workup"
+    r"|Med|Meds|Medication|Medications|Rx|Treatment"
+    r"|Imaging|Microbiology|Pathology|Procedure"
+    r"|Problem(?:\s+list)?|History|PMH"
+    r"|Encounter|Vitals|Vital\s+signs"
+    r")\s*:",
+    re.IGNORECASE,
+)
+# Look at the 60 chars immediately preceding the inline code. Most labeled
+# clinical lines have the colon within ~30 chars of the value, but we widen
+# slightly to accommodate `Final admission diagnosis: Measles (SNOMED ...)`
+# style headers without losing precision. The window is anchored to the
+# match start (NOT to start-of-line) so multi-clause lines like
+# "Workup: TB ruled out. Dx: Sarcoidosis (SNOMED ...)" still pass — the
+# closest preceding label "Dx:" is what counts.
+_INLINE_LABEL_WINDOW = 60
+
+
+def _is_curated_code(code: str, bucket: str) -> bool:
+    """True if `code` exists in lookup_table.json under the given bucket.
+
+    Used by `_extract_inline` to allow well-known curated codes through
+    even when they're not preceded by a clinical-statement label. This
+    keeps the inline tier honest on legitimate prose that names a known
+    code without the `Dx:` / `Lab:` framing.
+    """
+    table = _load_lookup()
+    cat = {"snomed": "snomed", "loinc": "loincs", "rxnorm": "rxnorms"}.get(bucket)
+    if cat is None:
+        return False
+    for entry_code, _patterns in table.get(cat, []):
+        if entry_code == code:
+            return True
+    return False
+
 
 def _extract_inline(text: str) -> list[CodeMatch]:
     out: list[CodeMatch] = []
@@ -118,6 +170,21 @@ def _extract_inline(text: str) -> list[CodeMatch]:
                 preceding = preceding[label_iter[-1].end():]
             preceding = preceding.strip(" \t,;-(")
             display = preceding or code
+
+            # c20 Bug 7 gate: emit ONLY when (a) the code is curated in
+            # `lookup_table.json` (we already know about it) OR (b) a
+            # clinical-statement label appears within
+            # `_INLINE_LABEL_WINDOW` chars before the match. Adversarial
+            # bait substrings like "(SNOMED 99999999)" inside quoted
+            # internet-rumor prose carry no preceding label, so they fall
+            # through. CDA `<code code="..." codeSystem="..."/>` matches are
+            # handled by `_extract_cda_matches` and unaffected.
+            window_start = max(0, m.start() - _INLINE_LABEL_WINDOW)
+            window = text[window_start:m.start()]
+            has_label = _INLINE_LABEL_RE.search(window) is not None
+            if not has_label and not _is_curated_code(code, bucket):
+                continue
+
             out.append(CodeMatch(
                 code=code,
                 display=display,
@@ -245,6 +312,47 @@ _POSTHOC_NEG_TRIGGERS = re.compile(
 _POSTHOC_WINDOW_AFTER = 80
 _POSTHOC_TERMINATORS = re.compile(r"(?:\.\s|;|\n|,)", re.IGNORECASE)
 
+# c20 final pass: vaccine-context negation. "No varicella series" / "no MMR
+# booster" / "never received Tdap vaccine" — the disease/agent name is named
+# only as a vaccine target, NOT as an active diagnosis. Combines a tight
+# pre-window check (`No`/`never received`/`no record of` before the alias)
+# with a post-window check that the immediate next 1-2 words include
+# `series`/`booster`/`vaccine`/`vaccination`/`immunization`/`shot`. The
+# combined-context requirement keeps the rule safe — bare "No varicella"
+# without a vaccine-context noun still fires (an active rule-out would say
+# "No evidence of varicella" / "varicella ruled out").
+_VAX_PRE_TRIGGERS = re.compile(
+    r"\b(?:"
+    r"no(?:t)?(?:\s+up\s+to\s+date(?:\s+on)?)?"
+    r"|never(?:\s+received|\s+had|\s+got)?"
+    r"|did\s+not\s+(?:receive|have|get)"
+    r"|missed"
+    r"|declined"
+    r"|refused"
+    r"|skipped"
+    r")\b",
+    re.IGNORECASE,
+)
+_VAX_POST_NOUNS = re.compile(
+    r"^\W{0,3}\S{0,30}?\s*\b(?:series|booster|vaccine|vaccination|immuniz\w*|shot|dose|MMR\b)",
+    re.IGNORECASE,
+)
+
+
+def _is_vaccine_context_negation(text: str, match_start: int, match_end: int) -> bool:
+    """True when the alias is named in a 'No <X> series/booster/vaccine' context.
+
+    Pre-window (10 chars): one of `no`/`never`/`missed`/`declined`/etc.
+    Post-window (40 chars from match_end): a vaccine-context noun
+    (series/booster/vaccine/vaccination/immunization/shot/dose).
+    Both must be present — either alone is too loose to suppress an alias.
+    """
+    pre = text[max(0, match_start - 12):match_start]
+    if not _VAX_PRE_TRIGGERS.search(pre):
+        return False
+    post = text[match_end:match_end + 40]
+    return _VAX_POST_NOUNS.match(post) is not None
+
 
 def _is_negated(text: str, match_start: int, match_end: int) -> bool:
     """True if the alias span at [match_start, match_end) sits in negation scope.
@@ -281,6 +389,15 @@ def _is_negated(text: str, match_start: int, match_end: int) -> bool:
     if _POSTHOC_NEG_TRIGGERS.search(posthoc_span):
         return True
 
+    # c20 final pass: vaccine-context negation
+    # ("No varicella series", "never received MMR vaccine"). Suppresses the
+    # alias when both a denial trigger precedes it AND a vaccine-context
+    # noun follows. Long admission notes enumerate immunization history in
+    # this form; without this rule they leak vaccine-target diseases as if
+    # actively diagnosed (`adv6_long_form_admission_note`'s varicella).
+    if _is_vaccine_context_negation(text, match_start, match_end):
+        return True
+
     return False
 
 
@@ -313,6 +430,110 @@ def _load_lookup(path: Path = _DEFAULT_LOOKUP_PATH) -> dict[str, list[tuple[str,
     return out
 
 
+def _mask_cda_attributes(text: str) -> str:
+    """Replace CDA `<...code="..." codeSystem="..." displayName="..."/>` tags
+    AND any same-string narrative duplicates with whitespace so the lookup
+    tier doesn't cross-axis match on text already represented by an
+    explicit-tier CDA code.
+
+    Cross-axis bleed example (HL7 eICR pertussis sample):
+      `<observation><code code="80825-3" codeSystem="<LOINC>" displayName="Zika virus envelope (E) gene [Presence] in Serum"/>`
+      ...later in the same CDA's <text><table> cells...
+      `<td>Zika virus envelope (E) gene [Presence] in Serum...</td>`
+    Without masking, the lookup tier scans the whole CDA XML and matches
+    the curated `Zika` alt_name inside both the structured `displayName`
+    attribute AND the rendered `<td>` cell that duplicates it, emitting
+    SNOMED 3928002 (Zika virus disease) — a false positive that has
+    nothing to do with the actual lab being reported.
+
+    Only masks `<code ...>` tags whose `code="..."` attribute is NON-empty
+    (i.e. the CDA tier extracts something concrete from the tag). Tags
+    without a non-empty `code` attribute, or non-`<code>` elements, fall
+    through so freeform narrative inside the CDA continues to be scanned
+    (cf. `adv5_cda_displayname_no_code_attr` where lookup needs to fire on
+    `displayName="Whooping cough"` because `code=""`).
+
+    Replacement uses spaces of the same length to preserve byte/character
+    offsets for downstream provenance tracking.
+    """
+    out_chars = list(text)
+    masked_displays: list[str] = []
+    for tag in _CDA_TAG_RE.finditer(text):
+        tag_text = tag.group(0)
+        oid = tag.group(1)
+        if oid not in _CDA_OID_TO_BUCKET:
+            continue
+        code_match = _CODE_ATTR_RE.search(tag_text)
+        if not code_match or not code_match.group(1):
+            # Empty / missing code attribute — keep visible so lookup can fire
+            # on the displayName (e.g. adv5_cda_displayname_no_code_attr).
+            continue
+        # Capture the displayName (if present) before masking the tag — we'll
+        # also mask any duplicate occurrences of this string in CDA narrative
+        # cells (`<td>Zika virus envelope...</td>` etc.) below.
+        disp = _DISPLAY_NAME_ATTR_RE.search(tag_text)
+        if disp and len(disp.group(1)) >= 8:
+            # 8-char floor avoids masking generic tokens like "Final" /
+            # "Active" that appear in many displayName attributes.
+            masked_displays.append(disp.group(1))
+        # Mask everything *inside the angle brackets* but keep the brackets
+        # themselves so any further regex anchored on `<` boundaries still
+        # works. We replace the inner span with spaces to preserve length.
+        s, e = tag.start() + 1, tag.end() - 1
+        for i in range(s, e):
+            out_chars[i] = " "
+
+    # Second pass: blank out same-string duplicates in narrative cells. CDA
+    # `<text><table>` blocks are rendered duplicates of the structured
+    # entries; if a displayName already belongs to an extracted CDA code,
+    # any verbatim copy of that displayName is also accounted for and must
+    # not seed an alt_name match elsewhere. We tolerate whitespace / inline
+    # tag variation (e.g. `Zika virus envelope ... in Serum<br />by Probe...`
+    # vs. the attribute form `Zika virus envelope ... in Serum by Probe...`)
+    # by matching the displayName as a sequence of tokens separated by
+    # arbitrary non-alpha-numeric whitespace/tag content.
+    if masked_displays:
+        masked_str = "".join(out_chars)
+        # Separator pattern: any non-letter/non-digit run, optionally including
+        # short inline tags like `<br />`, `<br/>`, `</span>`. Cap span at 32
+        # chars per gap so we don't sprawl across unrelated table cells.
+        sep = r"(?:[^A-Za-z0-9]|<[^>]{0,16}>){1,32}?"
+        for disp in masked_displays:
+            tokens = re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]*", disp)
+            if len(tokens) < 3:
+                # Single/two-word displays risk over-masking shared prose.
+                continue
+            pattern = r"\b" + sep.join(re.escape(t) for t in tokens) + r"\b"
+            try:
+                for m in re.finditer(pattern, masked_str):
+                    for i in range(m.start(), m.end()):
+                        out_chars[i] = " "
+            except re.error:
+                continue
+            masked_str = "".join(out_chars)
+    return "".join(out_chars)
+
+
+def _is_label_header_use(alias: str, text: str, match_end: int) -> bool:
+    """True when a short uppercase acronym alias (≤4 chars) is being used
+    as a section/data label rather than a clinical assertion.
+
+    Example: `CBC: WBC 4.2 (low)` — `CBC` is a label introducing lab values,
+    NOT a clinical assertion that the patient *has* a complete blood count
+    diagnosis. Test cases authored without explicit `(LOINC 57021-8)`
+    annotation expect the routine-lab CBC to NOT extract as a reportable
+    LOINC. Same pattern for `CMP:`, `CRP:`, etc.
+
+    Conservative scope: only triggers for ≤4-char uppercase alias followed
+    immediately by `:` (allowing optional whitespace between). Long display
+    names like "Complete blood count" don't go through this path.
+    """
+    if len(alias) > 4 or not alias.isupper():
+        return False
+    # Allow up to 2 chars of whitespace between alias and colon
+    return bool(re.match(r"\s{0,2}:", text[match_end:match_end + 4]))
+
+
 def _extract_lookup_matches(text: str, *, detect_negation: bool = True) -> list[CodeMatch]:
     """Match known displayNames in text, return per-match provenance records.
 
@@ -322,12 +543,25 @@ def _extract_lookup_matches(text: str, *, detect_negation: bool = True) -> list[
     table = _load_lookup()
     cat_to_bucket = {"snomed": "snomed", "loincs": "loinc", "rxnorms": "rxnorm"}
     out: list[CodeMatch] = []
+    # c20 cross-axis bleed fix: mask CDA `<code .../>` attribute values so
+    # the lookup tier never matches an alt_name (e.g. `Zika`) inside a
+    # `displayName="..."` attribute that already belongs to a different-axis
+    # explicit code (e.g. a LOINC for `Zika virus envelope...`). Offsets
+    # preserved via length-equal whitespace replacement.
+    scan_text = _mask_cda_attributes(text)
     for cat, bucket in cat_to_bucket.items():
         for code, patterns in table.get(cat, []):
             picked: tuple[str, re.Match[str]] | None = None
             for alias, p in patterns:
-                for m in p.finditer(text):
-                    if detect_negation and _is_negated(text, m.start(), m.end()):
+                for m in p.finditer(scan_text):
+                    if detect_negation and _is_negated(scan_text, m.start(), m.end()):
+                        continue
+                    # c20 final pass: skip short acronym aliases used as
+                    # data-label headers (`CBC:`, `CMP:`). Lookup tier
+                    # treats them as label markers; if the case actually
+                    # wants the lab coded, the inline tier handles
+                    # `Lab: Complete blood count (LOINC 57021-8)`.
+                    if _is_label_header_use(alias, scan_text, m.end()):
                         continue
                     picked = (alias, m)
                     break
@@ -343,6 +577,8 @@ def _extract_lookup_matches(text: str, *, detect_negation: bool = True) -> list[
                 bucket=bucket,
                 tier="lookup",
                 confidence=_TIER_CONFIDENCE["lookup"],
+                # Source span quoted from the ORIGINAL text so any CDA-attr
+                # masking is invisible to provenance consumers.
                 source_text=text[m.start():m.end()],
                 source_offset=m.start(),
                 source_length=m.end() - m.start(),

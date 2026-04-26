@@ -64,20 +64,30 @@ struct LookupEntry {
         for (i, p) in patterns.enumerated() {
             for m in p.matches(in: text, range: fullRange) {
                 let r = m.range
-                if !EicrPreparser.isNegated(in: text,
-                                            matchStart: r.location,
-                                            matchEnd: r.location + r.length) {
-                    let nsText = text as NSString
-                    let span = (r.location + r.length <= nsText.length)
-                        ? nsText.substring(with: r)
-                        : aliases[i]
-                    return AssertedSpan(
-                        alias: aliases[i],
-                        text: span,
-                        location: r.location,
-                        length: r.length
-                    )
+                if EicrPreparser.isNegated(in: text,
+                                           matchStart: r.location,
+                                           matchEnd: r.location + r.length) {
+                    continue
                 }
+                // c20 final pass: skip short uppercase acronym aliases
+                // when they're used as data-label headers (`CBC:`, `CMP:`).
+                // Mirror of `_is_label_header_use` in
+                // apps/mobile/convert/regex_preparser.py.
+                if EicrPreparser.isLabelHeaderUse(alias: aliases[i],
+                                                  in: text,
+                                                  matchEnd: r.location + r.length) {
+                    continue
+                }
+                let nsText = text as NSString
+                let span = (r.location + r.length <= nsText.length)
+                    ? nsText.substring(with: r)
+                    : aliases[i]
+                return AssertedSpan(
+                    alias: aliases[i],
+                    text: span,
+                    location: r.location,
+                    length: r.length
+                )
             }
         }
         return nil

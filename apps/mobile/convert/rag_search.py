@@ -54,6 +54,27 @@ def _short_alt_word_bounded(alt_lower: str, q_lower: str) -> bool:
     """
     pattern = re.compile(r"\b" + re.escape(alt_lower) + r"\b")
     return pattern.search(q_lower) is not None
+
+
+def _short_alt_uppercase_word(alt: str, q_original: str) -> bool:
+    """Case-SENSITIVE word-bounded search for short uppercase acronym alt_names.
+
+    Curated alt_names like "CRE", "RSV", "MRSA", "MERS", "WNV" are uppercase
+    acronyms by convention. Lowercase tokens that happen to spell the same
+    letters ("cre" as a stem inside English prose, "rsv" inside RSVP) MUST
+    NOT match — they're never the intended clinical concept.
+
+    `alt` is the curated alt_name string (uppercase if it's an acronym) and
+    `q_original` is the un-lowercased narrative. We require an exact-case
+    match for the alt as a word boundary in the original narrative so:
+      - "CRE" matches in "discharge culture grew CRE"
+      - "cre" does NOT match in "credit card" / "credentials" / "increasing"
+      - "Cre" does NOT match in "Credentials of Provider" headers
+    """
+    if not alt.isupper():
+        return False
+    pattern = re.compile(r"\b" + re.escape(alt) + r"\b")
+    return pattern.search(q_original) is not None
 _DEFAULT_DB_PATH = Path(__file__).parent / "reportable_conditions.json"
 _DB_CACHE: list[dict] | None = None
 
@@ -125,10 +146,21 @@ def search(query: str, *, top_k: int = 3, min_score: float = 0.2) -> list[RagHit
                     phrase_bonus = max(phrase_bonus, 1.0)
                     matched_phrase = matched_phrase or candidate
             else:
-                # `alt_names[cand_idx-1]` — short acronyms (≤4 chars) get
-                # a word-bounded match to avoid "CRE" hitting "Sacred".
+                # `alt_names[cand_idx-1]` — short tokens (≤4 chars) get
+                # extra-tight matching to avoid "CRE" hitting "Sacred"
+                # / "presented" or "DM" hitting "Madam". Acronyms by
+                # convention are uppercase in our curated DB (CRE, RSV,
+                # MRSA, MERS, WNV, etc.) — for those we require
+                # case-sensitive word-bounded matches so lowercase token
+                # matches don't slip through. Lowercase short alt_names
+                # (e.g. "lues" for syphilis) keep the prior word-bounded
+                # case-insensitive behaviour.
                 if len(cand_norm) <= _SHORT_ALT_MAX_LEN:
-                    if _short_alt_word_bounded(cand_norm, q_lower):
+                    if candidate.isupper():
+                        matched = _short_alt_uppercase_word(candidate, query)
+                    else:
+                        matched = _short_alt_word_bounded(cand_norm, q_lower)
+                    if matched:
                         phrase_bonus = max(phrase_bonus, 1.0)
                         matched_phrase = matched_phrase or candidate
                 else:
