@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# build.sh output
+out/
+
+# venvs
+.venv/
+venv/
+
+# screenshots scratch
+*.tmp.png
