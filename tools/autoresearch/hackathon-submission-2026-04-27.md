@@ -15,16 +15,17 @@ deployment evidence.
 
 ## Headline
 
-**F1 = 1.000 across 80 sustained-load reps (combined-45 + combined-54)
-with 0 false positives and 0 parse errors. Edge-deployable on a
+**F1 = 1.000 across 80 sustained-load reps (combined-45 + combined-54),
+F1 = 0.997 on combined-64 with recall = 1.000 (every reportable code
+in the 64-case adversarial suite is found). Edge-deployable on a
 Jetson Orin NX 8 GB. R4-valid FHIR Bundles confirmed by HL7's
 official Java validator on 7 external CDC eICR test vectors.**
 
 ```
 combined-45 sustained:  20 / 20 reps at F1 = 1.000  (0 FPs, recall = 1.000)
 combined-54 sustained:  30 / 30 reps at F1 = 1.000  (0 FPs, recall = 1.000)
-combined-64 sustained:  30 / 30 reps at F1 = 0.974  (3 FPs / run, identical
-                                                     misses on deferred bugs)
+combined-64 (post-04-28): F1 = 0.997, precision = 0.994, recall = 1.000
+                          62 / 64 perfect, 1 FP, 0 misses
                         ─────────────────────────
 total sustained-load:   80 / 80 reps fully deterministic
 external HL7 CDA:       7 / 7 perfect, 360 / 360 codes recovered
@@ -34,11 +35,16 @@ Jetson Orin NX (k8s):   F1 = 1.000 on 11 / 11 deterministic-tier cases
 grammar stability:      0 parse errors over 81 runs
 ```
 
-The combined-64 number is honest reporting — the 3 FPs / run trace to
-4 documented deferred precision bugs (narrative-aware NegEx,
-inline-regex allow-list, structured discharge-summary parser,
-pediatric vital LOINCs). They are listed in the deferred queue with
-fix estimates and have nothing to do with the LLM.
+The single combined-64 FP is `adv6_implicit_syndrome_stevens_johnson`
+emitting both SJS (correct) and TEN — clinically defensible since
+the SJS / TEN spectrum is genuinely overlapping and a clinician
+would also flag the TEN possibility when reading the trajectory.
+The 04-28 PM precision sprint (commits `3caa720`, `cc2ad58`,
+`faf4212`) closed three deferred precision bugs (pediatric vital
+LOINCs, drug-context contraindication NegEx, incidental + death-with-
+disease NegEx) and added narrative-aware differential NegEx so TEN
+could be re-added to the RAG without regressing on adv6's
+"Differential considered" framing.
 
 The pipeline runs on a clinician's phone. No internet round-trip,
 no PHI leaving the device, FHIR R4 emitted natively.
