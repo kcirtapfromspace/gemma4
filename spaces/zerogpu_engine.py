@@ -28,29 +28,60 @@ import time
 import uuid
 from typing import Any
 
-import spaces  # noqa: F401  — HF Spaces ZeroGPU SDK; safe import on non-ZeroGPU
+import spaces  # HF Spaces ZeroGPU SDK; @spaces.GPU is a no-op outside ZeroGPU
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 MODEL_ID = os.environ.get("CLINIQ_GEMMA_MODEL_ID", "unsloth/gemma-4-E2B-it")
 
-# ZeroGPU pattern: load on `cuda` at module level. PyTorch CUDA emulation
-# outside @spaces.GPU functions makes this work without a real GPU
-# allocated. Inside the decorator, real CUDA takes over.
-print(f"[zerogpu_engine] loading {MODEL_ID} ...", flush=True)
-_t0 = time.time()
-_tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
-_model = AutoModelForCausalLM.from_pretrained(
-    MODEL_ID,
-    torch_dtype=torch.bfloat16,
-    device_map="cuda",
-)
-print(
-    f"[zerogpu_engine] loaded {MODEL_ID} in {time.time() - _t0:.1f}s "
-    f"({sum(p.numel() for p in _model.parameters()) / 1e9:.2f} B params, "
-    f"bf16, device={_model.device})",
-    flush=True,
-)
+# Hardware detection. SPACES_ZERO_GPU=true is set inside ZeroGPU runtimes;
+# torch.cuda.is_available() is True on standard GPU hardware. Outside both,
+# we fall back to CPU so the Space at least boots — the agent path will be
+# slow (~minutes per case) but the deterministic + fast-path tiers stay
+# instant, and judges still see the model fire eventually.
+_IS_ZEROGPU = os.environ.get("SPACES_ZERO_GPU", "").lower() == "true"
+_HAS_CUDA = torch.cuda.is_available()
+if _IS_ZEROGPU or _HAS_CUDA:
+    _DEVICE = "cuda"
+    _DTYPE = torch.bfloat16
+    _BACKEND = "ZeroGPU H200" if _IS_ZEROGPU else "CUDA GPU"
+else:
+    _DEVICE = "cpu"
+    _DTYPE = torch.float32
+    _BACKEND = "CPU (slow — switch the Space hardware to ZeroGPU for usable latency)"
+
+print(f"[zerogpu_engine] loading {MODEL_ID} on {_DEVICE} ({_BACKEND}) ...", flush=True)
+_LOAD_ERROR: str | None = None
+_tokenizer = None  # type: ignore[assignment]
+_model = None  # type: ignore[assignment]
+try:
+    _t0 = time.time()
+    _tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+    _model = AutoModelForCausalLM.from_pretrained(
+        MODEL_ID,
+        torch_dtype=_DTYPE,
+        device_map=_DEVICE,
+    )
+    _N_PARAMS_B = sum(p.numel() for p in _model.parameters()) / 1e9
+    print(
+        f"[zerogpu_engine] loaded {MODEL_ID} in {time.time() - _t0:.1f}s "
+        f"({_N_PARAMS_B:.2f} B params, {_DTYPE}, device={_model.device})",
+        flush=True,
+    )
+except Exception as exc:  # noqa: BLE001 — surface to the UI, don't crash boot
+    _LOAD_ERROR = f"{type(exc).__name__}: {exc}"[:400]
+    _N_PARAMS_B = 0.0
+    print(f"[zerogpu_engine] ERROR loading {MODEL_ID}: {_LOAD_ERROR}", flush=True)
+
+
+def _ensure_loaded() -> None:
+    if _LOAD_ERROR is not None or _model is None:
+        raise RuntimeError(
+            f"Gemma 4 model unavailable on this Space: "
+            f"{_LOAD_ERROR or 'model not loaded'}. "
+            "Check the Space's Hardware setting (ZeroGPU recommended) and "
+            "the build log for the model-download trace."
+        )
 
 
 # -----------------------------------------------------------------------------
@@ -156,6 +187,7 @@ def chat_completion(
     `timings.predicted_per_second` so downstream bench harnesses keep their
     tok/s columns populated.
     """
+    _ensure_loaded()
     prompt_ids = _tokenizer.apply_chat_template(
         messages,
         tools=tools,
@@ -224,8 +256,9 @@ def chat_http_shim(endpoint: str, payload: dict, timeout: float = 900.0) -> dict
 
 def model_banner() -> str:
     """Short status string for the UI."""
-    n_params = sum(p.numel() for p in _model.parameters()) / 1e9
+    if _LOAD_ERROR is not None:
+        return f"⚠️ Gemma 4 unavailable — {_LOAD_ERROR}"
     return (
-        f"Gemma 4 ({MODEL_ID.split('/')[-1]}, {n_params:.1f} B params, bf16) "
-        f"running in-process on ZeroGPU H200"
+        f"Gemma 4 ({MODEL_ID.split('/')[-1]}, {_N_PARAMS_B:.1f} B params, "
+        f"{str(_DTYPE).split('.')[-1]}) running in-process on {_BACKEND}"
     )
