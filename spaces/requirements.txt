@@ -1,2 +1,2 @@
-gradio>=4.40,<6
+gradio>=5.9,<6
 fhir.resources>=7.0,<9.0
