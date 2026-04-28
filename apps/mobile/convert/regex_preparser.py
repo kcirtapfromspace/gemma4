@@ -271,6 +271,16 @@ _NEG_TRIGGERS = re.compile(
     # avoided/avoidance.
     r"|avoid\w*"
     r"|contraindicated"
+    # c20 adv7 fix: incidental-finding suppression
+    # ("Incidental finding on admission screening swab: SARS-CoV-2 RNA",
+    # "death-with, not death-due-to, COVID"). Catches death-with-disease
+    # narratives where a code is mentioned only as an incidental screen
+    # result, not the active diagnosis. The post-hoc form
+    # ("X was an incidental screening finding") is in `_POSTHOC_NEG_TRIGGERS`
+    # below since the trigger sits >30 chars after the alias.
+    r"|incidental\s+finding"
+    r"|incidental\s+screen\w*"
+    r"|incidental\s+(?:noted?|detect\w*|appear\w*|observ\w*)"
     r"|exclud(?:e|ed|es|ing)"
     r"|excluded"
     r"|differential\s+(?:diagnosis|dx|includ(?:ed|es|ing))"
@@ -309,6 +319,14 @@ _POSTHOC_NEG_TRIGGERS = re.compile(
     r"|results?\s+(?:was|were|is|are)\s+negative"
     r"|IgM\s+negative"
     r"|IgG\s+negative"
+    # c20 adv7 fix: post-hoc incidental + death-with-disease.
+    # Catches `... result was an incidental screening finding` and
+    # `... did not contribute to the cause of death`. Adv5
+    # multi_encounter_covid_then_hiv mentions "incidental but clinically
+    # significant finding" >100 chars before its curated aliases (and
+    # behind a period clause terminator), so these triggers are safe.
+    r"|(?:was|is|were)\s+(?:an?\s+)?incidental(?:\s+\w+){0,2}\s+(?:finding|screening|note\w*|swab\w*)"
+    r"|did\s+not\s+contribute(?:\s+to)?"
     r")\b",
     re.IGNORECASE,
 )

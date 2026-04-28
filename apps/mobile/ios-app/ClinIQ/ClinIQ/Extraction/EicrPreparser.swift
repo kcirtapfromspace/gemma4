@@ -244,10 +244,14 @@ enum EicrPreparser {
     // c20 adv7 fix: drug-context contraindication negation
     // ("avoid doxycycline", "doxycycline contraindicated in pregnancy",
     // "explicit avoidance of NSAIDs"). Pre-window catches "avoid X";
-    // post-window catches "X contraindicated". `avoid\w*` covers
-    // avoid/avoids/avoiding/avoided/avoidance.
+    // post-window catches "X contraindicated".
+    //
+    // c20 adv7 fix #2: incidental-finding suppression
+    // ("Incidental finding on admission screening swab: SARS-CoV-2 RNA",
+    // death-with-disease narratives). Catches cases where a code is
+    // mentioned only as an incidental screen result, not the active dx.
     private static let negTriggers = NSRegularExpression.cached(
-        pattern: #"\b(?:ruled\s+out|negative\s+for|no\s+evidence\s+of|no\s+current\s+evidence\s+of|no\s+signs?\s+of|no\s+history\s+of|denies|without|absent|not\s+detected|not\s+positive\s+for|not\s+suspected|not\s+invoking|do(?:es)?\s+not\s+have|did\s+not\s+have|not\s+eligible\s+for|avoid\w*|contraindicated|exclud(?:e|ed|es|ing)|differential\s+(?:diagnosis|dx|includ(?:ed|es|ing)))\b"#,
+        pattern: #"\b(?:ruled\s+out|negative\s+for|no\s+evidence\s+of|no\s+current\s+evidence\s+of|no\s+signs?\s+of|no\s+history\s+of|denies|without|absent|not\s+detected|not\s+positive\s+for|not\s+suspected|not\s+invoking|do(?:es)?\s+not\s+have|did\s+not\s+have|not\s+eligible\s+for|avoid\w*|contraindicated|incidental\s+finding|incidental\s+screen\w*|incidental\s+(?:noted?|detect\w*|appear\w*|observ\w*)|exclud(?:e|ed|es|ing)|differential\s+(?:diagnosis|dx|includ(?:ed|es|ing)))\b"#,
         options: [.caseInsensitive]
     )
     // c20 adv6 fix: comma added so "no history of stroke, history of HIV"
@@ -269,8 +273,14 @@ enum EicrPreparser {
     // is highly discriminative so over-firing is minimal.
     // Mirror of `_POSTHOC_NEG_TRIGGERS` in
     // apps/mobile/convert/regex_preparser.py.
+    // c20 adv7 fix: post-hoc incidental + death-with-disease.
+    // `... result was an incidental screening finding`,
+    // `... did not contribute to the cause of death`. Multi-encounter
+    // cases that legitimately mention "incidental but clinically
+    // significant" sit >100 chars from their curated aliases (and behind
+    // a clause terminator), so these triggers don't regress on them.
     private static let postHocNegTriggers = NSRegularExpression.cached(
-        pattern: #"\b(?:came\s+back\s+negative|returned\s+negative|(?:was|is|were|are)\s+negative|reported\s+negative|results?\s+(?:was|were|is|are)\s+negative|IgM\s+negative|IgG\s+negative)\b"#,
+        pattern: #"\b(?:came\s+back\s+negative|returned\s+negative|(?:was|is|were|are)\s+negative|reported\s+negative|results?\s+(?:was|were|is|are)\s+negative|IgM\s+negative|IgG\s+negative|(?:was|is|were)\s+(?:an?\s+)?incidental(?:\s+\w+){0,2}\s+(?:finding|screening|note\w*|swab\w*)|did\s+not\s+contribute(?:\s+to)?)\b"#,
         options: [.caseInsensitive]
     )
     private static let postHocTerminators = NSRegularExpression.cached(
