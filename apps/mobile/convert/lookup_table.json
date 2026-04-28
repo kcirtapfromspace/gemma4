@@ -46,7 +46,12 @@
     {"code": "96741-4",  "aliases": ["Monkeypox virus DNA by PCR", "Monkeypox virus DNA"]},
     {"code": "31933-7",  "aliases": ["RSV antigen by direct fluorescent antibody", "Respiratory syncytial virus Ag", "RSV antigen"]},
     {"code": "589-7",    "aliases": ["Salmonella culture", "Salmonella sp identified"]},
-    {"code": "56888-1",  "aliases": ["HIV-1/2 antigen/antibody combination immunoassay", "HIV-1 and 2 antigen/antibody combination", "HIV-1/2 Ag+Ab combination"]}
+    {"code": "56888-1",  "aliases": ["HIV-1/2 antigen/antibody combination immunoassay", "HIV-1 and 2 antigen/antibody combination", "HIV-1/2 Ag+Ab combination"]},
+    {"code": "29463-7",  "aliases": ["Body weight measured", "Body weight"]},
+    {"code": "8302-2",   "aliases": ["Body length", "Body height"]},
+    {"code": "8287-5",   "aliases": ["Head circumference"]},
+    {"code": "8867-4",   "aliases": ["Heart rate"]},
+    {"code": "9279-1",   "aliases": ["Respiratory rate"]}
   ],
   "rxnorms": [
     {"code": "723",     "aliases": ["amoxicillin"]},

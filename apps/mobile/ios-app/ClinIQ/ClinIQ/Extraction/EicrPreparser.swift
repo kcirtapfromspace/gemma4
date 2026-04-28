@@ -241,8 +241,13 @@ enum EicrPreparser {
     // match for negation triggers. Window is clipped at clause terminators
     // so "negative for COVID, positive for influenza" doesn't suppress
     // influenza too. Patterns mirror apps/mobile/convert/regex_preparser.py.
+    // c20 adv7 fix: drug-context contraindication negation
+    // ("avoid doxycycline", "doxycycline contraindicated in pregnancy",
+    // "explicit avoidance of NSAIDs"). Pre-window catches "avoid X";
+    // post-window catches "X contraindicated". `avoid\w*` covers
+    // avoid/avoids/avoiding/avoided/avoidance.
     private static let negTriggers = NSRegularExpression.cached(
-        pattern: #"\b(?:ruled\s+out|negative\s+for|no\s+evidence\s+of|no\s+current\s+evidence\s+of|no\s+signs?\s+of|no\s+history\s+of|denies|without|absent|not\s+detected|not\s+positive\s+for|not\s+suspected|not\s+invoking|do(?:es)?\s+not\s+have|did\s+not\s+have|not\s+eligible\s+for|exclud(?:e|ed|es|ing)|differential\s+(?:diagnosis|dx|includ(?:ed|es|ing)))\b"#,
+        pattern: #"\b(?:ruled\s+out|negative\s+for|no\s+evidence\s+of|no\s+current\s+evidence\s+of|no\s+signs?\s+of|no\s+history\s+of|denies|without|absent|not\s+detected|not\s+positive\s+for|not\s+suspected|not\s+invoking|do(?:es)?\s+not\s+have|did\s+not\s+have|not\s+eligible\s+for|avoid\w*|contraindicated|exclud(?:e|ed|es|ing)|differential\s+(?:diagnosis|dx|includ(?:ed|es|ing)))\b"#,
         options: [.caseInsensitive]
     )
     // c20 adv6 fix: comma added so "no history of stroke, history of HIV"

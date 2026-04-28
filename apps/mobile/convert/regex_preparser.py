@@ -264,6 +264,13 @@ _NEG_TRIGGERS = re.compile(
     r"|do(?:es)?\s+not\s+have"
     r"|did\s+not\s+have"
     r"|not\s+eligible\s+for"
+    # c20 adv7 fix: drug-context contraindication negation
+    # ("avoid doxycycline", "doxycycline contraindicated in pregnancy",
+    # "avoidance of NSAIDs"). Pre-window catches "avoid X"; post-window
+    # catches "X contraindicated". `avoid\w*` covers avoid/avoids/avoiding/
+    # avoided/avoidance.
+    r"|avoid\w*"
+    r"|contraindicated"
     r"|exclud(?:e|ed|es|ing)"
     r"|excluded"
     r"|differential\s+(?:diagnosis|dx|includ(?:ed|es|ing))"

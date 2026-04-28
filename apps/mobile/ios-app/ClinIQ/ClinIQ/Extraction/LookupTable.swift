@@ -138,6 +138,15 @@ enum LookupTable {
         LookupEntry(code: "31933-7",  aliases: ["RSV antigen by direct fluorescent antibody", "Respiratory syncytial virus Ag", "RSV antigen"]),
         LookupEntry(code: "589-7",    aliases: ["Salmonella culture", "Salmonella sp identified"]),
         LookupEntry(code: "56888-1",  aliases: ["HIV-1/2 antigen/antibody combination immunoassay", "HIV-1 and 2 antigen/antibody combination", "HIV-1/2 Ag+Ab combination"]),
+        // c20 adv7 fix: pediatric vital LOINCs (adv7_pediatric_vitals_bp_profile).
+        // Aliases use the full canonical phrase, NOT abbreviations like HR/RR —
+        // clinical narratives reach for abbreviations in vitals lines, so the
+        // lookup tier doesn't over-fire on "Vitals: HR 78, RR 14, BP 120/80".
+        LookupEntry(code: "29463-7",  aliases: ["Body weight measured", "Body weight"]),
+        LookupEntry(code: "8302-2",   aliases: ["Body length", "Body height"]),
+        LookupEntry(code: "8287-5",   aliases: ["Head circumference"]),
+        LookupEntry(code: "8867-4",   aliases: ["Heart rate"]),
+        LookupEntry(code: "9279-1",   aliases: ["Respiratory rate"]),
     ]
 
     static let rxnorms: [LookupEntry] = [
