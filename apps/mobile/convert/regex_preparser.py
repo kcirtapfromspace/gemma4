@@ -283,7 +283,12 @@ _NEG_TRIGGERS = re.compile(
     r"|incidental\s+(?:noted?|detect\w*|appear\w*|observ\w*)"
     r"|exclud(?:e|ed|es|ing)"
     r"|excluded"
-    r"|differential\s+(?:diagnosis|dx|includ(?:ed|es|ing))"
+    # c20-r2 fix: extended differential trigger to catch
+    # "Differential considered toxic epidermal necrolysis" in
+    # adv6_implicit_syndrome_stevens_johnson, so re-adding TEN to the
+    # RAG (closes adv7_genuine_ten_diagnosis_should_miss) doesn't FP
+    # on the SJS case where TEN is mentioned only as a differential.
+    r"|differential\s+(?:diagnosis|dx|consider\w*|entertain\w*|includ(?:ed|es|ing))"
     r")\b",
     re.IGNORECASE,
 )

@@ -250,8 +250,12 @@ enum EicrPreparser {
     // ("Incidental finding on admission screening swab: SARS-CoV-2 RNA",
     // death-with-disease narratives). Catches cases where a code is
     // mentioned only as an incidental screen result, not the active dx.
+    // c20-r2 fix: extended differential trigger to catch "Differential
+    // considered toxic epidermal necrolysis" in adv6_implicit_syndrome,
+    // so re-adding TEN to the RAG (closes adv7_genuine_ten miss) doesn't
+    // FP on the SJS case where TEN is mentioned only as a differential.
     private static let negTriggers = NSRegularExpression.cached(
-        pattern: #"\b(?:ruled\s+out|negative\s+for|no\s+evidence\s+of|no\s+current\s+evidence\s+of|no\s+signs?\s+of|no\s+history\s+of|denies|without|absent|not\s+detected|not\s+positive\s+for|not\s+suspected|not\s+invoking|do(?:es)?\s+not\s+have|did\s+not\s+have|not\s+eligible\s+for|avoid\w*|contraindicated|incidental\s+finding|incidental\s+screen\w*|incidental\s+(?:noted?|detect\w*|appear\w*|observ\w*)|exclud(?:e|ed|es|ing)|differential\s+(?:diagnosis|dx|includ(?:ed|es|ing)))\b"#,
+        pattern: #"\b(?:ruled\s+out|negative\s+for|no\s+evidence\s+of|no\s+current\s+evidence\s+of|no\s+signs?\s+of|no\s+history\s+of|denies|without|absent|not\s+detected|not\s+positive\s+for|not\s+suspected|not\s+invoking|do(?:es)?\s+not\s+have|did\s+not\s+have|not\s+eligible\s+for|avoid\w*|contraindicated|incidental\s+finding|incidental\s+screen\w*|incidental\s+(?:noted?|detect\w*|appear\w*|observ\w*)|exclud(?:e|ed|es|ing)|differential\s+(?:diagnosis|dx|consider\w*|entertain\w*|includ(?:ed|es|ing)))\b"#,
         options: [.caseInsensitive]
     )
     // c20 adv6 fix: comma added so "no history of stroke, history of HIV"
