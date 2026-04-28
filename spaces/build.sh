@@ -18,9 +18,10 @@ OUT_DIR="${1:-${REPO_ROOT}/out/space}"
 echo "Building Spaces deploy bundle → ${OUT_DIR}"
 mkdir -p "${OUT_DIR}/convert"
 
-cp "${REPO_ROOT}/spaces/app.py"           "${OUT_DIR}/app.py"
-cp "${REPO_ROOT}/spaces/requirements.txt" "${OUT_DIR}/requirements.txt"
-cp "${REPO_ROOT}/spaces/README.md"        "${OUT_DIR}/README.md"
+cp "${REPO_ROOT}/spaces/app.py"             "${OUT_DIR}/app.py"
+cp "${REPO_ROOT}/spaces/zerogpu_engine.py"  "${OUT_DIR}/zerogpu_engine.py"
+cp "${REPO_ROOT}/spaces/requirements.txt"   "${OUT_DIR}/requirements.txt"
+cp "${REPO_ROOT}/spaces/README.md"          "${OUT_DIR}/README.md"
 
 # Copy the pipeline modules — only the ones imported by app.py + their deps.
 PIPELINE=(

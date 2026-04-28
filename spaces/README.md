@@ -9,7 +9,9 @@ python_version: "3.12"
 app_file: app.py
 pinned: false
 license: apache-2.0
-short_description: eICR → FHIR R4 via on-device Gemma 4 agent
+hardware: zero-a10g
+suggested_hardware: zero-a10g
+short_description: eICR → FHIR R4 via Gemma 4 on ZeroGPU
 ---
 
 # ClinIQ — eICR to FHIR (Gemma 4)
@@ -28,9 +30,15 @@ app, exposed behind Gradio so judges can try it without Xcode.
 | 3. Gemma 4 agent | Native function calling — agent invokes tiers (1) and (2) as tools, validates its own output, bounded at 6 turns | ~5–15 s | Yes |
 
 Most cases land on tier 1 or 2 and never invoke a model. The agent tier
-is gated behind a checkbox and requires a `llama-server` endpoint —
-disabled by default because the HF Spaces free CPU can't host a 2.4 GB
-GGUF at usable latency.
+runs **Gemma 4 E2B-it (bf16) in-process on the Space's ZeroGPU H200**
+via the `transformers` backend in `zerogpu_engine.py` — the model is
+loaded on `cuda` at module level and each agent call is wrapped in
+`@spaces.GPU(duration=120)`. Each turn parses Gemma's native
+`<|tool_call>...<tool_call|>` sentinels into OpenAI-format `tool_calls`
+so `agent_pipeline.run_agent` works unchanged.
+
+Set the model via `CLINIQ_GEMMA_MODEL_ID` (default
+`unsloth/gemma-4-E2B-it`) — any HF-hosted Gemma 4 -it variant works.
 
 Every Bundle is parsed through `fhir.resources.R4B`. The status row shows
 a binary **✓ R4-valid** signal next to each extraction.

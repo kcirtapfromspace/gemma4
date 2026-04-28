@@ -1,2 +1,7 @@
 gradio>=5.9,<6
 fhir.resources>=7.0,<9.0
+spaces>=0.31
+transformers>=4.45
+accelerate>=0.34
+torch>=2.4
+huggingface_hub>=0.26

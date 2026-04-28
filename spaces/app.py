@@ -10,10 +10,10 @@ Three execution paths (in priority order):
    codes. ~5 ms, no model required.
 2. **Fast-path** — when deterministic returns nothing, `try_fast_path` runs
    the curated reportable-conditions RAG + NegEx filter. ~80 ms, no model.
-3. **Agent loop** — only invoked when (1) and (2) miss. Requires a running
-   `llama-server` reachable over HTTP — paste the endpoint in the Advanced
-   row. Off by default because HF Spaces free tier can't host a 2.4 GB
-   GGUF inference at usable latency.
+3. **Agent loop** — only invoked when (1) and (2) miss. Runs Gemma 4 E2B-it
+   in-process on the Space's ZeroGPU H200 (transformers backend). On by
+   default; toggle off in the Advanced row if you want to test deterministic
+   + RAG only.
 
 Each Bundle is parsed through `fhir.resources.R4B` for a binary "✓ R4-valid"
 signal — the credibility hook for the eICR-to-FHIR judging axis.
@@ -49,9 +49,18 @@ else:
         f"{[str(p) for p in _CANDIDATES]}. Run build.sh before deploying."
     )
 
+import agent_pipeline  # noqa: E402
 from agent_pipeline import run_agent, try_fast_path  # noqa: E402
 from fhir_bundle import to_bundle  # noqa: E402
 from regex_preparser import extract as deterministic_extract  # noqa: E402
+
+# In-process Gemma 4 backend on ZeroGPU. Importing this module loads the
+# model on cuda (PyTorch CUDA emulation outside @spaces.GPU keeps that safe);
+# `chat_http_shim` is a drop-in replacement for `agent_pipeline.chat()` so
+# `run_agent(...)` works unchanged with no HTTP endpoint.
+from zerogpu_engine import chat_http_shim, model_banner  # noqa: E402
+
+agent_pipeline.chat = chat_http_shim
 
 
 # Lazy: fhir.resources is heavy (pulls pydantic v2 + R4B schema modules).
@@ -208,7 +217,6 @@ def _agent_provenance_from_trace(trace: list[dict]) -> tuple[list[list[str]], di
 def run_pipeline(
     narrative: str,
     enable_agent: bool,
-    endpoint: str,
 ) -> tuple[str, dict, dict, list[list[str]], dict]:
     """Returns (status_html, extraction, fhir_bundle, provenance_rows, trace)."""
     narrative = (narrative or "").strip()
@@ -278,20 +286,20 @@ def run_pipeline(
         status = _badge("fast_path", detail, fp_ms)
         return (status, extraction, bundle, prov_rows, {"path": "fast_path", "elapsed_ms": fp_ms, "trace": fp_trace})
 
-    # Path 3: agent loop (gated)
+    # Path 3: agent loop (in-process Gemma 4 on ZeroGPU)
     if not enable_agent:
         detail = (
             "Both deterministic and fast-path miss. Toggle "
-            "<b>Enable agent loop</b> below + supply a llama-server endpoint."
+            "<b>Enable Gemma 4 agent loop</b> below to invoke the model."
         )
         return (_badge("no_match", detail), {}, {}, [], {"path": "no_match"})
 
     t0 = time.perf_counter()
     try:
-        extraction, trace = run_agent(narrative, endpoint=endpoint)
+        extraction, trace = run_agent(narrative)
     except Exception as exc:  # noqa: BLE001 — surface to UI
         agent_ms = (time.perf_counter() - t0) * 1000
-        status = _badge("agent_error", f"<code>{exc!r}</code> against <code>{endpoint}</code>", agent_ms)
+        status = _badge("agent_error", f"<code>{exc!r}</code> in zerogpu_engine", agent_ms)
         return (status, {}, {}, [], {"path": "agent_error", "error": repr(exc)})
     agent_ms = (time.perf_counter() - t0) * 1000
 
@@ -349,14 +357,16 @@ def build_ui() -> gr.Blocks:
                 )
                 with gr.Accordion("Advanced — agent loop", open=False):
                     enable_agent = gr.Checkbox(
-                        value=False,
+                        value=True,
                         label="Enable Gemma 4 agent loop on miss",
+                        info=(
+                            "Invokes Gemma 4 in-process on the Space's "
+                            "ZeroGPU H200 when deterministic + RAG miss. "
+                            "Each invocation consumes a few seconds of "
+                            "ZeroGPU quota."
+                        ),
                     )
-                    endpoint = gr.Textbox(
-                        value=os.environ.get("CLINIQ_LLAMA_ENDPOINT", "http://127.0.0.1:8090"),
-                        label="llama-server endpoint",
-                        info="Required when 'Enable agent loop' is checked.",
-                    )
+                    gr.Markdown(f"**Backend:** {model_banner()}")
                 run = gr.Button("Run extraction", variant="primary", size="lg")
 
             with gr.Column(scale=1, min_width=380):
@@ -379,7 +389,7 @@ def build_ui() -> gr.Blocks:
         sample.change(fn=lambda k: SAMPLES.get(k, ""), inputs=sample, outputs=narrative)
         run.click(
             fn=run_pipeline,
-            inputs=[narrative, enable_agent, endpoint],
+            inputs=[narrative, enable_agent],
             outputs=[status, extraction_out, bundle_out, provenance_out, trace_out],
         )
 
