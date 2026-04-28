@@ -232,19 +232,30 @@ remaining open uncertainty (see "Open uncertainties" below).
 ### HF Spaces hosted demo
 
 **Live: `https://huggingface.co/spaces/kcirtapfromspace/cliniq-eicr-fhir`**
-(deployed 2026-04-27).
+(deployed 2026-04-27, ZeroGPU H200 backend wired 2026-04-28).
 
-`spaces/`. Gradio 4.44 frontend, same Python pipeline as the bench
-harness. Five sample cases pre-loaded (COVID-19 inline, valley
-fever RAG, Marburg RAG, C. diff RAG, negated lab precision check).
-Bench-table screenshots cite the 80-rep + Jetson + chunked-CDA rows.
+`spaces/`. Gradio 5.9 frontend, same Python pipeline as the bench
+harness, plus `spaces/zerogpu_engine.py` — a transformers-based
+in-process Gemma 4 backend that exposes an OpenAI-compatible
+`chat_completion` and is signature-compatible with the existing
+`agent_pipeline.chat()` HTTP transport via a one-line monkey-patch.
+The `@spaces.GPU(duration=120)` decorator allocates a half-H200 on
+demand for the duration of each agent call and releases it on
+return. Gemma's native `<|tool_call>...<tool_call|>` sentinel format
+is parsed into OpenAI tool_calls inside the engine (the same
+parser the iOS Swift `ToolCallParser` runs on-device).
 
-The CPU-free tier serves deterministic + RAG fast-path cases in
-<2 s. Agent tier is gated behind a checkbox; users bring their own
-llama-server endpoint via the URL field.
+Five sample cases pre-loaded (COVID-19 inline, valley fever RAG,
+Marburg RAG, C. diff RAG, negated lab precision check). Bench-table
+screenshots cite the 80-rep + Jetson + chunked-CDA rows. The hosted
+URL goes on the submission form when judges don't have an iPhone.
 
-The hosted URL goes on the submission form when judges don't have
-an iPhone.
+Hardening: the engine detects ZeroGPU vs CUDA vs CPU at module
+import (`SPACES_ZERO_GPU` env var + `torch.cuda.is_available()`) and
+falls back gracefully — if a build pushes before the hardware is
+flipped to ZeroGPU, the deterministic + RAG tiers still serve and
+the agent path surfaces a precise unavailability reason in the UI
+status row instead of crashing the Space.
 
 ---
 
