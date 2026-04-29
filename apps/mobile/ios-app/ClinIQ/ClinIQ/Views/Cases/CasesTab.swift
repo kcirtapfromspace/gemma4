@@ -14,6 +14,10 @@ struct CasesTab: View {
     @State private var presentingNewCase = false
     @State private var reviewTarget: ClinicalCase?
     @State private var navPath: [UUID] = []
+    /// Pushed to surface the longitudinal `PatientTimelineView` (c21).
+    /// The destination value is the patient identity hash so it stays
+    /// self-contained — no @Environment needed inside the destination.
+    @State private var timelineHash: String?
 
     var body: some View {
         NavigationStack(path: $navPath) {
@@ -30,6 +34,26 @@ struct CasesTab: View {
                         ForEach(activeCases) { c in
                             NavigationLink(value: c.id) {
                                 CaseListRow(clinicalCase: c)
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                if !c.patientIdentityHash.isEmpty {
+                                    Button {
+                                        timelineHash = c.patientIdentityHash
+                                    } label: {
+                                        Label("Timeline", systemImage: "clock.arrow.circlepath")
+                                    }
+                                    .tint(ClinIQTheme.accent)
+                                }
+                            }
+                            .contextMenu {
+                                if !c.patientIdentityHash.isEmpty {
+                                    Button {
+                                        timelineHash = c.patientIdentityHash
+                                    } label: {
+                                        Label("View patient timeline",
+                                              systemImage: "clock.arrow.circlepath")
+                                    }
+                                }
                             }
                         }
                     } header: {
@@ -94,6 +118,24 @@ struct CasesTab: View {
                 {
                     navPath = [first.id]
                 }
+                // c21: open the longitudinal timeline for the seeded
+                // Maria Santos demo patient. Lets the screenshot harness
+                // land directly on the timeline view.
+                if env["CLINIQ_OPEN_TIMELINE"] == "1" {
+                    timelineHash = LongitudinalSeedData.mariaSantosIdentityHash
+                }
+                // c21: open the Review sheet for the most recent
+                // longitudinal case (3rd Maria Santos visit) so the
+                // "what's new" banner is visible without further taps.
+                if env["CLINIQ_OPEN_LONGITUDINAL_REVIEW"] == "1" {
+                    let hash = LongitudinalSeedData.mariaSantosIdentityHash
+                    if let latest = allCases
+                        .filter({ $0.patientIdentityHash == hash })
+                        .max(by: { $0.createdAt < $1.createdAt })
+                    {
+                        reviewTarget = latest
+                    }
+                }
             }
             .sheet(item: $reviewTarget) { target in
                 ReviewFlowView(clinicalCase: target)
@@ -105,6 +147,13 @@ struct CasesTab: View {
                     ContentUnavailableView("Case not found",
                                            systemImage: "questionmark.folder")
                 }
+            }
+            .navigationDestination(item: $timelineHash) { hash in
+                PatientTimelineView(
+                    patientIdentityHash: hash,
+                    patientName: allCases
+                        .first(where: { $0.patientIdentityHash == hash })?
+                        .patient?.fullName)
             }
             .sheet(isPresented: $presentingNewCase) {
                 NewCaseView()

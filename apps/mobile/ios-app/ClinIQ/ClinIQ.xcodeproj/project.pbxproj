@@ -55,6 +55,11 @@
 		D13C131800000101D13C1318 /* OutboxTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131800000102D13C1318 /* OutboxTab.swift */; };
 		D13C131900000101D13C1319 /* HistoryTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131900000102D13C1319 /* HistoryTab.swift */; };
 		D13C132000000101D13C1320 /* SettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C132000000102D13C1320 /* SettingsTab.swift */; };
+		D13C150100000101D13C1501 /* LocalPatient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C150100000102D13C1501 /* LocalPatient.swift */; };
+		D13C150200000101D13C1502 /* LongitudinalSeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C150200000102D13C1502 /* LongitudinalSeedData.swift */; };
+		D13C150300000101D13C1503 /* CaseDiff.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C150300000102D13C1503 /* CaseDiff.swift */; };
+		D13C150400000101D13C1504 /* PatientTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C150400000102D13C1504 /* PatientTimelineView.swift */; };
+		D13C150500000101D13C1505 /* WhatsNewBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C150500000102D13C1505 /* WhatsNewBanner.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -107,6 +112,11 @@
 		D13C131800000102D13C1318 /* OutboxTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutboxTab.swift; sourceTree = "<group>"; };
 		D13C131900000102D13C1319 /* HistoryTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryTab.swift; sourceTree = "<group>"; };
 		D13C132000000102D13C1320 /* SettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTab.swift; sourceTree = "<group>"; };
+		D13C150100000102D13C1501 /* LocalPatient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPatient.swift; sourceTree = "<group>"; };
+		D13C150200000102D13C1502 /* LongitudinalSeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LongitudinalSeedData.swift; sourceTree = "<group>"; };
+		D13C150300000102D13C1503 /* CaseDiff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaseDiff.swift; sourceTree = "<group>"; };
+		D13C150400000102D13C1504 /* PatientTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatientTimelineView.swift; sourceTree = "<group>"; };
+		D13C150500000102D13C1505 /* WhatsNewBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewBanner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -197,6 +207,7 @@
 				D13C131B00000102D13C131B /* ProvenanceBadge.swift */,
 				D13C131E00000102D13C131E /* ProvenanceLegend.swift */,
 				D13C133100000102D13C1331 /* FHIRBundleSheet.swift */,
+				D13C150500000102D13C1505 /* WhatsNewBanner.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -207,6 +218,7 @@
 				D13C131400000102D13C1314 /* CasesTab.swift */,
 				D13C131500000102D13C1315 /* NewCaseView.swift */,
 				D13C131600000102D13C1316 /* CaseDetailView.swift */,
+				D13C150400000102D13C1504 /* PatientTimelineView.swift */,
 			);
 			path = Cases;
 			sourceTree = "<group>";
@@ -257,6 +269,8 @@
 				D13C130100000102D13C1301 /* Models.swift */,
 				D13C130200000102D13C1302 /* PersistenceController.swift */,
 				D13C130300000102D13C1303 /* DemoSeed.swift */,
+				D13C150100000102D13C1501 /* LocalPatient.swift */,
+				D13C150200000102D13C1502 /* LongitudinalSeedData.swift */,
 			);
 			path = Persistence;
 			sourceTree = "<group>";
@@ -285,6 +299,7 @@
 				D13C131A00000102D13C131A /* ToolCallParser.swift */,
 				D13C132A00000102D13C132A /* ToolCallGrammarResource.swift */,
 				D13C133000000102D13C1330 /* BundleBuilder.swift */,
+				D13C150300000102D13C1503 /* CaseDiff.swift */,
 			);
 			path = Extraction;
 			sourceTree = "<group>";
@@ -460,6 +475,11 @@
 				D13C131800000101D13C1318 /* OutboxTab.swift in Sources */,
 				D13C131900000101D13C1319 /* HistoryTab.swift in Sources */,
 				D13C132000000101D13C1320 /* SettingsTab.swift in Sources */,
+				D13C150100000101D13C1501 /* LocalPatient.swift in Sources */,
+				D13C150200000101D13C1502 /* LongitudinalSeedData.swift in Sources */,
+				D13C150300000101D13C1503 /* CaseDiff.swift in Sources */,
+				D13C150400000101D13C1504 /* PatientTimelineView.swift in Sources */,
+				D13C150500000101D13C1505 /* WhatsNewBanner.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

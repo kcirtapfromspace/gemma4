@@ -33,6 +33,10 @@ struct ReviewFlowView: View {
     /// a judge tap and inspect the same shape that score_fhir.py
     /// validates 35/35 on combined-27 + adv4.
     @State private var showingBundleSheet = false
+    /// Cached longitudinal diff vs the most recent prior eCR for the same
+    /// patientIdentityHash. nil if no prior exists (first eCR ever for
+    /// this patient on this device) — banner is hidden in that case.
+    @State private var longitudinalDiff: CaseDiff?
 
     enum Phase {
         case intro      // waiting to start
@@ -59,6 +63,10 @@ struct ReviewFlowView: View {
                 }
             }
             .onAppear {
+                // Recompute the longitudinal diff vs the most recent prior
+                // eCR for the same patientIdentityHash, if any. nil banner
+                // = first eCR for this patient on this device.
+                refreshLongitudinalDiff()
                 // If the case has existing extracted entities, skip the AI
                 // intro and go straight to editing what's already there.
                 if hasExistingDraft {
@@ -91,6 +99,9 @@ struct ReviewFlowView: View {
     private var introView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if let diff = longitudinalDiff {
+                    WhatsNewBanner(diff: diff)
+                }
                 infoBanner
                 card(title: "Narrative") {
                     Text(clinicalCase.narrative)
@@ -292,6 +303,9 @@ struct ReviewFlowView: View {
     private var reviewView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                if let diff = longitudinalDiff {
+                    WhatsNewBanner(diff: diff)
+                }
                 metaBanner
 
                 // Show the tier legend whenever at least one entity has
@@ -516,6 +530,27 @@ struct ReviewFlowView: View {
         sync.queue(clinicalCase)
         try? context.save()
         dismiss()
+    }
+
+    // MARK: - Longitudinal
+
+    /// Look up the most recent prior case with the same patientIdentityHash
+    /// (strictly older than this case's createdAt) and compute the diff.
+    /// Sets `longitudinalDiff = nil` when there is no prior — the banner
+    /// hides automatically in that case.
+    private func refreshLongitudinalDiff() {
+        let hash = clinicalCase.patientIdentityHash
+        guard !hash.isEmpty else {
+            longitudinalDiff = nil
+            return
+        }
+        let priors = PersistenceController.priorCases(
+            for: hash, before: clinicalCase.createdAt, in: context)
+        guard let mostRecent = priors.first else {
+            longitudinalDiff = nil
+            return
+        }
+        longitudinalDiff = CaseDiffBuilder.diff(prior: mostRecent, current: clinicalCase)
     }
 
     // MARK: - Helpers

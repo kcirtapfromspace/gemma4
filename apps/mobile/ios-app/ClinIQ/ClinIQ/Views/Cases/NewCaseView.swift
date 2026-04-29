@@ -23,9 +23,25 @@ struct NewCaseView: View {
     @State private var showingTemplates = false
     @State private var reviewTarget: ClinicalCase?
 
+    /// Cached prior cases for the demographics currently entered. Recomputed
+    /// whenever name+DOB change (debounced via .onChange). Drives the
+    /// "Returning patient" card.
+    @State private var matchingPriors: [ClinicalCase] = []
+    /// Pushed when the clinician taps "View timeline" on the returning-
+    /// patient card. The destination is keyed off the cached identity hash.
+    @State private var timelinePush: String?
+
     var body: some View {
         NavigationStack {
             Form {
+                if !matchingPriors.isEmpty {
+                    Section {
+                        ReturningPatientCard(priors: matchingPriors,
+                                             onViewTimeline: {
+                            timelinePush = matchingPriors.first?.patientIdentityHash
+                        })
+                    }
+                }
                 Section("Patient") {
                     HStack {
                         TextField("Given name", text: $givenName)
@@ -114,6 +130,12 @@ struct NewCaseView: View {
             .sheet(item: $reviewTarget) { target in
                 ReviewFlowView(clinicalCase: target)
             }
+            .navigationDestination(item: $timelinePush) { hash in
+                PatientTimelineView(patientIdentityHash: hash,
+                                    patientName: [givenName, familyName]
+                                        .filter { !$0.isEmpty }
+                                        .joined(separator: " "))
+            }
             .onAppear {
                 // Screenshot harness: prefill with a sensible demo case.
                 let env = ProcessInfo.processInfo.environment
@@ -122,8 +144,52 @@ struct NewCaseView: View {
                 {
                     applyTemplate(t)
                 }
+                if env["CLINIQ_PREFILL_RETURNING"] == "1" {
+                    applyReturningPatientPrefill()
+                }
+                refreshMatchingPriors()
             }
+            .onChange(of: givenName) { _, _ in refreshMatchingPriors() }
+            .onChange(of: familyName) { _, _ in refreshMatchingPriors() }
+            .onChange(of: birthDate) { _, _ in refreshMatchingPriors() }
+            .onChange(of: hasBirthDate) { _, _ in refreshMatchingPriors() }
         }
+    }
+
+    /// Recompute the (given, family, dob) identity hash and look up any
+    /// prior cases for the same patient. Cleared as soon as any required
+    /// field is empty.
+    private func refreshMatchingPriors() {
+        guard hasBirthDate,
+              !givenName.trimmed.isEmpty,
+              !familyName.trimmed.isEmpty
+        else {
+            matchingPriors = []
+            return
+        }
+        let hash = LocalPatient.identityHash(given: givenName,
+                                             family: familyName,
+                                             dob: birthDate)
+        matchingPriors = PersistenceController.priorCases(
+            for: hash, before: Date.distantFuture, in: context)
+    }
+
+    /// Pre-fill the form with Maria Santos so the screenshot harness +
+    /// demo presenter can land directly on the returning-patient card.
+    private func applyReturningPatientPrefill() {
+        givenName = "Maria"
+        familyName = "Santos"
+        gender = "F"
+        hasBirthDate = true
+        let cal = Calendar(identifier: .gregorian)
+        if let dob = cal.date(from: DateComponents(year: 1985, month: 3, day: 12)) {
+            birthDate = dob
+        }
+        postalCode = "33101"
+        narrative = """
+Day 14 follow-up. Patient feeling well. Repeat exam normal. Continuing
+home BP monitoring. No new complaints.
+"""
     }
 
     private func applyTemplate(_ t: NarrativeTemplate) {
@@ -145,9 +211,59 @@ struct NewCaseView: View {
                               facilityName: facility.nonEmpty)
         let c = ClinicalCase(narrative: narrative, status: .draft)
         c.patient = patient
+        // Wire the longitudinal join key. Falls back to "" when DOB is
+        // absent (anonymous patient — no longitudinal grouping).
+        if let hash = LocalPatient.identityHash(from: patient) {
+            c.patientIdentityHash = hash
+        }
         context.insert(c)
         try? context.save()
         reviewTarget = c
+    }
+}
+
+// MARK: - Returning patient card
+
+/// Inline card shown above the demographics fields when the entered
+/// (given, family, dob) matches priors on this device. Two affordances:
+/// view the timeline, or just continue — either way the new case will be
+/// auto-linked because the same identity hash is recomputed at save.
+struct ReturningPatientCard: View {
+    let priors: [ClinicalCase]
+    let onViewTimeline: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "person.crop.circle.badge.clock")
+                    .foregroundStyle(ClinIQTheme.accent)
+                Text("Returning patient")
+                    .font(.callout.weight(.semibold))
+                Spacer()
+            }
+            Text("\(priors.count) prior eCR\(priors.count == 1 ? "" : "s") on this device since \(oldestDate)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button(action: onViewTimeline) {
+                Label("View timeline", systemImage: "list.bullet.rectangle.portrait")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(ClinIQTheme.accent.opacity(0.10),
+                    in: RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(ClinIQTheme.accent.opacity(0.35), lineWidth: 1)
+        )
+    }
+
+    private var oldestDate: String {
+        guard let oldest = priors.map(\.createdAt).min() else { return "—" }
+        return oldest.formatted(date: .abbreviated, time: .omitted)
     }
 }
 

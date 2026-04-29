@@ -57,6 +57,13 @@ final class ClinicalCase {
     var elapsedSeconds: Double = 0
     var tokensPerSecond: Double = 0
 
+    // Longitudinal join key. Computed once at intake (or by the demo seed)
+    // from the patient's (given, family, dob) via `LocalPatient.identityHash`.
+    // First case for a new patient leaves this empty; the timeline view
+    // skips diff for cases without a hash. SwiftData migrates this in via
+    // the default empty-string value, so existing stores keep working.
+    var patientIdentityHash: String = ""
+
     // Relationships
     @Relationship(deleteRule: .cascade) var patient: Patient?
     @Relationship(deleteRule: .cascade, inverse: \ExtractedCondition.clinicalCase) var conditions: [ExtractedCondition] = []

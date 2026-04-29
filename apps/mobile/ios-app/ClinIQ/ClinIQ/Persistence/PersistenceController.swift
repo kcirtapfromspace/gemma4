@@ -113,4 +113,39 @@ enum PersistenceController {
         }
         try? context.save()
     }
+
+    // MARK: - Longitudinal queries
+
+    /// Fetch every prior case (strictly older than `before`) belonging to
+    /// the same patient identity, newest-first. Used by ReviewView's
+    /// "what's new" banner and by NewCaseView's "returning patient" probe.
+    /// Empty hash returns no results — we never group anonymous cases.
+    @MainActor
+    static func priorCases(for patientIdentityHash: String,
+                           before date: Date,
+                           in context: ModelContext) -> [ClinicalCase] {
+        guard !patientIdentityHash.isEmpty else { return [] }
+        let predicate = #Predicate<ClinicalCase> { c in
+            c.patientIdentityHash == patientIdentityHash && c.createdAt < date
+        }
+        let descriptor = FetchDescriptor<ClinicalCase>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        return (try? context.fetch(descriptor)) ?? []
+    }
+
+    /// All cases for a patient (no date filter), oldest-first. Used by
+    /// `PatientTimelineView` to render the timeline.
+    @MainActor
+    static func allCases(for patientIdentityHash: String,
+                         in context: ModelContext) -> [ClinicalCase] {
+        guard !patientIdentityHash.isEmpty else { return [] }
+        let predicate = #Predicate<ClinicalCase> { c in
+            c.patientIdentityHash == patientIdentityHash
+        }
+        let descriptor = FetchDescriptor<ClinicalCase>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.createdAt, order: .forward)])
+        return (try? context.fetch(descriptor)) ?? []
+    }
 }

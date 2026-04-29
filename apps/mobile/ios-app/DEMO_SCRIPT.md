@@ -54,7 +54,22 @@ codes in the muted subtitle lines. Tap a few check marks.)
 row and the disabled Sync button. The Outbox tab badge shows the
 pending count.)
 
-## 0:50 — Network returns, auto-sync
+## 0:55 — Longitudinal "what's new" at the edge
+
+> "Five days later, Maria Santos returns. ClinIQ recognizes her from
+> prior eCRs and shows what's new — Dengue confirmed (unchanged), but a
+> new chest X-ray finding and a positive vital. The epidemiologist sees
+> one row of new findings instead of re-reading both eCRs. That's
+> EZeCR's longitudinal CSV vision running offline on her phone."
+
+(Open the **Patient timeline** for Maria Santos: three eCRs across ten
+days, each row with green/red/gray chips for added / resolved /
+unchanged findings vs the prior visit. Tap the most recent row → the
+**AI Review** sheet now shows a teal "what's new" banner at the top.
+Tap the banner to expand the added / resolved / carried-forward
+sections.)
+
+## 1:00 — Network returns, auto-sync
 
 > "Back at the district hospital her phone picks up Wi-Fi. ClinIQ
 > detects the network, drains the outbox automatically, and stamps each
@@ -73,6 +88,10 @@ audit record.)
 - Runs fully offline — inference + storage + queueing.
 - Clinician sees clinical names; audit codes stay visible but muted.
 - Every submission is logged with endpoint + response for audit.
+- The clinician's phone IS the longitudinal source of truth for the
+  patients they've seen. CDC EZeCR's MVP "flat CSV diff between case
+  versions for the same patient" — running on-device, no Verato, exact
+  identity-hash match only.
 - The sync endpoint is configurable (`SyncConfig.swift`). Real public
   health interop (mTLS, jurisdiction routing) is explicitly out of scope
   for this PoC — documented, not wired.

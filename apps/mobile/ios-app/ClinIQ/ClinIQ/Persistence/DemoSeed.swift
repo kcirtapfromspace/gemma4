@@ -179,6 +179,13 @@ Plan: serology pending; supportive care; return precautions reviewed.
                                       postalCode: "93301",
                                       facilityName: "Field Clinic, Remote Site 04")
 
-        return [covid, meningitis, hiv, drafting, valleyFever]
+        // --- Longitudinal: three Maria Santos visits over 10 days ---
+        // Demonstrates the c21 "what's new vs prior eCR" feature. Three
+        // pre-extracted cases share a `patientIdentityHash` so the
+        // PatientTimelineView + ReviewView "what's new" banner light up
+        // without piping through the LLM.
+        let longitudinal = LongitudinalSeedData.build()
+
+        return [covid, meningitis, hiv, drafting, valleyFever] + longitudinal
     }
 }
