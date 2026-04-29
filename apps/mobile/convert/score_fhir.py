@@ -70,6 +70,7 @@ from pathlib import Path
 # Local stdlib-only wrapper.
 sys.path.insert(0, str(Path(__file__).parent))
 from fhir_bundle import to_bundle  # noqa: E402
+from case_diff import emit_csv_from_manifest  # noqa: E402
 
 
 @dataclass
@@ -636,7 +637,41 @@ def main() -> int:
         default=None,
         help="Write per-case results to this JSON path (bench / from-agent modes).",
     )
+    ap.add_argument(
+        "--diff-csv",
+        default=None,
+        help=(
+            "Emit the EZeCR-style flat longitudinal CSV (one row per axis "
+            "change across the case series) to this path. Requires "
+            "`--manifest` pointing at the longitudinal manifest produced by "
+            "`agent_pipeline.py --prior-bundle`. Skips the validator entirely "
+            "— the manifest's bundles are assumed already R4-valid."
+        ),
+    )
+    ap.add_argument(
+        "--manifest",
+        default=None,
+        help=(
+            "Path to a longitudinal manifest JSON (case_id → patient_hash + "
+            "case_dt + bundle_path). Required with `--diff-csv`. See "
+            "`case_diff.load_manifest` for the shape."
+        ),
+    )
     args = ap.parse_args()
+
+    if args.diff_csv:
+        if not args.manifest:
+            sys.stderr.write(
+                "--diff-csv requires --manifest (path to the longitudinal "
+                "manifest JSON).\n"
+            )
+            return 2
+        n_rows = emit_csv_from_manifest(args.manifest, args.diff_csv)
+        print(
+            f"EZeCR flat CSV: {args.diff_csv} ({n_rows} rows, plus header) "
+            f"from manifest {args.manifest}"
+        )
+        return 0
 
     backend = _make_backend(args.backend)
 

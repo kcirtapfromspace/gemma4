@@ -40,6 +40,11 @@ from rag_search import (  # noqa: E402
     fast_path_hit,
     search as rag_search,
 )
+from fhir_bundle import to_bundle  # noqa: E402
+from case_diff import (  # noqa: E402
+    compute_diff,
+    patient_hash as compute_patient_hash,
+)
 
 DEFAULT_ENDPOINT = "http://127.0.0.1:8090"
 DEFAULT_SYSTEM = (
@@ -1071,6 +1076,22 @@ def main() -> None:
             "the chunked path; smaller inputs go straight to `run_agent`."
         ),
     )
+    ap.add_argument(
+        "--prior-bundle",
+        default=None,
+        help=(
+            "Optional longitudinal-diff mode. Treat `--cases` as an ordered "
+            "JSONL series for ONE patient (each row carries `patient` + "
+            "`case_dt`). After extracting each case's Bundle, diff against "
+            "the previous case's Bundle and embed the result under `diff` "
+            "in the per-case row. Backward-compatible — without this flag "
+            "the bench behaves exactly as before. The flag value is the path "
+            "where a longitudinal manifest will be written (case_id → "
+            "patient_hash + case_dt + bundle_path, ready to feed into "
+            "`score_fhir.py --diff-csv`). Pass an empty string to skip the "
+            "manifest and only embed `diff` in the JSON output."
+        ),
+    )
     args = ap.parse_args()
     grammar_text: str | None = None
     if args.tool_call_grammar:
@@ -1090,6 +1111,18 @@ def main() -> None:
     total_m = total_e = total_fp = perfect = 0
     n_fast_path_hits = 0
     n_det_hits = 0
+    # Longitudinal-diff state. `prior_bundle` is the previous case's Bundle
+    # (None for the first case); `prior_case_id` is its id. The manifest
+    # accumulates rows that `score_fhir.py --diff-csv` can later consume to
+    # emit the EZeCR flat CSV across the whole series.
+    prior_bundle_for_diff: dict | None = None
+    prior_case_id_for_diff: str | None = None
+    longitudinal_manifest: list[dict] = []
+    longitudinal_mode = args.prior_bundle is not None
+    bundle_dir: Path | None = None
+    if longitudinal_mode:
+        bundle_dir = Path(args.out_json).parent / "longitudinal_bundles"
+        bundle_dir.mkdir(parents=True, exist_ok=True)
     for idx, case in enumerate(cases, 1):
         cid = case["case_id"]
         path_label = "agent"
@@ -1195,7 +1228,7 @@ def main() -> None:
             f"[{path_label}{latency_tag}, {n_calls} tool calls, {len(trace)} turns)",
             flush=True,
         )
-        rows.append({
+        row: dict = {
             "case_id": cid,
             "matched": m,
             "expected": e,
@@ -1204,10 +1237,64 @@ def main() -> None:
             "n_tool_calls": n_calls,
             "path": path_label,
             "trace": trace,
-        })
+        }
+        if longitudinal_mode:
+            # Build the current Bundle, write it to disk for the manifest, and
+            # diff against the prior Bundle if there is one. The minimal
+            # to_bundle() output doesn't carry demographics, so we hash from
+            # the JSONL's `patient` block directly.
+            current_bundle = to_bundle(extraction)
+            patient = case.get("patient") or {}
+            given = patient.get("given") or ""
+            family = patient.get("family") or ""
+            dob = patient.get("dob") or ""
+            case_dt = case.get("case_dt") or ""
+            phash = compute_patient_hash(given, family, dob)
+            bundle_path = bundle_dir / f"{cid}.bundle.json"  # type: ignore[union-attr]
+            bundle_path.write_text(json.dumps(current_bundle, indent=2))
+            row["patient_hash"] = phash
+            row["case_dt"] = case_dt
+            row["bundle_path"] = str(bundle_path)
+            if prior_bundle_for_diff is not None and prior_case_id_for_diff is not None:
+                cd = compute_diff(
+                    prior_bundle_for_diff,
+                    current_bundle,
+                    patient_hash_value=phash,
+                    prior_case_id=prior_case_id_for_diff,
+                    current_case_id=cid,
+                )
+                row["diff"] = cd.to_dict()
+            longitudinal_manifest.append({
+                "case_id": cid,
+                "patient_hash": phash,
+                "case_dt": case_dt,
+                "bundle_path": str(bundle_path),
+            })
+            prior_bundle_for_diff = current_bundle
+            prior_case_id_for_diff = cid
+        rows.append(row)
 
     Path(args.out_json).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out_json).write_text(json.dumps(rows, indent=2))
+
+    if longitudinal_mode and args.prior_bundle:
+        # Write the longitudinal manifest in the shape `score_fhir.py
+        # --diff-csv` expects (see `case_diff.load_manifest`). The bundle
+        # paths are absolutized so the manifest is portable — `load_manifest`
+        # treats absolute paths as-is (no rebasing against the manifest dir,
+        # which would otherwise double-prefix the bundle paths when CWD is
+        # the repo root).
+        manifest_path = Path(args.prior_bundle)
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        portable = [
+            {**row, "bundle_path": str(Path(row["bundle_path"]).resolve())}
+            for row in longitudinal_manifest
+        ]
+        manifest_path.write_text(json.dumps(portable, indent=2))
+        print(
+            f"Longitudinal manifest: {manifest_path} "
+            f"({len(longitudinal_manifest)} cases, bundles in {bundle_dir})"
+        )
 
     recall = total_m / total_e if total_e else 0.0
     extracted_total = total_m + total_fp
