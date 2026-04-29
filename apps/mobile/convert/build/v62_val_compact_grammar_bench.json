@@ -1,0 +1,880 @@
+{
+  "val_path": "/tmp/eicr-fhir-data/val-compact.jsonl",
+  "limit": 50,
+  "max_tokens": 2048,
+  "grammar_file": "apps/mobile/convert/cliniq_v62_compact.gbnf",
+  "ts": 1777431416,
+  "v62": {
+    "label": "v62_lora",
+    "base_url": "http://127.0.0.1:8091",
+    "aggregate": {
+      "n": 50,
+      "tp": 283,
+      "fp": 9,
+      "fn": 151,
+      "micro_precision": 0.9692,
+      "micro_recall": 0.6521,
+      "micro_f1": 0.7796,
+      "macro_precision": 0.7889,
+      "macro_recall": 0.6532,
+      "macro_f1": 0.7041,
+      "json_valid_rate": 0.82,
+      "schema_complete_rate": 0.6,
+      "latency_p50_s": 3.986,
+      "latency_p95_s": 5.227,
+      "latency_mean_s": 3.978
+    },
+    "cases": [
+      {
+        "idx": 0,
+        "latency_s": 4.17,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Carlos Kim\",\"dob\":\"1997-11-18\",\"sex\":\"M\",\"race\":\"White\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Minneapolis, MN 55401\"},\"encounter\":{\"date\":\"2025-10-18\",\"facility\":\"OHSU Hospital\""
+      },
+      {
+        "idx": 1,
+        "latency_s": 4.127,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Richard Anderson\",\"dob\":\"1975-07-25\",\"sex\":\"M\",\"race\":\"Black or African American\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Phoenix, AZ 85001\"},\"encounter\":{\"date\":\"2026-09-23\",\"fac"
+      },
+      {
+        "idx": 2,
+        "latency_s": 3.641,
+        "score": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 8,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "json_valid": false,
+          "schema_complete": false,
+          "gold_n": 8,
+          "pred_n": 0
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Mohammed Ali\",\"dob\":\"1944-11-18\",\"sex\":\"M\",\"race\":\"Asian\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Houston, TX 77001\"},\"encounter\":{\"date\":\"2026-05-21\",\"facility\":\"Houston Methodis"
+      },
+      {
+        "idx": 3,
+        "latency_s": 4.439,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Richard Kim\",\"dob\":\"1955-03-09\",\"sex\":\"M\",\"race\":\"American Indian or Alaska Native\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Minneapolis, MN 55401\"},\"encounter\":{\"date\":\"2025-02-01"
+      },
+      {
+        "idx": 4,
+        "latency_s": 4.159,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Emily Wilson\",\"dob\":\"1974-07-27\",\"sex\":\"F\",\"race\":\"Black or African American\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Minneapolis, MN 55401\"},\"encounter\":{\"date\":\"2026-10-12\",\"fac"
+      },
+      {
+        "idx": 5,
+        "latency_s": 3.688,
+        "score": {
+          "tp": 7,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.875,
+          "f1": 0.9333333333333333,
+          "json_valid": true,
+          "schema_complete": false,
+          "gold_n": 8,
+          "pred_n": 7
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Nicole Nguyen\",\"dob\":\"1961-07-19\",\"sex\":\"F\",\"race\":\"Black or African American\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Atlanta, GA 30301\"},\"encounter\":{\"date\":\"2026-02-03\",\"fa"
+      },
+      {
+        "idx": 6,
+        "latency_s": 4.0,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Richard Ali\",\"dob\":\"1976-05-08\",\"sex\":\"M\",\"race\":\"White\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Portland, OR 97201\"},\"encounter\":{\"date\":\"2026-05-15\",\"facility\":\"Emory Univer"
+      },
+      {
+        "idx": 7,
+        "latency_s": 3.824,
+        "score": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 9,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "json_valid": false,
+          "schema_complete": false,
+          "gold_n": 9,
+          "pred_n": 0
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Jessica Taylor\",\"dob\":\"1986-04-13\",\"sex\":\"F\",\"race\":\"Black or African American\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Atlanta, GA 30301\"},\"encounter\":{\"date\":\"2025-02-08\",\"f"
+      },
+      {
+        "idx": 8,
+        "latency_s": 4.366,
+        "score": {
+          "tp": 9,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.9,
+          "f1": 0.9473684210526316,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 10,
+          "pred_n": 9
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Joseph Kim\",\"dob\":\"1980-01-01\",\"sex\":\"M\",\"race\":\"Black or African American\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Portland, OR 97201\"},\"encounter\":{\"date\":\"2026-04-04\",\"faci"
+      },
+      {
+        "idx": 9,
+        "latency_s": 5.111,
+        "score": {
+          "tp": 10,
+          "fp": 0,
+          "fn": 3,
+          "precision": 1.0,
+          "recall": 0.7692307692307693,
+          "f1": 0.8695652173913044,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 13,
+          "pred_n": 10
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Thomas Smith\",\"dob\":\"1956-04-28\",\"sex\":\"M\",\"race\":\"American Indian or Alaska Native\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Minneapolis, MN 55401\"},\"encounter\":{\"date\":\"2025-10-0"
+      },
+      {
+        "idx": 10,
+        "latency_s": 4.269,
+        "score": {
+          "tp": 8,
+          "fp": 1,
+          "fn": 1,
+          "precision": 0.8888888888888888,
+          "recall": 0.8888888888888888,
+          "f1": 0.8888888888888888,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 9
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Wei Nguyen\",\"dob\":\"1961-03-16\",\"sex\":\"M\",\"race\":\"American Indian or Alaska Native\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Miami, FL 33101\"},\"encounter\":{\"date\":\"2025-11-02\",\""
+      },
+      {
+        "idx": 11,
+        "latency_s": 3.846,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Nicole Garcia\",\"dob\":\"1982-01-05\",\"sex\":\"F\",\"race\":\"White\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Seattle, WA 98101\"},\"encounter\":{\"date\":\"2026-12-11\",\"facility\":\"Hennepin Health"
+      },
+      {
+        "idx": 12,
+        "latency_s": 3.292,
+        "score": {
+          "tp": 3,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.75,
+          "f1": 0.8571428571428571,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 4,
+          "pred_n": 3
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Priya Rodriguez\",\"dob\":\"1981-06-16\",\"sex\":\"F\",\"race\":\"Asian\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Chicago, IL 60601\"},\"encounter\":{\"date\":\"2025-08-02\",\"facility\":\"Emory Univers"
+      },
+      {
+        "idx": 13,
+        "latency_s": 3.81,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Michael Anderson\",\"dob\":\"1992-03-24\",\"sex\":\"M\",\"race\":\"American Indian or Alaska Native\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Phoenix, AZ 85001\"},\"encounter\":{\"date\":\"2025-"
+      },
+      {
+        "idx": 14,
+        "latency_s": 3.955,
+        "score": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 9,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "json_valid": false,
+          "schema_complete": false,
+          "gold_n": 9,
+          "pred_n": 0
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Aisha Garcia\",\"dob\":\"1940-11-10\",\"sex\":\"F\",\"race\":\"Black or African American\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Phoenix, AZ 85001\"},\"encounter\":{\"date\":\"2026-09-14\",\"facilit"
+      },
+      {
+        "idx": 15,
+        "latency_s": 4.364,
+        "score": {
+          "tp": 9,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.9,
+          "f1": 0.9473684210526316,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 10,
+          "pred_n": 9
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"William Smith\",\"dob\":\"1951-11-15\",\"sex\":\"M\",\"race\":\"American Indian or Alaska Native\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Portland, OR 97201\"},\"encounter\":{\"date\":\"2026-06"
+      },
+      {
+        "idx": 16,
+        "latency_s": 4.171,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Fatima Thomas\",\"dob\":\"1998-07-22\",\"sex\":\"F\",\"race\":\"Black or African American\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Denver, CO 80202\"},\"encounter\":{\"date\":\"2026-06-08\",\"facilit"
+      },
+      {
+        "idx": 17,
+        "latency_s": 5.552,
+        "score": {
+          "tp": 11,
+          "fp": 0,
+          "fn": 3,
+          "precision": 1.0,
+          "recall": 0.7857142857142857,
+          "f1": 0.88,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 14,
+          "pred_n": 11
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Stephanie Nguyen\",\"dob\":\"1962-03-19\",\"sex\":\"F\",\"race\":\"Black or African American\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Phoenix, AZ 85001\"},\"encounter\":{\"date\":\"2025-11-30\",\"fac"
+      },
+      {
+        "idx": 18,
+        "latency_s": 3.733,
+        "score": {
+          "tp": 7,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.875,
+          "f1": 0.9333333333333333,
+          "json_valid": true,
+          "schema_complete": false,
+          "gold_n": 8,
+          "pred_n": 7
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Ana Garcia\",\"dob\":\"1979-05-14\",\"sex\":\"F\",\"race\":\"Black or African American\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Atlanta, GA 30301\"},\"encounter\":{\"date\":\"2025-11-24\",\"facility\""
+      },
+      {
+        "idx": 19,
+        "latency_s": 4.2,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"John Ali\",\"dob\":\"1996-01-06\",\"sex\":\"M\",\"race\":\"American Indian or Alaska Native\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Seattle, WA 98101\"},\"encounter\":{\"date\":\"2025-07-04\",\"faci"
+      },
+      {
+        "idx": 20,
+        "latency_s": 3.455,
+        "score": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 9,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "json_valid": false,
+          "schema_complete": false,
+          "gold_n": 9,
+          "pred_n": 0
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Stephanie Kim\",\"dob\":\"1952-03-26\",\"sex\":\"F\",\"race\":\"Black or African American\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Atlanta, GA 30301\"},\"encounter\":{\"date\":\"2025-06-02\",\"facili"
+      },
+      {
+        "idx": 21,
+        "latency_s": 4.156,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Thomas Taylor\",\"dob\":\"1987-11-17\",\"sex\":\"M\",\"race\":\"American Indian or Alaska Native\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Portland, OR 97201\"},\"encounter\":{\"date\":\"2026-12"
+      },
+      {
+        "idx": 22,
+        "latency_s": 4.115,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Ana Martinez\",\"dob\":\"1984-03-07\",\"sex\":\"F\",\"race\":\"Asian\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Chicago, IL 60601\"},\"encounter\":{\"date\":\"2026-04-17\",\"facility\":\"Hennepin Healthc"
+      },
+      {
+        "idx": 23,
+        "latency_s": 4.013,
+        "score": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 7,
+          "precision": 1.0,
+          "recall": 0.2222222222222222,
+          "f1": 0.3636363636363636,
+          "json_valid": true,
+          "schema_complete": false,
+          "gold_n": 9,
+          "pred_n": 2
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"David Anderson\",\"dob\":\"1965-01-19\",\"sex\":\"M\",\"race\":\"Black or African American\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Seattle, WA 98101\"},\"encounter\":{\"date\":\"2026-09-19\",\"facil"
+      },
+      {
+        "idx": 24,
+        "latency_s": 3.271,
+        "score": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.6666666666666666,
+          "f1": 0.8,
+          "json_valid": true,
+          "schema_complete": false,
+          "gold_n": 3,
+          "pred_n": 2
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Sarah Brown\",\"dob\":\"1957-01-04\",\"sex\":\"F\",\"race\":\"American Indian or Alaska Native\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Houston, TX 77001\"},\"encounter\":{\"date\":\"2026-04-23"
+      },
+      {
+        "idx": 25,
+        "latency_s": 3.466,
+        "score": {
+          "tp": 7,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.875,
+          "f1": 0.9333333333333333,
+          "json_valid": true,
+          "schema_complete": false,
+          "gold_n": 8,
+          "pred_n": 7
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Raj Kim\",\"dob\":\"1967-01-10\",\"sex\":\"M\",\"race\":\"Black or African American\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Portland, OR 97201\"},\"encounter\":{\"date\":\"2026-09-30\",\"facility\":\""
+      },
+      {
+        "idx": 26,
+        "latency_s": 4.129,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Sarah Johnson\",\"dob\":\"1941-10-22\",\"sex\":\"F\",\"race\":\"American Indian or Alaska Native\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Seattle, WA 98101\"},\"encounter\":{\"date\":\"2025-12-12\","
+      },
+      {
+        "idx": 27,
+        "latency_s": 4.292,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Carlos Nguyen\",\"dob\":\"2003-01-25\",\"sex\":\"M\",\"race\":\"Black or African American\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Chicago, IL 60601\"},\"encounter\":{\"date\":\"2025-05-12\",\"fa"
+      },
+      {
+        "idx": 28,
+        "latency_s": 3.986,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Wei Rodriguez\",\"dob\":\"1959-01-05\",\"sex\":\"M\",\"race\":\"White\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Houston, TX 77001\"},\"encounter\":{\"date\":\"2025-03-18\",\"facility\":\"Mayo Clinic"
+      },
+      {
+        "idx": 29,
+        "latency_s": 3.821,
+        "score": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 9,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "json_valid": false,
+          "schema_complete": false,
+          "gold_n": 9,
+          "pred_n": 0
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Stephanie Kim\",\"dob\":\"1956-03-28\",\"sex\":\"F\",\"race\":\"American Indian or Alaska Native\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Chicago, IL 60601\"},\"encounter\":{\"date\":\"2026-02-27\","
+      },
+      {
+        "idx": 30,
+        "latency_s": 3.171,
+        "score": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.6666666666666666,
+          "f1": 0.8,
+          "json_valid": true,
+          "schema_complete": false,
+          "gold_n": 3,
+          "pred_n": 2
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Maria Thomas\",\"dob\":\"1979-10-03\",\"sex\":\"F\",\"race\":\"American Indian or Alaska Native\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Atlanta, GA 30301\"},\"encounter\":{\"date\":\"2026-01-1"
+      },
+      {
+        "idx": 31,
+        "latency_s": 4.004,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Richard Smith\",\"dob\":\"1944-04-01\",\"sex\":\"M\",\"race\":\"White\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Chicago, IL 60601\"},\"encounter\":{\"date\":\"2026-06-11\",\"facility\":\"Denver Health M"
+      },
+      {
+        "idx": 32,
+        "latency_s": 3.487,
+        "score": {
+          "tp": 6,
+          "fp": 1,
+          "fn": 2,
+          "precision": 0.8571428571428571,
+          "recall": 0.75,
+          "f1": 0.7999999999999999,
+          "json_valid": true,
+          "schema_complete": false,
+          "gold_n": 8,
+          "pred_n": 7
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Nicole Smith\",\"dob\":\"1943-12-04\",\"sex\":\"F\",\"race\":\"Asian\"},\"encounter\":{\"date\":\"2025-04-20\",\"facility\":\"Northwestern Memorial Hospital\",\"npi\":\"1234567801\"},\"conditions\":[{\"name\":\"R"
+      },
+      {
+        "idx": 33,
+        "latency_s": 2.708,
+        "score": {
+          "tp": 3,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.75,
+          "f1": 0.8571428571428571,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 4,
+          "pred_n": 3
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Robert Smith\",\"dob\":\"1991-03-04\",\"sex\":\"M\",\"race\":\"Asian\"},\"encounter\":{\"date\":\"2025-11-04\",\"facility\":\"Emory University Hospital\",\"location\":\"Seattle, WA 98101\"},\"conditions\":[{\"n"
+      },
+      {
+        "idx": 34,
+        "latency_s": 3.937,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Jessica Johnson\",\"dob\":\"1965-10-13\",\"sex\":\"F\",\"race\":\"Asian\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Portland, OR 97201\"},\"encounter\":{\"date\":\"2026-11-19\",\"facility\":\"Denver Healt"
+      },
+      {
+        "idx": 35,
+        "latency_s": 3.888,
+        "score": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 9,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "json_valid": false,
+          "schema_complete": false,
+          "gold_n": 9,
+          "pred_n": 0
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Fatima Garcia\",\"dob\":\"1993-07-04\",\"sex\":\"F\",\"race\":\"White\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Miami, FL 33101\"},\"encounter\":{\"date\":\"2025-09-30\",\"facility\":\"Denver Health Med"
+      },
+      {
+        "idx": 36,
+        "latency_s": 4.359,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Ana Davis\",\"dob\":\"1948-12-19\",\"sex\":\"F\",\"race\":\"Asian\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Denver, CO 80202\"},\"encounter\":{\"date\":\"2026-07-11\",\"facility\":\"Denver Health Medica"
+      },
+      {
+        "idx": 37,
+        "latency_s": 5.227,
+        "score": {
+          "tp": 8,
+          "fp": 2,
+          "fn": 1,
+          "precision": 0.8,
+          "recall": 0.8888888888888888,
+          "f1": 0.8421052631578948,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 10
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Ashley Thomas\",\"dob\":\"2003-07-26\",\"sex\":\"F\",\"race\":\"White\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Minneapolis, MN 55401\"},\"encounter\":{\"date\":\"2026-10-25\",\"facility\":\"OHSU Ho"
+      },
+      {
+        "idx": 38,
+        "latency_s": 3.209,
+        "score": {
+          "tp": 5,
+          "fp": 1,
+          "fn": 3,
+          "precision": 0.8333333333333334,
+          "recall": 0.625,
+          "f1": 0.7142857142857143,
+          "json_valid": true,
+          "schema_complete": false,
+          "gold_n": 8,
+          "pred_n": 6
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Daniel Taylor\",\"dob\":\"1967-08-10\",\"sex\":\"M\",\"race\":\"American Indian or Alaska Native\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Seattle, WA 98101\"},\"encounter\":{\"date\":\"2025-04-"
+      },
+      {
+        "idx": 39,
+        "latency_s": 2.967,
+        "score": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 9,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "json_valid": false,
+          "schema_complete": false,
+          "gold_n": 9,
+          "pred_n": 0
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Daniel Thomas\",\"dob\":\"1973-03-14\",\"sex\":\"M\",\"race\":\"American Indian or Alaska Native\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Chicago, IL 60601\"},\"encounter\":{\"date\":\"2025-03-10\","
+      },
+      {
+        "idx": 40,
+        "latency_s": 3.728,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Priya Nguyen\",\"dob\":\"2005-10-17\",\"sex\":\"F\",\"race\":\"White\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Seattle, WA 98101\"},\"encounter\":{\"date\":\"2026-01-14\",\"facility\":\"Northwestern Mem"
+      },
+      {
+        "idx": 41,
+        "latency_s": 3.716,
+        "score": {
+          "tp": 7,
+          "fp": 1,
+          "fn": 2,
+          "precision": 0.875,
+          "recall": 0.7777777777777778,
+          "f1": 0.823529411764706,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Fatima Ali\",\"dob\":\"1957-03-25\",\"sex\":\"F\",\"race\":\"American Indian or Alaska Native\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Chicago, IL 60601\"},\"encounter\":\"2025-11-08\",\"facili"
+      },
+      {
+        "idx": 42,
+        "latency_s": 4.063,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Maria Nguyen\",\"dob\":\"2000-11-03\",\"sex\":\"F\",\"race\":\"White\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Denver, CO 80202\"},\"encounter\":{\"date\":\"2026-05-01\",\"facility\":\"Virginia Maso"
+      },
+      {
+        "idx": 43,
+        "latency_s": 4.046,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Lisa Patel\",\"dob\":\"2001-11-21\",\"sex\":\"F\",\"race\":\"Black or African American\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Boston, MA 02101\"},\"encounter\":{\"date\":\"2026-02-06\",\"facili"
+      },
+      {
+        "idx": 44,
+        "latency_s": 3.104,
+        "score": {
+          "tp": 6,
+          "fp": 1,
+          "fn": 2,
+          "precision": 0.8571428571428571,
+          "recall": 0.75,
+          "f1": 0.7999999999999999,
+          "json_valid": true,
+          "schema_complete": false,
+          "gold_n": 8,
+          "pred_n": 7
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Stephanie Rodriguez\",\"dob\":\"1968-06-24\",\"sex\":\"F\",\"race\":\"Black or African American\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Portland, OR 97201\"},\"encounter\":{\"date\":\"2025-10-"
+      },
+      {
+        "idx": 45,
+        "latency_s": 4.307,
+        "score": {
+          "tp": 1,
+          "fp": 2,
+          "fn": 7,
+          "precision": 0.3333333333333333,
+          "recall": 0.125,
+          "f1": 0.18181818181818182,
+          "json_valid": true,
+          "schema_complete": false,
+          "gold_n": 8,
+          "pred_n": 3
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Carlos Thomas\",\"dob\":\"1943-05-15\",\"sex\":\"M\",\"race\":\"Black or African American\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Boston, MA 02101\"},\"encounter\":{\"date\":\"2026-09-19\",\"fac"
+      },
+      {
+        "idx": 46,
+        "latency_s": 4.348,
+        "score": {
+          "tp": 8,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.8888888888888888,
+          "f1": 0.9411764705882353,
+          "json_valid": true,
+          "schema_complete": true,
+          "gold_n": 9,
+          "pred_n": 8
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Fatima Patel\",\"dob\":\"1968-05-18\",\"sex\":\"F\",\"race\":\"Black or African American\",\"ethnicity\":\"Hispanic or Latino\",\"addr\":\"Boston, MA 02101\"},\"encounter\":{\"date\":\"2026-05-30\",\"facility"
+      },
+      {
+        "idx": 47,
+        "latency_s": 6.131,
+        "score": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 11,
+          "precision": 1.0,
+          "recall": 0.15384615384615385,
+          "f1": 0.2666666666666667,
+          "json_valid": true,
+          "schema_complete": false,
+          "gold_n": 13,
+          "pred_n": 2
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Amanda Smith\",\"dob\":\"1954-10-25\",\"sex\":\"F\",\"race\":\"White\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Minneapolis, MN 55401\"},\"encounter\":{\"date\":\"2025-03-17\",\"facility\":\"Northwes"
+      },
+      {
+        "idx": 48,
+        "latency_s": 3.566,
+        "score": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 8,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "json_valid": false,
+          "schema_complete": false,
+          "gold_n": 8,
+          "pred_n": 0
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"Jennifer Garcia\",\"dob\":\"1952-07-11\",\"sex\":\"F\",\"race\":\"Asian\",\"ethnicity\":\"Non Hispanic or Latino\",\"addr\":\"Phoenix, AZ 85001\"},\"encounter\":{\"date\":\"2026-07-24\",\"facility\":\"Denver He"
+      },
+      {
+        "idx": 49,
+        "latency_s": 3.495,
+        "score": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 9,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "json_valid": false,
+          "schema_complete": false,
+          "gold_n": 9,
+          "pred_n": 0
+        },
+        "pred_preview": "{\"patient\":{\"name\":\"William Patel\",\"dob\":\"1993-07-28\",\"sex\":\"M\",\"race\":\"Asian\"},\"encounter\":{\"date\":\"2025-01-29\",\"facility\":\"Mayo Clinic Phoenix\",\"npi\":\"1234567803\"},\"conditions\":[{\"name\":\"Pertussis\","
+      }
+    ]
+  }
+}

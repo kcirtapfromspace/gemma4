@@ -1,0 +1,36 @@
+# GBNF grammar for v62 compact-JSON eICR extraction.
+#
+# Targets the exact schema v62 was trained on:
+#   {"patient":{...},"encounter":{...},"conditions":[...],"labs":[...],
+#    "meds":[...],"vitals":{...}}
+#
+# Goals:
+#   * Force JSON validity to 1.0 (kill "missing ',' / extra '}'" decode bugs).
+#   * Force schema completeness to 1.0 (all 6 top-level keys present).
+#   * Stay permissive on inner fields so the LoRA's learned content survives.
+
+root         ::= ws "{" ws "\"patient\"" ws ":" ws value ws ","
+                 ws "\"encounter\"" ws ":" ws value ws ","
+                 ws "\"conditions\"" ws ":" ws array ws ","
+                 ws "\"labs\"" ws ":" ws array ws ","
+                 ws "\"meds\"" ws ":" ws array ws ","
+                 ws "\"vitals\"" ws ":" ws value ws "}" ws
+
+# Generic JSON value (object | array | string | number | bool | null).
+value        ::= object | array | string | number | "true" | "false" | "null"
+
+object       ::= "{" ws "}" | "{" ws member (ws "," ws member)* ws "}"
+member       ::= string ws ":" ws value
+
+array        ::= "[" ws "]" | "[" ws value (ws "," ws value)* ws "]"
+
+string       ::= "\"" char* "\""
+char         ::= [^"\\] | "\\" (["\\/bfnrt] | "u" hex hex hex hex)
+hex          ::= [0-9a-fA-F]
+
+number       ::= "-"? int frac? exp?
+int          ::= "0" | [1-9] [0-9]*
+frac         ::= "." [0-9]+
+exp          ::= [eE] [+-]? [0-9]+
+
+ws           ::= [ \t\n]*
