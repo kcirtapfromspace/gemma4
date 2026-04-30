@@ -1,6 +1,6 @@
 # Experiments index
 
-_Auto-generated from `scripts/benchmarks.duckdb` on 2026-04-25 15:49._
+_Auto-generated from `scripts/benchmarks.duckdb` on 2026-04-30 09:56._
 _Edit individual notes directly; this index regenerates on every sync._
 
 | team | experiment | backend | device | runtime | tok/s | extraction | date |
