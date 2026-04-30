@@ -360,10 +360,79 @@ print("\n=== Saving LoRA ===")
 model.save_pretrained("/kaggle/working/cliniq-compact-lora")
 tokenizer.save_pretrained("/kaggle/working/cliniq-compact-lora")
 
-print("\n=== Merging ===")
+# v29 fix: v28's reload-base-in-fp16 + re-apply-LoRA path failed at
+# `PeftModel.from_pretrained(base_fp16, lora_path)` because peft 0.x in
+# the Kaggle env can't inject LoRA into Gemma 4's `Gemma4ClippableLinear`
+# wrapper modules ("Target module Gemma4ClippableLinear(...) is not
+# supported. Currently, only the following modules are supported: ...
+# torch.nn.Linear, ...").
+#
+# Cleaner path: merge the LoRA into the bnb-quantized base in place
+# (peft.merge_and_unload handles bnb merge correctly), then walk every
+# `Linear4bit` layer and replace it with a clean `nn.Linear` at bf16
+# using `bitsandbytes.functional.dequantize_4bit` against the layer's
+# stored `quant_state`. Strip `quantization_config` from the saved
+# config so loaders don't expect bnb wrappers. Result: standard fp16
+# safetensors that llama.cpp's `convert_hf_to_gguf.py` reads cleanly.
+# See tools/autoresearch/c20-llm-tuning-2026-04-25.md for the v27/v28
+# postmortem.
+print("\n=== Merging via bnb dequant in place ===")
+import bitsandbytes as bnb
+from bitsandbytes.nn import Linear4bit
+import torch.nn as nn
+
 merged = model.merge_and_unload()
-merged.save_pretrained("/kaggle/working/cliniq-compact-merged")
+
+DTYPE = torch.bfloat16
+n_replaced = 0
+for parent_name, parent in list(merged.named_modules()):
+    for child_name, child in list(parent.named_children()):
+        if isinstance(child, Linear4bit):
+            with torch.no_grad():
+                w_fp = bnb.functional.dequantize_4bit(
+                    child.weight.data,
+                    child.weight.quant_state,
+                ).to(DTYPE)
+            new_lin = nn.Linear(
+                child.in_features,
+                child.out_features,
+                bias=child.bias is not None,
+            ).to(DTYPE)
+            new_lin.weight.data = w_fp.contiguous()
+            if child.bias is not None:
+                new_lin.bias.data = child.bias.data.to(DTYPE)
+            setattr(parent, child_name, new_lin)
+            n_replaced += 1
+print(f"Replaced {n_replaced} Linear4bit modules with nn.Linear @ bf16")
+
+# v30 fix: after replacing all Linear4bit modules, clear transformers' bnb
+# guard flags so save_pretrained doesn't re-emit a quantization_config in
+# config.json. v29 hit:
+#   ValueError: You cannot cast a bitsandbytes model in a new `dtype`.
+# from `merged.to(DTYPE)` because PreTrainedModel.to() checks
+# `_is_quantized`/`is_loaded_in_4bit` even after the underlying layers are
+# clean. Just skip the .to() (each replacement already cast to bf16) and
+# clear the flags explicitly.
+for attr in ("is_loaded_in_4bit", "is_loaded_in_8bit", "_is_quantized"):
+    if hasattr(merged, attr):
+        setattr(merged, attr, False)
+if hasattr(merged, "_quantization_config"):
+    merged._quantization_config = None
+if hasattr(merged.config, "quantization_config"):
+    delattr(merged.config, "quantization_config")
+merged.config.torch_dtype = "bfloat16"  # make load_state_dict pick bf16
+
+merged.save_pretrained(
+    "/kaggle/working/cliniq-compact-merged",
+    safe_serialization=True,
+    max_shard_size="1GB",  # v31: kaggle CLI HTTP streaming truncates files >2GB
+                            # at INT_MAX (2147483647 bytes). 1GB shards stay safe.
+)
 tokenizer.save_pretrained("/kaggle/working/cliniq-compact-merged")
+del merged
+import gc
+gc.collect()
+torch.cuda.empty_cache()
 
 print("\n=== DONE ===")
 for root, _, files in os.walk("/kaggle/working"):
