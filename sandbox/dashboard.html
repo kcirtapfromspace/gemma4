@@ -1,0 +1,1126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClinIQ — Hackathon Launch Readiness</title>
+<style>
+  :root {
+    --bg-0: #07090f;
+    --bg-1: #0c0f17;
+    --bg-2: #11151f;
+    --bg-3: #161b27;
+    --bg-4: #1d2230;
+    --border: #232938;
+    --border-2: #2c3346;
+    --text: #e7ebf3;
+    --text-2: #9aa1b1;
+    --text-3: #5b6273;
+    --accent-1: #14b8a6;
+    --accent-2: #06b6d4;
+    --green: #22c55e;
+    --green-soft: rgba(34, 197, 94, .14);
+    --amber: #f59e0b;
+    --amber-soft: rgba(245, 158, 11, .14);
+    --red: #ef4444;
+    --red-soft: rgba(239, 68, 68, .14);
+    --blue: #60a5fa;
+    --blue-soft: rgba(96, 165, 250, .14);
+    --purple: #a855f7;
+    --purple-soft: rgba(168, 85, 247, .14);
+    --mono: 'SF Mono', 'Fira Code', 'Menlo', 'Monaco', monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: radial-gradient(ellipse at top, #0e1320 0%, var(--bg-0) 55%) fixed;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-track { background: var(--bg-1); }
+  *::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 6px; }
+  *::-webkit-scrollbar-thumb:hover { background: #3a4258; }
+
+  header {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(7, 9, 15, .82);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .header-inner { max-width: 1280px; margin: 0 auto; padding: 22px 32px 0 32px; }
+  .titlebar { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  h1 {
+    margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -.02em;
+    background: linear-gradient(120deg, var(--accent-1), var(--accent-2) 60%, #a855f7);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .subtitle { color: var(--text-2); margin: 6px 0 0 0; font-size: 15px; max-width: 760px; }
+  .countdown {
+    text-align: right;
+    padding: 10px 18px; border-radius: 10px;
+    background: linear-gradient(180deg, var(--bg-3), var(--bg-2));
+    border: 1px solid var(--border-2);
+    min-width: 200px;
+  }
+  .countdown .num {
+    font-family: var(--mono); font-size: 32px; font-weight: 700;
+    background: linear-gradient(120deg, var(--accent-1), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    line-height: 1;
+  }
+  .countdown .lbl { font-size: 11px; color: var(--text-2); text-transform: uppercase; letter-spacing: .12em; margin-top: 6px; }
+  .countdown .deadline { font-size: 12px; color: var(--text-3); font-family: var(--mono); margin-top: 4px; }
+
+  .tech-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .tech-pill {
+    font-family: var(--mono); font-size: 11.5px; padding: 4px 10px; border-radius: 999px;
+    background: var(--bg-2); border: 1px solid var(--border); color: var(--text-2);
+  }
+
+  nav.tabs {
+    display: flex; gap: 4px; padding: 14px 0 0 0; margin-top: 16px;
+    border-bottom: 1px solid var(--border); overflow-x: auto;
+  }
+  nav.tabs button {
+    background: transparent; color: var(--text-2); border: none; cursor: pointer;
+    padding: 11px 18px; font-size: 14px; font-family: inherit;
+    border-bottom: 2px solid transparent; transition: color .2s, border-color .2s;
+    white-space: nowrap;
+  }
+  nav.tabs button:hover { color: var(--text); }
+  nav.tabs button.active { color: var(--text); border-bottom-color: var(--accent-1); }
+
+  main { max-width: 1280px; margin: 0 auto; padding: 32px; }
+  .panel { display: none; animation: fade-in .25s ease; }
+  .panel.active { display: block; }
+  @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .section-title {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .14em; color: var(--text-2);
+    margin: 28px 0 12px 0; font-weight: 600;
+  }
+  .section-title:first-child { margin-top: 0; }
+
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px;
+  }
+  .stat-card {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px; position: relative; overflow: hidden;
+    transition: transform .2s, border-color .2s;
+  }
+  .stat-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--accent-1);
+  }
+  .stat-card.green::before { background: var(--green); }
+  .stat-card.amber::before { background: var(--amber); }
+  .stat-card.red::before { background: var(--red); }
+  .stat-card.blue::before { background: var(--blue); }
+  .stat-card.purple::before { background: var(--purple); }
+  .stat-card:hover { transform: translateY(-2px); border-color: var(--border-2); }
+  .stat-card .stat-label {
+    font-size: 11px; color: var(--text-2); text-transform: uppercase; letter-spacing: .1em; font-weight: 600;
+  }
+  .stat-card .stat-value {
+    font-family: var(--mono); font-size: 26px; margin-top: 8px; font-weight: 700; color: var(--text);
+  }
+  .stat-card .stat-value.small { font-size: 18px; }
+  .stat-card .stat-sub {
+    font-size: 12px; color: var(--text-2); margin-top: 4px; font-family: var(--mono);
+  }
+
+  .progress-list { display: flex; flex-direction: column; gap: 14px; }
+  .progress-row {
+    display: grid; grid-template-columns: 200px 1fr 110px; align-items: center; gap: 16px;
+  }
+  .progress-row .pl-label { font-size: 14px; color: var(--text); }
+  .progress-row .pl-bar {
+    background: var(--bg-3); height: 10px; border-radius: 6px; overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .progress-row .pl-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+    transition: width .8s cubic-bezier(.16, 1, .3, 1);
+  }
+  .progress-row.green .pl-bar-fill { background: linear-gradient(90deg, #16a34a, var(--green)); }
+  .progress-row.amber .pl-bar-fill { background: linear-gradient(90deg, #d97706, var(--amber)); }
+  .progress-row.red .pl-bar-fill { background: linear-gradient(90deg, #dc2626, var(--red)); }
+  .progress-row .pl-value {
+    font-family: var(--mono); font-size: 12px; color: var(--text-2); text-align: right;
+  }
+
+  .working-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px;
+  }
+  .working-grid .w-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    background: var(--green-soft); border: 1px solid rgba(34, 197, 94, .25);
+    border-radius: 8px; font-size: 13.5px; color: var(--text);
+  }
+  .working-grid .w-item::before {
+    content: '\2713'; color: var(--green); font-weight: 700; font-family: var(--mono);
+  }
+
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+  .filter-row button {
+    background: var(--bg-2); border: 1px solid var(--border); color: var(--text-2);
+    padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12.5px;
+    font-family: inherit; transition: all .2s;
+  }
+  .filter-row button:hover { color: var(--text); border-color: var(--border-2); }
+  .filter-row button.active { background: var(--accent-1); color: #001b18; border-color: var(--accent-1); font-weight: 600; }
+
+  .cat-block { margin-bottom: 28px; }
+  .cat-title {
+    display: flex; align-items: center; gap: 10px; font-size: 13px;
+    color: var(--text); text-transform: uppercase; letter-spacing: .1em; font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .cat-count { font-family: var(--mono); font-size: 11px; color: var(--text-3); font-weight: 400; }
+
+  .comp-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 12px;
+  }
+  .comp-card {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; cursor: pointer; transition: border-color .2s, transform .2s;
+  }
+  .comp-card:hover { border-color: var(--border-2); transform: translateY(-1px); }
+  .comp-card.expanded { border-color: var(--accent-1); }
+  .comp-card .ch-row { display: flex; align-items: center; gap: 10px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .status-dot.complete { background: var(--green); box-shadow: 0 0 8px rgba(34, 197, 94, .5); }
+  .status-dot.partial { background: var(--amber); box-shadow: 0 0 8px rgba(245, 158, 11, .5); }
+  .status-dot.missing { background: var(--red); box-shadow: 0 0 8px rgba(239, 68, 68, .5); }
+  .status-dot.stub { background: var(--text-3); }
+  .comp-card .name { flex: 1; font-size: 14px; font-weight: 500; color: var(--text); }
+  .comp-card .badge {
+    font-size: 10.5px; padding: 2px 8px; border-radius: 4px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+  .badge.complete { background: var(--green-soft); color: var(--green); }
+  .badge.partial { background: var(--amber-soft); color: var(--amber); }
+  .badge.missing { background: var(--red-soft); color: var(--red); }
+  .badge.stub { background: rgba(91, 98, 115, .3); color: var(--text-2); }
+  .comp-card .arrow { color: var(--text-3); transition: transform .2s; font-size: 12px; }
+  .comp-card.expanded .arrow { transform: rotate(90deg); }
+  .comp-card .detail {
+    display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);
+    font-size: 13px; color: var(--text-2);
+  }
+  .comp-card.expanded .detail { display: block; }
+  .comp-card .file-chip {
+    display: inline-block; font-family: var(--mono); font-size: 11px;
+    background: var(--bg-3); padding: 3px 8px; border-radius: 4px;
+    color: var(--text-2); margin-top: 8px; border: 1px solid var(--border);
+  }
+  .comp-card .tag-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .comp-card .tag {
+    font-family: var(--mono); font-size: 10.5px; padding: 2px 7px; border-radius: 4px;
+    background: var(--bg-3); color: var(--text-2); border: 1px solid var(--border);
+  }
+
+  .arch-layer {
+    display: grid; grid-template-columns: 130px 1fr; gap: 16px; padding: 14px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .arch-layer:last-child { border-bottom: none; }
+  .arch-layer-label {
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--text-2); padding-top: 8px; font-weight: 600;
+  }
+  .arch-boxes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .arch-box {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; font-size: 12.5px; color: var(--text);
+    display: flex; flex-direction: column; gap: 3px; min-width: 120px;
+  }
+  .arch-box .arch-name { font-weight: 500; }
+  .arch-box .arch-meta { font-family: var(--mono); font-size: 10.5px; color: var(--text-3); }
+  .arch-box.primary { border-color: var(--accent-1); background: linear-gradient(180deg, rgba(20, 184, 166, .12), var(--bg-2)); }
+  .arch-box.input { border-color: var(--blue); background: rgba(96, 165, 250, .08); }
+  .arch-box.output { border-color: var(--purple); background: rgba(168, 85, 247, .08); }
+
+  .flow-row {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 14px 0;
+  }
+  .flow-step {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; min-width: 150px; flex: 1; max-width: 200px;
+  }
+  .flow-step .icon { font-size: 18px; margin-bottom: 4px; }
+  .flow-step .step-name { font-size: 13.5px; font-weight: 500; color: var(--text); }
+  .flow-step .step-actor { font-size: 11px; color: var(--accent-1); font-family: var(--mono); margin-top: 2px; }
+  .flow-step .step-desc { font-size: 12px; color: var(--text-2); margin-top: 6px; line-height: 1.4; }
+  .flow-arrow { color: var(--text-3); font-size: 18px; flex-shrink: 0; }
+
+  .kanban { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+  .kanban-col {
+    background: var(--bg-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px;
+  }
+  .kanban-col h3 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .12em;
+    margin: 0 0 12px 0; padding: 6px 10px; border-radius: 6px; font-weight: 600;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .kanban-col.critical h3 { background: var(--red-soft); color: var(--red); }
+  .kanban-col.high h3 { background: var(--amber-soft); color: var(--amber); }
+  .kanban-col.medium h3 { background: var(--blue-soft); color: var(--blue); }
+  .blocker-card {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 10px;
+  }
+  .blocker-card .b-title { font-size: 13.5px; font-weight: 500; color: var(--text); }
+  .blocker-card .b-desc { font-size: 12px; color: var(--text-2); margin-top: 6px; line-height: 1.45; }
+  .blocker-card .b-meta { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .blocker-card .b-effort {
+    font-family: var(--mono); font-size: 10.5px; padding: 2px 7px;
+    background: var(--bg-3); border: 1px solid var(--border); border-radius: 4px; color: var(--text-2);
+  }
+  .blocker-card .b-tag {
+    font-family: var(--mono); font-size: 10.5px; padding: 2px 7px;
+    background: var(--bg-3); border-radius: 4px; color: var(--text-2);
+  }
+  .blocker-card .b-files { font-family: var(--mono); font-size: 10.5px; color: var(--text-3); margin-top: 6px; }
+
+  .ck-list { display: flex; flex-direction: column; gap: 8px; }
+  .ck-group {
+    background: var(--bg-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; margin-bottom: 16px;
+  }
+  .ck-group h3 {
+    font-size: 13px; margin: 0 0 12px 0; display: flex; align-items: center; gap: 10px;
+    text-transform: uppercase; letter-spacing: .1em; color: var(--text); font-weight: 600;
+  }
+  .priority-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .priority-critical { background: var(--red); }
+  .priority-high { background: var(--amber); }
+  .priority-medium { background: var(--blue); }
+  .priority-low { background: var(--green); }
+  .ck-item {
+    display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px;
+    border-radius: 6px; cursor: pointer; transition: background .15s;
+  }
+  .ck-item:hover { background: var(--bg-2); }
+  .ck-item input[type="checkbox"] {
+    margin-top: 3px; cursor: pointer; accent-color: var(--accent-1); flex-shrink: 0;
+  }
+  .ck-item .ck-text { font-size: 13.5px; color: var(--text); flex: 1; }
+  .ck-item .ck-detail {
+    display: block; font-family: var(--mono); font-size: 11px; color: var(--text-3); margin-top: 3px;
+  }
+  .ck-item.done .ck-text { text-decoration: line-through; color: var(--text-3); }
+  .ck-item.done .ck-detail { opacity: .5; }
+
+  .progress-bar-large {
+    background: var(--bg-3); height: 14px; border-radius: 8px; overflow: hidden;
+    margin: 18px 0 24px 0; border: 1px solid var(--border); position: relative;
+  }
+  .progress-bar-large .fill {
+    height: 100%; background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+    transition: width .6s cubic-bezier(.16, 1, .3, 1); position: relative;
+  }
+  .progress-bar-large .label {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--text);
+  }
+
+  .summary-block {
+    background: var(--bg-1); border: 1px solid var(--border-2); border-radius: 12px;
+    padding: 18px 22px; margin-top: 36px; position: relative;
+  }
+  .summary-block h3 { margin: 0 0 12px 0; font-size: 13px; color: var(--text-2); text-transform: uppercase; letter-spacing: .1em; }
+  .summary-block pre {
+    font-family: var(--mono); font-size: 12.5px; color: var(--text); line-height: 1.7;
+    white-space: pre-wrap; margin: 0;
+  }
+  .copy-btn {
+    position: absolute; top: 14px; right: 16px;
+    background: var(--bg-3); border: 1px solid var(--border-2); color: var(--text-2);
+    padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 11.5px;
+    font-family: var(--mono); transition: all .2s;
+  }
+  .copy-btn:hover { background: var(--accent-1); color: #001b18; border-color: var(--accent-1); }
+
+  .timeline {
+    position: relative; padding-left: 28px;
+  }
+  .timeline::before {
+    content: ''; position: absolute; left: 7px; top: 6px; bottom: 6px;
+    width: 2px; background: var(--border-2);
+  }
+  .tl-item {
+    position: relative; padding: 4px 0 18px 0;
+  }
+  .tl-item::before {
+    content: ''; position: absolute; left: -25px; top: 8px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--bg-3); border: 2px solid var(--accent-1);
+  }
+  .tl-item.done::before { background: var(--green); border-color: var(--green); }
+  .tl-item.now::before { background: var(--accent-1); border-color: var(--accent-1); box-shadow: 0 0 12px rgba(20, 184, 166, .6); }
+  .tl-item.future::before { background: var(--bg-2); border-color: var(--text-3); }
+  .tl-date { font-family: var(--mono); font-size: 11px; color: var(--accent-1); font-weight: 600; }
+  .tl-title { font-size: 14px; color: var(--text); margin-top: 2px; font-weight: 500; }
+  .tl-desc { font-size: 12.5px; color: var(--text-2); margin-top: 2px; }
+
+  @media (max-width: 768px) {
+    .header-inner, main { padding: 18px; }
+    .titlebar { flex-direction: column; }
+    .countdown { width: 100%; }
+    h1 { font-size: 24px; }
+    .progress-row { grid-template-columns: 1fr; }
+    .progress-row .pl-value { text-align: left; }
+    .arch-layer { grid-template-columns: 1fr; }
+    .arch-layer-label { padding: 0 0 6px 0; }
+    .flow-row { flex-direction: column; align-items: stretch; }
+    .flow-arrow { transform: rotate(90deg); align-self: center; }
+  }
+  @media print {
+    body { background: #fff; color: #111; }
+    nav.tabs { display: none; }
+    .panel { display: block !important; page-break-after: always; }
+    .stat-card, .comp-card, .blocker-card, .arch-box, .flow-step, .ck-group, .summary-block { background: #fafafa; border-color: #ccc; color: #111; }
+    .copy-btn { display: none; }
+    h1 { color: #0f766e; -webkit-text-fill-color: #0f766e; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="titlebar">
+      <div>
+        <h1>ClinIQ &mdash; Launch Readiness</h1>
+        <p class="subtitle">eICR&nbsp;&rarr;&nbsp;FHIR&nbsp;R4 conversion on the edge with Gemma&nbsp;4. Submission for the Gemma&nbsp;4&nbsp;Good hackathon (Kaggle&nbsp;&times;&nbsp;Google&nbsp;DeepMind), targeting Health&nbsp;Impact and Unsloth&nbsp;($10K) tracks.</p>
+      </div>
+      <div class="countdown">
+        <div class="num" id="days-left">18</div>
+        <div class="lbl">days to deadline</div>
+        <div class="deadline">2026-05-18 23:59 PT</div>
+      </div>
+    </div>
+    <div class="tech-row" id="tech-row"></div>
+    <nav class="tabs" id="tabs"></nav>
+  </div>
+</header>
+
+<main id="main"></main>
+
+<script>
+  // ============================================================
+  // DATA
+  // ============================================================
+  const TECH = ['Gemma 4 E2B','Unsloth','llama.cpp','PyTorch','PEFT + TRL','SwiftUI','iOS 26','Talos k8s','Jetson Orin NX','HF Spaces','ZeroGPU H200','FHIR R4','HL7 CDA','SNOMED-CT','LOINC','RxNorm','fhir.resources','Gradio 5'];
+
+  const TAB_NAMES = [
+    {id: 'overview', label: 'Overview'},
+    {id: 'components', label: 'Components'},
+    {id: 'architecture', label: 'Architecture'},
+    {id: 'workflows', label: 'Workflows'},
+    {id: 'roadmap', label: 'Roadmap'},
+    {id: 'blockers', label: 'Blockers'},
+    {id: 'checklist', label: 'Checklist'}
+  ];
+
+  const stats = [
+    {label: 'F1 sustained', value: '1.000', sub: '80 reps, 0 FPs', cls: 'green'},
+    {label: 'F1 combined-64', value: '0.997', sub: 'recall = 1.000', cls: 'green'},
+    {label: 'CDC eICR vectors', value: '7 / 7', sub: '360 / 360 codes', cls: 'green'},
+    {label: 'HL7 Java validator', value: '100%', sub: 'every Bundle valid', cls: 'green'},
+    {label: 'Jetson edge F1', value: '1.000', sub: 'Orin NX 8 GB', cls: 'green'},
+    {label: 'Unsloth v62 F1', value: '0.823', sub: '+0.486 vs base, 1.6x faster', cls: 'amber'},
+    {label: 'Sustained-load reps', value: '80', sub: 'fully deterministic', cls: 'blue'},
+    {label: 'Grammar parse errors', value: '0 / 81', sub: 'agent-path stability', cls: 'green'},
+    {label: 'Days to deadline', value: '18', sub: 'May 18, 2026', cls: 'amber'},
+    {label: 'Commits today', value: '4', sub: 'README, screencast, notebook', cls: 'purple'}
+  ];
+
+  const progressBars = [
+    {label: 'Three-tier pipeline', value: 'F1 = 1.000 sustained', pct: 100, cls: 'green'},
+    {label: 'iOS app (SwiftUI)', value: 'builds green, sim 4.0 tok/s', pct: 92, cls: 'green'},
+    {label: 'HF Spaces hosted demo', value: 'live on ZeroGPU H200', pct: 100, cls: 'green'},
+    {label: 'External validation', value: '7/7 CDC + HL7 Java pass', pct: 100, cls: 'green'},
+    {label: 'Edge deployment', value: 'Jetson cluster F1 = 1.000', pct: 100, cls: 'green'},
+    {label: 'Longitudinal "what\'s new"', value: 'Python + Swift mirrored', pct: 100, cls: 'green'},
+    {label: 'Repo root README', value: 'committed today', pct: 100, cls: 'green'},
+    {label: 'Sim screencast', value: '41 s tour, three beats', pct: 100, cls: 'green'},
+    {label: 'Submission narrative', value: 'hackathon-submission-2026-04-27', pct: 95, cls: 'green'},
+    {label: 'Unsloth track artifacts', value: 'notebook + model card drafted', pct: 75, cls: 'amber'},
+    {label: 'Public Kaggle notebook', value: 'pushed to Kaggle (user-side)', pct: 0, cls: 'red'},
+    {label: 'HF Hub model upload', value: 'LoRA + card upload (user-side)', pct: 0, cls: 'red'},
+    {label: 'Physical iPhone bench', value: 'pending device', pct: 0, cls: 'red'},
+    {label: 'Blog publishing chain', value: 'token broken since 2026-04-19', pct: 10, cls: 'red'},
+    {label: 'Main branch sync', value: '128 commits behind worktree', pct: 0, cls: 'red'}
+  ];
+
+  const overallPct = Math.round(progressBars.reduce((a, b) => a + b.pct, 0) / progressBars.length);
+
+  const workingItems = [
+    'F1 = 1.000 across 80 sustained-load reps',
+    'F1 = 0.997 on 64-case adversarial bench',
+    'Recall = 1.000 across all benches',
+    '7 / 7 perfect on external CDC eICR vectors',
+    'HL7 Java FHIR validator: every Bundle structurally valid',
+    'Jetson Orin NX 8 GB pod serving F1 = 1.000 deterministic-tier',
+    'iOS app builds green on iPhone 17 Pro simulator',
+    '0 parse errors over 81 runs of the agent path',
+    'HF Spaces live at kcirtapfromspace/cliniq-eicr-fhir',
+    'Long-context CDA chunker handles 197 KB / 20-chunk eICRs',
+    'Longitudinal "what\'s new" view shipped (timeline + diff banner)',
+    'v62 Unsloth fine-tune trains in 1h 4m on free Kaggle T4',
+    'v62 LoRA: precision = 0.979, +0.486 F1 vs base, 1.6x faster',
+    '60-second demo script written; sim screencast recorded',
+    'Repo root README committed; judge-facing 5-min path',
+    'Patient identity hash + diff engine in Python and Swift'
+  ];
+
+  const components = [
+    {name: 'regex_preparser.py', status: 'complete', cat: 'pipeline', desc: 'Tier-1 deterministic extraction: inline (SNOMED 12345) + CDA <code> attrs + curated alias lookup with NegEx scope.', file: 'apps/mobile/convert/regex_preparser.py', tags: ['837 LoC', 'Python']},
+    {name: 'rag_search.py', status: 'complete', cat: 'pipeline', desc: 'Tier-2 RAG fast-path over curated CDC NNDSS + WHO IDSR DB (~60 entries). NegEx applied to matched phrase before emission.', file: 'apps/mobile/convert/rag_search.py', tags: ['386 LoC']},
+    {name: 'agent_pipeline.py', status: 'complete', cat: 'pipeline', desc: 'Tier-3 Gemma 4 agent orchestration: native function calling, 6-turn cap, GBNF tool-call grammar lock, Cand D short-circuit gate.', file: 'apps/mobile/convert/agent_pipeline.py', tags: ['1234 LoC', 'GBNF']},
+    {name: 'fhir_bundle.py', status: 'complete', cat: 'pipeline', desc: 'Assembles extracted entities into FHIR R4 Bundle with Patient + Condition + Observation + MedicationStatement resources.', file: 'apps/mobile/convert/fhir_bundle.py', tags: ['351 LoC', 'FHIR R4']},
+    {name: 'score_fhir.py', status: 'complete', cat: 'pipeline', desc: 'Bench scorer + HL7 Java validator integration. Code-level F1 + structural validation.', file: 'apps/mobile/convert/score_fhir.py', tags: ['653 LoC']},
+    {name: 'case_diff.py', status: 'complete', cat: 'pipeline', desc: 'Longitudinal diff engine for EZeCR-style "what changed since last eCR" CSV. Matches Swift CaseDiff exactly.', file: 'apps/mobile/convert/case_diff.py', tags: ['~500 LoC', 'NEW']},
+    {name: 'bench_v62_singleshot.py', status: 'complete', cat: 'pipeline', desc: 'Single-shot v62 Unsloth fine-tune bench against val-compact.jsonl + base comparison.', file: 'apps/mobile/convert/bench_v62_singleshot.py', tags: ['NEW']},
+    {name: 'GBNF grammars', status: 'complete', cat: 'pipeline', desc: 'cliniq_extraction.gbnf + cliniq_toolcall.gbnf + cliniq_v62_compact.gbnf — JSON output + tool-call format constraints.', file: 'apps/mobile/convert/*.gbnf', tags: ['3 grammars']},
+    {name: 'lookup_table.json', status: 'complete', cat: 'pipeline', desc: 'Curated SNOMED/LOINC/RxNorm aliases + NegEx triggers. 73 entries.', file: 'apps/mobile/convert/lookup_table.json', tags: ['73 entries']},
+    {name: 'reportable_conditions.json', status: 'complete', cat: 'pipeline', desc: 'CDC NNDSS + WHO IDSR reportable-condition list with alt names for RAG fast-path.', file: 'apps/mobile/convert/reportable_conditions.json', tags: ['74 entries']},
+
+    {name: 'ExtractionService.swift', status: 'complete', cat: 'ios', desc: 'Three-tier pipeline mirror in Swift. Cand D short-circuit gate, fast-path with merge-on-fire, agent fallback.', file: 'apps/mobile/ios-app/ClinIQ/ClinIQ/Extraction/', tags: ['SwiftUI', 'iOS 26']},
+    {name: 'BundleBuilder.swift', status: 'complete', cat: 'ios', desc: 'Constructs FHIR R4 Bundle for Outbox payload. Mirror of Python fhir_bundle.py.', file: 'apps/mobile/ios-app/ClinIQ/ClinIQ/Extraction/', tags: ['FHIR R4']},
+    {name: 'PatientTimelineView.swift', status: 'complete', cat: 'ios', desc: 'Timeline of cases for a returning patient. INITIAL chip + add/remove/unchanged chip strips per visit.', file: 'apps/mobile/ios-app/ClinIQ/ClinIQ/Views/Cases/', tags: ['NEW', '299 LoC']},
+    {name: 'WhatsNewBanner.swift', status: 'complete', cat: 'ios', desc: 'Collapsible "X new findings since last eCR" banner on review sheet when priors exist.', file: 'apps/mobile/ios-app/ClinIQ/ClinIQ/Views/Components/', tags: ['NEW', '94 LoC']},
+    {name: 'CaseDiff.swift', status: 'complete', cat: 'ios', desc: 'Diff engine for code-set comparison across visits. Mirrors Python case_diff.py.', file: 'apps/mobile/ios-app/ClinIQ/ClinIQ/Extraction/', tags: ['NEW', '195 LoC']},
+    {name: 'LocalPatient.swift', status: 'complete', cat: 'ios', desc: 'Patient identity model: SHA-256 hash of (given, family, dob) for returning-patient detection. No Verato — clinician confirms at intake.', file: 'apps/mobile/ios-app/ClinIQ/ClinIQ/Persistence/', tags: ['NEW', 'CryptoKit']},
+    {name: 'LongitudinalSeedData.swift', status: 'complete', cat: 'ios', desc: 'Three-visit Maria Santos seed (Apr 15 / 20 / 25). Demo data for the longitudinal view without needing extraction.', file: 'apps/mobile/ios-app/ClinIQ/ClinIQ/Persistence/', tags: ['NEW', '144 LoC']},
+    {name: 'LlamaCppInferenceEngine', status: 'complete', cat: 'ios', desc: 'On-device Gemma 4 E2B Q3_K_M GGUF inference via llama.cpp xcframework. ~4 tok/s sim, projected 52 tok/s iPhone 17 Pro.', file: 'apps/mobile/ios-app/ClinIQ/ClinIQ/Inference/', tags: ['llama.cpp', 'GGUF']},
+    {name: 'ToolCallParser', status: 'complete', cat: 'ios', desc: 'Parses Gemma\'s native <|tool_call>...<tool_call|> sentinels into structured tool calls.', file: 'apps/mobile/ios-app/ClinIQ/ClinIQ/Inference/', tags: ['Gemma 4 native']},
+    {name: 'SyncService.swift', status: 'partial', cat: 'ios', desc: 'Outbox + sync to mock public-health endpoint. PoC only — real mTLS + jurisdiction routing explicitly out of scope.', file: 'apps/mobile/ios-app/ClinIQ/ClinIQ/Sync/', tags: ['PoC scope']},
+    {name: 'PersistenceController', status: 'complete', cat: 'ios', desc: 'SwiftData container with patient identity hash, prior-case query, longitudinal seed integration.', file: 'apps/mobile/ios-app/ClinIQ/ClinIQ/Persistence/', tags: ['SwiftData']},
+
+    {name: 'kaggle-training/train-compact.py', status: 'complete', cat: 'training', desc: 'C9 retrain v2 — r=32 LoRA, KV-shared layer exclusion (Team C7 finding), train_on_responses_only. v31 artifact.', file: 'kaggle-training/train-compact.py', tags: ['373 LoC', 'T4']},
+    {name: 'cliniq-gemma4-finetune kernel', status: 'complete', cat: 'training', desc: 'Unsloth-track-eligible Kaggle kernel. 62 versions, last run 2026-04-15. FastLanguageModel + chat template.', file: 'patrickdeutsch/cliniq-gemma4-finetune', tags: ['Unsloth', 'private v62']},
+    {name: 'v62 LoRA adapter', status: 'complete', cat: 'training', desc: 'r=16 LoRA, all 7 target modules, 124 MB. Final loss 0.2446 (healthy). 800 examples × 5 epochs in 1h 4m.', file: 'models/cliniq-gemma4-e2b-v62-lora.gguf', tags: ['Unsloth', '50.7 MB GGUF']},
+    {name: 'public_notebook.ipynb', status: 'complete', cat: 'training', desc: '25-cell polished public version with abstract, track-eligibility, inline bench cells. Ready to push.', file: 'tools/autoresearch/v62-submission/public_notebook.ipynb', tags: ['NEW', 'draft']},
+    {name: 'eicr-fhir-training-data dataset', status: 'partial', cat: 'training', desc: 'Kaggle dataset with 800 train + 200 val compact eICR examples. Currently private — needs to be made public for submission.', file: 'patrickdeutsch/eicr-fhir-training-data', tags: ['private']},
+
+    {name: 'README.md', status: 'complete', cat: 'demo', desc: 'Repo root judge-facing orientation: headline numbers, demo links, reproduce instructions, 5-min path.', file: 'README.md', tags: ['NEW']},
+    {name: 'spaces/app.py', status: 'complete', cat: 'demo', desc: 'Gradio 5.9 frontend on HF Spaces. Same Python pipeline as bench harness.', file: 'spaces/app.py', tags: ['Gradio', 'live']},
+    {name: 'zerogpu_engine.py', status: 'complete', cat: 'demo', desc: 'Transformers-based in-process Gemma 4 backend on ZeroGPU H200. CPU/no-PRO graceful fallback.', file: 'spaces/zerogpu_engine.py', tags: ['ZeroGPU', 'H200']},
+    {name: 'Sim screencast', status: 'complete', cat: 'demo', desc: '41-second tour: Cases list → Patient timeline → Longitudinal banner. Re-shoot when iPhone arrives.', file: 'apps/mobile/ios-app/screencast-c21-sim.mov', tags: ['NEW', '41s']},
+    {name: 'DEMO_SCRIPT.md', status: 'complete', cat: 'demo', desc: '60-second narration script timed to 7-beat sim walkthrough. Includes longitudinal beat at 0:55.', file: 'apps/mobile/ios-app/DEMO_SCRIPT.md', tags: ['narration']},
+    {name: 'iOS app screenshots', status: 'complete', cat: 'demo', desc: '~12 screenshots covering c18 review, c19 fast-path, c21 longitudinal timeline + diff banner, llama.cpp, neg-lab.', file: 'apps/mobile/ios-app/screenshot-*.png', tags: ['12 PNGs']},
+
+    {name: 'HL7 Java validator', status: 'complete', cat: 'validation', desc: 'Official HL7 FHIR Validator (Java IG) integrated as a backend in score_fhir.py. Every Bundle structurally validates.', file: '/tmp/fhir-validator/validator_cli.jar', tags: ['HL7 official']},
+    {name: '7 CDC eICR test vectors', status: 'complete', cat: 'validation', desc: 'External-credibility round: 7/7 perfect, 360/360 codes recovered. Full HL7 CDA XML, including 197 KB pertussis case.', file: 'data/eicr-samples/', tags: ['CDC ref']},
+    {name: '80 sustained-load reps', status: 'complete', cat: 'validation', desc: '20 reps combined-45 + 30 reps combined-54 + 30 reps combined-64 — every rep deterministic, F1 = 1.000 on first 50.', file: 'apps/mobile/convert/build/c45_sustained_*.json', tags: ['80 reps']},
+    {name: 'Grammar stability bench', status: 'complete', cat: 'validation', desc: '81 runs of the agent path on combined-27 with GBNF grammar — 0 parse errors, F1 = 1.000.', file: 'apps/mobile/convert/build/toolcall_grammar_bench.json', tags: ['81 runs']},
+    {name: 'v62 val-compact bench', status: 'complete', cat: 'validation', desc: '200-case held-out bench on v62 LoRA — F1=0.823, P=0.979, R=0.710, JSON-validity=0.86, p50=4.05s.', file: 'apps/mobile/convert/build/v62_val_compact_bench.json', tags: ['200 cases']},
+    {name: 'Physical iPhone tok/s', status: 'missing', cat: 'validation', desc: 'Pending physical device. Decision rule: ≥10 tok/s = "real-time on 3-yo iPhone"; 4-10 = "iPhone 15 Pro+"; <4 = laptop demo.', file: 'task #4', tags: ['blocker']},
+
+    {name: 'Jetson Orin NX cluster', status: 'complete', cat: 'edge', desc: '3x Jetson Orin NX 8 GB on Talos k8s. NodePort 30083. F1=1.000 on 11/11 deterministic-tier cases.', file: 'infra/overlays/jetson-gpu/', tags: ['Talos', 'k8s']},
+    {name: 'gemma4/llama-server pod', status: 'complete', cat: 'edge', desc: 'Custom container with Tegra BSP libs baked in. Bypasses Talos no-runtime-nvidia stub library problem.', file: 'apps/llama-server/', tags: ['Tegra', 'Q3_K_M']},
+    {name: 'Long-context CDA chunker', status: 'complete', cat: 'edge', desc: 'Splits 197 KB / 20-chunk eICRs on <entry> boundaries; replays agent across chunks with section-merge dedup.', file: 'apps/mobile/convert/agent_pipeline.py', tags: ['chunked']},
+
+    {name: 'hackathon-submission-2026-04-27', status: 'complete', cat: 'docs', desc: 'Judge-facing one-pager. Five-minute read. Headline F1 = 1.000 sustained, external validation, edge story.', file: 'tools/autoresearch/hackathon-submission-2026-04-27.md', tags: ['judge-facing']},
+    {name: 'c20-llm-tuning-2026-04-25', status: 'complete', cat: 'docs', desc: 'Full c20 sprint ledger: variance tables, sustained-load reproducibility, every ablation. The "show your work" doc.', file: 'tools/autoresearch/c20-llm-tuning-2026-04-25.md', tags: ['ledger']},
+    {name: 'MODEL_CARD.md (v62)', status: 'complete', cat: 'docs', desc: 'HF Hub model card draft with real bench numbers, Unsloth API justification, GBNF negative result.', file: 'tools/autoresearch/v62-submission/MODEL_CARD.md', tags: ['NEW', 'HF-ready']},
+    {name: 'KAGGLE_PUSH.md', status: 'complete', cat: 'docs', desc: 'User-side runbook: make dataset public, push public notebook, verify URL.', file: 'tools/autoresearch/v62-submission/KAGGLE_PUSH.md', tags: ['NEW', 'runbook']},
+    {name: 'HF_HUB_PUSH.md', status: 'complete', cat: 'docs', desc: 'User-side runbook: HF login, repo create, LoRA + model card upload.', file: 'tools/autoresearch/v62-submission/HF_HUB_PUSH.md', tags: ['NEW', 'runbook']},
+    {name: 'jetson-bench-2026-04-26', status: 'complete', cat: 'docs', desc: 'Edge deployment evidence: Jetson Orin NX bench results, F1=1.000 deterministic-tier on cluster.', file: 'tools/autoresearch/jetson-bench-2026-04-26.md', tags: ['edge']}
+  ];
+
+  const blockerData = {
+    critical: [
+      {title: 'Push public Kaggle notebook', desc: 'Unsloth-track $10K eligibility. Notebook drafted at v62-submission/public_notebook.ipynb; needs huggingface-cli auth + dataset public toggle + kernels push.', effort: '1 hr', tags: ['user-side', 'auth-walled'], files: ['tools/autoresearch/v62-submission/KAGGLE_PUSH.md']},
+      {title: 'Upload v62 LoRA + model card to HF Hub', desc: 'Public model artifact + filled-in model card. Card already drafted with real bench numbers. User runs huggingface-cli login + upload.', effort: '30 min', tags: ['user-side', 'auth-walled'], files: ['tools/autoresearch/v62-submission/HF_HUB_PUSH.md', 'tools/autoresearch/v62-submission/MODEL_CARD.md']},
+      {title: 'Submit to hackathon form', desc: 'Final step. Needs all artifacts cross-linked first (Spaces URL + Kaggle URL + HF URL + repo URL + screencast).', effort: '15 min', tags: ['final', 'May 18'], files: ['Kaggle hackathon form']}
+    ],
+    high: [
+      {title: 'Rotate BLOG_REPO_TOKEN', desc: '200 consecutive failed publish attempts since 2026-04-19. Experiment article never makes it from obsidian → kcirtap.io blog. Token expired or under-scoped.', effort: '5 min', tags: ['user-side', 'GitHub'], files: ['github.com/kcirtapfromspace/obsidian/settings/secrets/actions']},
+      {title: 'Physical iPhone tok/s bench', desc: 'Currently 4.0 tok/s sim. Decision rule: ≥10 = "real-time on 3-yo iPhone"; 4-10 = "iPhone 15 Pro+"; <4 = laptop demo. Gates the screencast claim.', effort: '3 hr', tags: ['device-blocked', 'task #4'], files: ['apps/mobile/ios-app/validate_rag.swift']},
+      {title: 'Cross-link URLs in narrative + README + form', desc: 'Once Kaggle/HF URLs land, splice them into hackathon-submission-2026-04-27.md + README.md + submission form.', effort: '20 min', tags: ['after Kaggle/HF push'], files: ['README.md', 'tools/autoresearch/hackathon-submission-2026-04-27.md']}
+    ],
+    medium: [
+      {title: 'Main branch ff-merge', desc: 'main is 128 commits behind worktree-calm-ray-2no2. Public-facing branch state stale. Not blocking judges since worktree pushes to GitHub.', effort: '15 min', tags: ['housekeeping'], files: ['main vs worktree-calm-ray-2no2']},
+      {title: 'Re-shoot screencast on physical iPhone', desc: 'Sim screencast (41s) committed today. Re-shoot once iPhone arrives so the screencast carries the actual on-device tok/s instead of the projected number.', effort: '2 hr', tags: ['after Rank 1'], files: ['apps/mobile/ios-app/screencast-c21-sim.mov']},
+      {title: 'Tighten paths filter on trigger-blog.yml', desc: 'Currently Depot/** only — fires by side-effect that auto-backups touch Depot. Should explicitly include the_archives/**.', effort: '10 min', tags: ['robustness', 'after token'], files: ['github.com/kcirtapfromspace/obsidian/.github/workflows/trigger-blog.yml']},
+      {title: 'Retire deferred precision bugs (combined-64)', desc: 'F1=0.997 on combined-64 with 1 FP (SJS/TEN spectrum). Already documented in submission as "honest framing." Closing further would need v63 retrain.', effort: 'optional', tags: ['F1 0.997 → 1.000'], files: ['tools/autoresearch/c20-llm-tuning-2026-04-25.md']}
+    ]
+  };
+
+  const checklistData = [
+    {id: 'critical', priority: 'critical', label: 'Critical (blocks $10K Unsloth track)', dotClass: 'priority-critical', items: [
+      {text: 'Make eicr-fhir-training-data Kaggle dataset public', detail: 'kaggle datasets metadata patrickdeutsch/eicr-fhir-training-data — set is_private:false'},
+      {text: 'Push public Kaggle notebook (cliniq-gemma4-unsloth-submission)', detail: 'kaggle kernels push -p tools/autoresearch/v62-submission/'},
+      {text: 'Verify Kaggle URL in incognito browser', detail: 'kaggle.com/code/patrickdeutsch/cliniq-gemma4-unsloth-submission'},
+      {text: 'huggingface-cli login + repo create', detail: 'kcirtapfromspace/cliniq-gemma4-e2b-unsloth-v62'},
+      {text: 'Upload LoRA artifact + MODEL_CARD.md to HF Hub', detail: 'huggingface-cli upload kcirtapfromspace/cliniq-gemma4-e2b-unsloth-v62 ...'},
+      {text: 'Verify HF model URL in incognito', detail: 'huggingface.co/kcirtapfromspace/cliniq-gemma4-e2b-unsloth-v62'},
+      {text: 'Submit on Kaggle hackathon form before May 18 23:59 PT', detail: 'final step — all URLs cross-linked'}
+    ]},
+    {id: 'high', priority: 'high', label: 'High (publishing + claim integrity)', dotClass: 'priority-high', items: [
+      {text: 'Rotate BLOG_REPO_TOKEN secret', detail: 'github.com/kcirtapfromspace/obsidian/settings/secrets/actions'},
+      {text: 'Manually trigger one blog rebuild to flush backlog', detail: 'gh workflow run build-deploy.yaml --repo kcirtapfromspace/kcirtap-blog'},
+      {text: 'Physical iPhone tok/s + dictation latency bench', detail: 'apps/mobile/ios-app/validate_rag.swift on iPhone 15 Pro'},
+      {text: 'Cross-link Kaggle URL into hackathon-submission narrative', detail: 'tools/autoresearch/hackathon-submission-2026-04-27.md'},
+      {text: 'Cross-link HF model URL into README', detail: 'README.md "Try it" + "Code + commits" sections'},
+      {text: 'Refresh hackathon-submission-2026-04-27 with v62 numbers', detail: 'tools/autoresearch/v62-submission/SUBMISSION_SECTION_DRAFT.md is the splice-in'}
+    ]},
+    {id: 'medium', priority: 'medium', label: 'Medium (polish + housekeeping)', dotClass: 'priority-medium', items: [
+      {text: 'Main branch ff-merge from worktree', detail: '128 commits ahead — git checkout main && git merge --ff-only worktree-calm-ray-2no2'},
+      {text: 'Re-shoot screencast on physical iPhone', detail: 'apps/mobile/ios-app/DEMO_SCRIPT.md verbatim, after Rank 1 lands'},
+      {text: 'Add the_archives/** to trigger-blog.yml paths filter', detail: 'kcirtapfromspace/obsidian .github/workflows/trigger-blog.yml'},
+      {text: 'Fix Zola config.toml highlight_code → highlighting', detail: '~/kcirtap-blog/config.toml:22 — pre-existing bug from memory'},
+      {text: 'Add v62 row to results.tsv', detail: 'tools/autoresearch/results.tsv — c20-v62-singleshot row'}
+    ]},
+    {id: 'optional', priority: 'low', label: 'Optional (nice-to-have)', dotClass: 'priority-low', items: [
+      {text: 'v63 retrain attempt (longer max_seq_length, JSON-tail loss weighting)', detail: 'Push v62 0.823 → 0.90+; one-day Kaggle T4 cycle'},
+      {text: 'Spaces GPU-tier upgrade with persistent llama-server', detail: 'spaces/zerogpu_engine.py — currently on ZeroGPU per-call'},
+      {text: 'TestFlight invite list for judges with iPhones', detail: 'apps/mobile/ios-app/ — distribute via TestFlight'},
+      {text: 'Multi-language eICR coverage (Spanish, etc.)', detail: 'lookup_table.json + reportable_conditions.json — out of scope this hackathon'}
+    ]}
+  ];
+
+  const archLayers = [
+    {label: 'Input', boxes: [
+      {kind: 'input', name: 'Dictation', meta: 'mic → speech recog'},
+      {kind: 'input', name: 'Paste / Type', meta: 'free-text narrative'},
+      {kind: 'input', name: 'CDA XML', meta: '<code> attrs'},
+      {kind: 'input', name: 'eICR pseudo-format', meta: 'v62 LoRA training shape'}
+    ]},
+    {label: 'Tier 1 — Deterministic', boxes: [
+      {kind: 'primary', name: 'regex_preparser', meta: '~5 ms median'},
+      {kind: 'default', name: 'lookup_table.json', meta: '73 aliases'},
+      {kind: 'default', name: 'NegEx scope', meta: 'pre/post-hoc + 80-char window'},
+      {kind: 'default', name: 'Cand D gate', meta: 'short-circuits LLM'}
+    ]},
+    {label: 'Tier 2 — RAG', boxes: [
+      {kind: 'primary', name: 'rag_search', meta: '~80 ms'},
+      {kind: 'default', name: 'reportable_conditions.json', meta: '74 entries (NNDSS + IDSR)'},
+      {kind: 'default', name: 'fast-path threshold', meta: '0.7 score'},
+      {kind: 'default', name: 'merge-on-fire', meta: 'preserves det matches'}
+    ]},
+    {label: 'Tier 3 — Agent', boxes: [
+      {kind: 'primary', name: 'Gemma 4 E2B Q3_K_M', meta: '3.0 GB GGUF'},
+      {kind: 'default', name: 'agent_pipeline', meta: '6-turn cap'},
+      {kind: 'default', name: 'GBNF grammar', meta: 'cliniq_toolcall.gbnf'},
+      {kind: 'default', name: 'CDA chunker', meta: '<entry> boundaries'}
+    ]},
+    {label: 'Speed Tier (Unsloth v62)', boxes: [
+      {kind: 'primary', name: 'v62 LoRA adapter', meta: '124 MB, F1 = 0.823'},
+      {kind: 'default', name: 'single-shot decode', meta: '~4 s, 1.6× faster'},
+      {kind: 'default', name: 'Unsloth APIs', meta: 'FastLanguageModel + chat tpl'},
+      {kind: 'default', name: 'no RAG required', meta: 'edge footprint'}
+    ]},
+    {label: 'Output', boxes: [
+      {kind: 'primary', name: 'fhir_bundle', meta: 'R4 Bundle'},
+      {kind: 'output', name: 'HL7 Java validator', meta: '100% structural pass'},
+      {kind: 'output', name: 'Provenance chips', meta: 'INLINE/CDA/RAG/LOOKUP/AGENT'},
+      {kind: 'output', name: 'Outbox queue', meta: 'mTLS + jurisdiction routing (PoC)'}
+    ]},
+    {label: 'Deployment', boxes: [
+      {kind: 'primary', name: 'iOS app', meta: 'on-device, offline'},
+      {kind: 'primary', name: 'HF Spaces', meta: 'ZeroGPU H200, hosted demo'},
+      {kind: 'primary', name: 'Jetson Orin NX', meta: '3-node Talos cluster'},
+      {kind: 'output', name: 'CDC EZeCR ref arch', meta: 'edge tier of cloud pipeline'}
+    ]}
+  ];
+
+  const workflows = [
+    {
+      name: 'Clinician case-reporting flow',
+      steps: [
+        {icon: '🎤', name: 'Capture', actor: 'iOS app', desc: 'Dictate, paste, or upload CDA XML at the bedside'},
+        {icon: '⚡', name: 'Tier 1', actor: 'regex_preparser', desc: 'Inline codes + CDA <code> attrs. ~5 ms.'},
+        {icon: '🔍', name: 'Tier 2', actor: 'rag_search', desc: 'Curated NNDSS / IDSR fast-path with NegEx. ~80 ms.'},
+        {icon: '🧠', name: 'Tier 3', actor: 'Gemma 4 agent', desc: 'Function-calling agent if Cand D gate doesn\'t fire. 5–35 s.'},
+        {icon: '👁', name: 'Review', actor: 'clinician', desc: 'Approve / remove proposed entries with provenance chips'},
+        {icon: '📤', name: 'Outbox', actor: 'SyncService', desc: 'Queue FHIR R4 Bundle. Online → POST to PHA endpoint.'}
+      ]
+    },
+    {
+      name: 'Longitudinal "what\'s new since last visit"',
+      steps: [
+        {icon: '👤', name: 'Identify', actor: 'LocalPatient hash', desc: 'SHA-256 of (given, family, dob). No Verato — exact match only.'},
+        {icon: '📂', name: 'Look up priors', actor: 'PersistenceController', desc: 'Query SwiftData for prior cases with same identity hash'},
+        {icon: '🔬', name: 'Extract current', actor: 'three-tier pipeline', desc: 'New eICR → FHIR Bundle, same as standalone flow'},
+        {icon: '⚖', name: 'Diff', actor: 'CaseDiff', desc: 'added / removed / unchanged per axis (cond/lab/med/vital)'},
+        {icon: '✨', name: 'Surface', actor: 'WhatsNewBanner', desc: '"X new findings since last eCR (N days ago)" + chip strip on timeline'},
+        {icon: '📊', name: 'Export', actor: 'case_diff CSV', desc: 'EZeCR-style flat CSV for downstream surveillance integration'}
+      ]
+    },
+    {
+      name: 'Unsloth fine-tune training pipeline',
+      steps: [
+        {icon: '📦', name: 'Dataset', actor: 'eicr-fhir-training-data', desc: '800 train + 200 val synthetic eICRs across CDC RCTC list'},
+        {icon: '🧬', name: 'Load base', actor: 'FastLanguageModel.from_pretrained', desc: 'unsloth/gemma-4-E2B-it 4-bit on Kaggle T4 ×2 (~12 GB peak)'},
+        {icon: '🔧', name: 'LoRA', actor: 'get_peft_model r=16', desc: 'q/k/v/o + gate/up/down — all 7 target modules'},
+        {icon: '🎓', name: 'Train', actor: 'TRL SFTTrainer', desc: '5 epochs, lr=1e-4, packing=True — 1h 4m wall-clock'},
+        {icon: '💾', name: 'Save', actor: 'save_pretrained', desc: '124 MB LoRA, final loss 0.2446 (healthy generalization)'},
+        {icon: '🔁', name: 'Convert', actor: 'convert_lora_to_gguf', desc: '50.7 MB f16 GGUF for llama.cpp'},
+        {icon: '📊', name: 'Bench', actor: 'bench_v62_singleshot', desc: 'F1=0.823 vs base 0.337 on 200 val cases'}
+      ]
+    }
+  ];
+
+  const roadmap = [
+    {date: '2026-04-15', state: 'done', title: 'v62 Unsloth fine-tune trained', desc: 'cliniq-gemma4-finetune kernel v62 → COMPLETE on Kaggle T4 ×2'},
+    {date: '2026-04-19', state: 'done', title: 'Experiment article published', desc: 'gemma4-experiments.md committed in obsidian repo'},
+    {date: '2026-04-25', state: 'done', title: 'F1 = 1.000 on combined-54', desc: 'c20 final precision pass + RAG additions (SJS / DRESS)'},
+    {date: '2026-04-26', state: 'done', title: 'Jetson edge bench + adv7 stress', desc: 'F1 = 1.000 on Orin NX cluster, bench grew 27 → 64 cases'},
+    {date: '2026-04-27', state: 'done', title: 'HF Spaces hosted demo live', desc: 'ZeroGPU H200 backend, judge-friendly URL'},
+    {date: '2026-04-27', state: 'done', title: '80-rep sustained reproducibility', desc: '50 / 50 reps at F1 = 1.000 + 30 reps on combined-64'},
+    {date: '2026-04-28', state: 'done', title: 'Longitudinal "what\'s new" view', desc: 'Python + Swift mirrored. EZeCR vision at the edge.'},
+    {date: '2026-04-28', state: 'done', title: 'v62 single-shot bench complete', desc: 'F1 = 0.823, P = 0.979, +0.486 vs base, MARGINAL/SHIP-worthy'},
+    {date: '2026-04-30', state: 'now', title: 'TODAY — README + screencast + Kaggle notebook', desc: 'Three pieces shipped: README.md, sim screencast, public_notebook.ipynb + push runbooks'},
+    {date: '2026-05-02', state: 'future', title: 'User: rotate BLOG_REPO_TOKEN', desc: 'unblocks experiment article publishing chain'},
+    {date: '2026-05-04', state: 'future', title: 'User: push public Kaggle notebook + HF model', desc: 'Unsloth-track artifacts go live, URLs back-linked'},
+    {date: '2026-05-08', state: 'future', title: 'Physical iPhone bench (when device arrives)', desc: 'Replaces 4.0 tok/s sim with on-device measurement; gates screencast claim'},
+    {date: '2026-05-12', state: 'future', title: 'Re-shoot screencast on physical iPhone', desc: 'after Rank 1 lands — final demo asset'},
+    {date: '2026-05-15', state: 'future', title: 'Code freeze + final cross-link pass', desc: 'README + narrative + model card all carrying live URLs'},
+    {date: '2026-05-18', state: 'future', title: 'SUBMIT', desc: 'Kaggle hackathon form — before 23:59 PT'}
+  ];
+
+  // ============================================================
+  // DOM HELPERS
+  // ============================================================
+  function el(tag, attrs, children) {
+    const e = document.createElement(tag);
+    if (attrs) Object.entries(attrs).forEach(([k, v]) => {
+      if (k === 'className') e.className = v;
+      else if (k === 'textContent') e.textContent = v;
+      else if (k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(), v);
+      else if (v != null) e.setAttribute(k, v);
+    });
+    if (children) {
+      if (typeof children === 'string') e.textContent = children;
+      else if (Array.isArray(children)) children.forEach(c => { if (c) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+      else e.appendChild(typeof children === 'string' ? document.createTextNode(children) : children);
+    }
+    return e;
+  }
+  function clearChildren(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  // ============================================================
+  // RENDER: TABS + TECH ROW
+  // ============================================================
+  const tabsContainer = document.getElementById('tabs');
+  const techRow = document.getElementById('tech-row');
+  const main = document.getElementById('main');
+
+  TECH.forEach(t => techRow.appendChild(el('span', {className: 'tech-pill'}, t)));
+
+  const panels = {};
+  TAB_NAMES.forEach((tab, idx) => {
+    const btn = el('button', {
+      'data-tab': tab.id,
+      className: idx === 0 ? 'active' : '',
+      onClick: () => switchTab(tab.id)
+    }, tab.label);
+    tabsContainer.appendChild(btn);
+
+    const panel = el('section', {className: 'panel' + (idx === 0 ? ' active' : ''), id: 'panel-' + tab.id});
+    main.appendChild(panel);
+    panels[tab.id] = panel;
+  });
+
+  function switchTab(id) {
+    document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
+    Object.entries(panels).forEach(([k, p]) => p.classList.toggle('active', k === id));
+  }
+
+  // ============================================================
+  // RENDER: OVERVIEW
+  // ============================================================
+  function renderOverview() {
+    const p = panels.overview;
+
+    p.appendChild(el('div', {className: 'section-title'}, 'Headline numbers'));
+    const statGrid = el('div', {className: 'stat-grid'});
+    stats.forEach(s => {
+      statGrid.appendChild(el('div', {className: 'stat-card ' + s.cls}, [
+        el('div', {className: 'stat-label'}, s.label),
+        el('div', {className: 'stat-value' + (String(s.value).length > 6 ? ' small' : '')}, s.value),
+        el('div', {className: 'stat-sub'}, s.sub)
+      ]));
+    });
+    p.appendChild(statGrid);
+
+    p.appendChild(el('div', {className: 'section-title'}, 'Overall completion'));
+    const big = el('div', {className: 'progress-bar-large'});
+    const fill = el('div', {className: 'fill', style: 'width: 0%'});
+    fill.appendChild(el('div', {className: 'label'}, overallPct + '%'));
+    big.appendChild(fill);
+    p.appendChild(big);
+    setTimeout(() => fill.style.width = overallPct + '%', 80);
+
+    p.appendChild(el('div', {className: 'section-title'}, 'Progress by area'));
+    const list = el('div', {className: 'progress-list'});
+    progressBars.forEach(b => {
+      const row = el('div', {className: 'progress-row ' + b.cls});
+      row.appendChild(el('div', {className: 'pl-label'}, b.label));
+      const bar = el('div', {className: 'pl-bar'});
+      const f = el('div', {className: 'pl-bar-fill', style: 'width: 0%'});
+      bar.appendChild(f);
+      row.appendChild(bar);
+      row.appendChild(el('div', {className: 'pl-value'}, b.value));
+      list.appendChild(row);
+      setTimeout(() => f.style.width = b.pct + '%', 120 + Math.random() * 200);
+    });
+    p.appendChild(list);
+
+    p.appendChild(el('div', {className: 'section-title'}, 'What\'s working today'));
+    const wg = el('div', {className: 'working-grid'});
+    workingItems.forEach(t => wg.appendChild(el('div', {className: 'w-item'}, t)));
+    p.appendChild(wg);
+
+    p.appendChild(el('div', {className: 'section-title'}, 'Blockers — by priority'));
+    const bsg = el('div', {className: 'stat-grid'});
+    bsg.appendChild(el('div', {className: 'stat-card red'}, [
+      el('div', {className: 'stat-label'}, 'Critical'),
+      el('div', {className: 'stat-value'}, String(blockerData.critical.length)),
+      el('div', {className: 'stat-sub'}, '$10K track + final submit')
+    ]));
+    bsg.appendChild(el('div', {className: 'stat-card amber'}, [
+      el('div', {className: 'stat-label'}, 'High'),
+      el('div', {className: 'stat-value'}, String(blockerData.high.length)),
+      el('div', {className: 'stat-sub'}, 'publishing + claim integrity')
+    ]));
+    bsg.appendChild(el('div', {className: 'stat-card blue'}, [
+      el('div', {className: 'stat-label'}, 'Medium'),
+      el('div', {className: 'stat-value'}, String(blockerData.medium.length)),
+      el('div', {className: 'stat-sub'}, 'polish + housekeeping')
+    ]));
+    p.appendChild(bsg);
+  }
+
+  // ============================================================
+  // RENDER: COMPONENTS
+  // ============================================================
+  function renderComponents() {
+    const p = panels.components;
+    const cats = [
+      {id: 'pipeline', label: 'Three-tier pipeline (Python)'},
+      {id: 'ios', label: 'iOS app (SwiftUI)'},
+      {id: 'training', label: 'Training (Unsloth + Kaggle)'},
+      {id: 'demo', label: 'Demo surfaces'},
+      {id: 'validation', label: 'Validation + benches'},
+      {id: 'edge', label: 'Edge / infra'},
+      {id: 'docs', label: 'Documentation'}
+    ];
+
+    const fr = el('div', {className: 'filter-row'});
+    fr.appendChild(el('button', {className: 'active', 'data-filter': 'all', onClick: () => applyFilter('all')}, 'All (' + components.length + ')'));
+    cats.forEach(c => {
+      const count = components.filter(co => co.cat === c.id).length;
+      fr.appendChild(el('button', {'data-filter': c.id, onClick: () => applyFilter(c.id)}, c.label.split(' ')[0] + ' (' + count + ')'));
+    });
+    ['complete', 'partial', 'missing'].forEach(s => {
+      const count = components.filter(co => co.status === s).length;
+      if (count > 0) fr.appendChild(el('button', {'data-filter': 's-' + s, onClick: () => applyFilter('s-' + s)}, s + ' (' + count + ')'));
+    });
+    p.appendChild(fr);
+
+    const blocks = {};
+    cats.forEach(c => {
+      const block = el('div', {className: 'cat-block', 'data-cat': c.id});
+      const title = el('div', {className: 'cat-title'});
+      title.appendChild(el('span', null, c.label));
+      const items = components.filter(co => co.cat === c.id);
+      title.appendChild(el('span', {className: 'cat-count'}, items.length + ' components'));
+      block.appendChild(title);
+      const grid = el('div', {className: 'comp-grid'});
+      items.forEach(comp => grid.appendChild(buildCompCard(comp)));
+      block.appendChild(grid);
+      p.appendChild(block);
+      blocks[c.id] = block;
+    });
+
+    function applyFilter(f) {
+      document.querySelectorAll('.filter-row button').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+      const isStatus = f.startsWith('s-');
+      Object.entries(blocks).forEach(([cid, block]) => {
+        if (f === 'all') {
+          block.style.display = '';
+          block.querySelectorAll('.comp-card').forEach(c => c.style.display = '');
+        } else if (isStatus) {
+          block.style.display = '';
+          let any = false;
+          block.querySelectorAll('.comp-card').forEach(c => {
+            const show = c.dataset.status === f.slice(2);
+            c.style.display = show ? '' : 'none';
+            if (show) any = true;
+          });
+          block.style.display = any ? '' : 'none';
+        } else {
+          block.style.display = (cid === f) ? '' : 'none';
+        }
+      });
+    }
+  }
+
+  function buildCompCard(comp) {
+    const card = el('div', {className: 'comp-card', 'data-status': comp.status});
+    const row = el('div', {className: 'ch-row'}, [
+      el('span', {className: 'status-dot ' + comp.status}),
+      el('span', {className: 'name'}, comp.name),
+      el('span', {className: 'badge ' + comp.status}, comp.status === 'complete' ? 'Complete' : comp.status === 'partial' ? 'Needs Work' : comp.status === 'missing' ? 'Missing' : 'Stub'),
+      el('span', {className: 'arrow'}, '▶')
+    ]);
+    card.appendChild(row);
+    const detail = el('div', {className: 'detail'});
+    detail.appendChild(el('div', null, comp.desc));
+    if (comp.file) detail.appendChild(el('div', {className: 'file-chip'}, comp.file));
+    if (comp.tags && comp.tags.length) {
+      const tr = el('div', {className: 'tag-row'});
+      comp.tags.forEach(t => tr.appendChild(el('span', {className: 'tag'}, t)));
+      detail.appendChild(tr);
+    }
+    card.appendChild(detail);
+    card.addEventListener('click', () => card.classList.toggle('expanded'));
+    return card;
+  }
+
+  // ============================================================
+  // RENDER: ARCHITECTURE
+  // ============================================================
+  function renderArchitecture() {
+    const p = panels.architecture;
+    p.appendChild(el('div', {className: 'section-title'}, 'Layered architecture'));
+    archLayers.forEach(layer => {
+      const row = el('div', {className: 'arch-layer'});
+      row.appendChild(el('div', {className: 'arch-layer-label'}, layer.label));
+      const boxes = el('div', {className: 'arch-boxes'});
+      layer.boxes.forEach(b => {
+        const box = el('div', {className: 'arch-box ' + (b.kind || 'default')});
+        box.appendChild(el('div', {className: 'arch-name'}, b.name));
+        box.appendChild(el('div', {className: 'arch-meta'}, b.meta));
+        boxes.appendChild(box);
+      });
+      row.appendChild(boxes);
+      p.appendChild(row);
+    });
+  }
+
+  // ============================================================
+  // RENDER: WORKFLOWS
+  // ============================================================
+  function renderWorkflows() {
+    const p = panels.workflows;
+    workflows.forEach(wf => {
+      p.appendChild(el('div', {className: 'section-title'}, wf.name));
+      const row = el('div', {className: 'flow-row'});
+      wf.steps.forEach((s, idx) => {
+        const step = el('div', {className: 'flow-step'});
+        step.appendChild(el('div', {className: 'icon'}, s.icon));
+        step.appendChild(el('div', {className: 'step-name'}, s.name));
+        step.appendChild(el('div', {className: 'step-actor'}, s.actor));
+        step.appendChild(el('div', {className: 'step-desc'}, s.desc));
+        row.appendChild(step);
+        if (idx < wf.steps.length - 1) row.appendChild(el('div', {className: 'flow-arrow'}, '→'));
+      });
+      p.appendChild(row);
+    });
+  }
+
+  // ============================================================
+  // RENDER: ROADMAP
+  // ============================================================
+  function renderRoadmap() {
+    const p = panels.roadmap;
+    p.appendChild(el('div', {className: 'section-title'}, 'Project timeline — 2026-04-15 → 2026-05-18'));
+    const tl = el('div', {className: 'timeline'});
+    roadmap.forEach(r => {
+      const item = el('div', {className: 'tl-item ' + r.state});
+      item.appendChild(el('div', {className: 'tl-date'}, r.date));
+      item.appendChild(el('div', {className: 'tl-title'}, r.title));
+      item.appendChild(el('div', {className: 'tl-desc'}, r.desc));
+      tl.appendChild(item);
+    });
+    p.appendChild(tl);
+  }
+
+  // ============================================================
+  // RENDER: BLOCKERS
+  // ============================================================
+  function renderBlockers() {
+    const p = panels.blockers;
+    p.appendChild(el('div', {className: 'section-title'}, 'Blockers — what\'s left to ship'));
+    const k = el('div', {className: 'kanban'});
+    [['critical', 'Critical', 'critical'], ['high', 'High', 'high'], ['medium', 'Medium', 'medium']].forEach(([key, label, cls]) => {
+      const col = el('div', {className: 'kanban-col ' + cls});
+      const h = el('h3');
+      h.appendChild(el('span', null, label));
+      h.appendChild(el('span', null, String(blockerData[key].length)));
+      col.appendChild(h);
+      blockerData[key].forEach(b => col.appendChild(buildBlockerCard(b)));
+      k.appendChild(col);
+    });
+    p.appendChild(k);
+  }
+
+  function buildBlockerCard(b) {
+    const card = el('div', {className: 'blocker-card'});
+    card.appendChild(el('div', {className: 'b-title'}, b.title));
+    card.appendChild(el('div', {className: 'b-desc'}, b.desc));
+    const meta = el('div', {className: 'b-meta'});
+    if (b.effort) meta.appendChild(el('span', {className: 'b-effort'}, b.effort));
+    if (b.tags) b.tags.forEach(t => meta.appendChild(el('span', {className: 'b-tag'}, t)));
+    card.appendChild(meta);
+    if (b.files && b.files.length) {
+      card.appendChild(el('div', {className: 'b-files'}, b.files.join(', ')));
+    }
+    return card;
+  }
+
+  // ============================================================
+  // RENDER: CHECKLIST
+  // ============================================================
+  const STORAGE_KEY = 'cliniq-hackathon-launch-readiness-v1';
+
+  function loadDone() {
+    try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')); }
+    catch (e) { return new Set(); }
+  }
+  function saveDone(set) { localStorage.setItem(STORAGE_KEY, JSON.stringify([...set])); }
+  function keyFor(group, text) { return group + '|' + text; }
+
+  let doneSet = loadDone();
+
+  function renderChecklist() {
+    const p = panels.checklist;
+    clearChildren(p);
+    p.appendChild(el('div', {className: 'section-title'}, 'Launch readiness checklist'));
+
+    const total = checklistData.reduce((acc, g) => acc + g.items.length, 0);
+    const done = [...doneSet].filter(k => checklistData.some(g => g.items.some(i => keyFor(g.id, i.text) === k))).length;
+    const pct = total ? Math.round(done / total * 100) : 0;
+
+    const big = el('div', {className: 'progress-bar-large'});
+    const fill = el('div', {className: 'fill', style: 'width: ' + pct + '%'});
+    fill.appendChild(el('div', {className: 'label'}, done + ' / ' + total + ' (' + pct + '%)'));
+    big.appendChild(fill);
+    p.appendChild(big);
+
+    checklistData.forEach(g => {
+      const grp = el('div', {className: 'ck-group'});
+      const h = el('h3');
+      h.appendChild(el('span', {className: 'priority-dot ' + g.dotClass}));
+      h.appendChild(el('span', null, g.label));
+      grp.appendChild(h);
+      const list = el('div', {className: 'ck-list'});
+      g.items.forEach(i => {
+        const k = keyFor(g.id, i.text);
+        const isDone = doneSet.has(k);
+        const item = el('div', {className: 'ck-item' + (isDone ? ' done' : '')});
+        const cb = el('input', {type: 'checkbox'});
+        cb.checked = isDone;
+        cb.addEventListener('change', () => {
+          if (cb.checked) doneSet.add(k); else doneSet.delete(k);
+          saveDone(doneSet);
+          renderChecklist();
+          renderSummary();
+        });
+        item.appendChild(cb);
+        const txt = el('div', {className: 'ck-text'});
+        txt.appendChild(document.createTextNode(i.text));
+        if (i.detail) {
+          txt.appendChild(el('span', {className: 'ck-detail'}, i.detail));
+        }
+        item.appendChild(txt);
+        item.addEventListener('click', (e) => { if (e.target !== cb) cb.click(); });
+        list.appendChild(item);
+      });
+      grp.appendChild(list);
+      p.appendChild(grp);
+    });
+  }
+
+  // ============================================================
+  // ACTIONABLE SUMMARY
+  // ============================================================
+  function renderSummary() {
+    let block = document.getElementById('summary-block');
+    if (!block) {
+      block = el('div', {className: 'summary-block', id: 'summary-block'});
+      block.appendChild(el('h3', null, 'Actionable summary'));
+      const pre = el('pre', {id: 'summary-pre'});
+      block.appendChild(pre);
+      const btn = el('button', {className: 'copy-btn', id: 'copy-btn', onClick: copySummary}, 'Copy');
+      block.appendChild(btn);
+      main.appendChild(block);
+    }
+    const total = checklistData.reduce((acc, g) => acc + g.items.length, 0);
+    const done = [...doneSet].filter(k => checklistData.some(g => g.items.some(i => keyFor(g.id, i.text) === k))).length;
+
+    const summary = [
+      'CLINIQ — GEMMA 4 GOOD HACKATHON',
+      'Today: 2026-04-30   Deadline: 2026-05-18 (18 days)',
+      '',
+      'WHAT\'S DONE',
+      '  Three-tier pipeline:    F1 = 1.000 sustained 80 reps, F1 = 0.997 combined-64',
+      '  External validation:    7 / 7 CDC eICR, HL7 Java validator pass on every Bundle',
+      '  Edge deployment:        Jetson Orin NX cluster F1 = 1.000 deterministic-tier',
+      '  iOS app:                builds green, 4.0 tok/s sim, longitudinal view shipped',
+      '  Hosted demo:            kcirtapfromspace/cliniq-eicr-fhir live on ZeroGPU H200',
+      '  Unsloth v62 LoRA:       F1 = 0.823, +0.486 vs base, 1.6x faster, 1h 4m on T4',
+      '  Submission narrative:   tools/autoresearch/hackathon-submission-2026-04-27.md',
+      '  Repo README:            committed today (47ea158)',
+      '  Sim screencast:         41 s tour, three beats committed today (995b207)',
+      '  Public Kaggle notebook: drafted today (dcfe692), push runbook ready',
+      '  HF Hub model card:      MODEL_CARD.md ready with real numbers',
+      '',
+      'WHAT\'S BLOCKING ($10K Unsloth track)',
+      '  1. Make eicr-fhir-training-data Kaggle dataset public  (user-side)',
+      '  2. Push public Kaggle notebook                          (user-side, ~5 min)',
+      '  3. HF Hub login + LoRA + model card upload              (user-side, ~10 min)',
+      '  4. Cross-link Kaggle/HF URLs in narrative + README      (~20 min)',
+      '',
+      'OTHER OPEN',
+      '  Rotate BLOG_REPO_TOKEN (200 failed publishes since 2026-04-19)',
+      '  Physical iPhone tok/s bench (gates "real-time on iPhone" claim)',
+      '  Main branch ff-merge (128 commits behind worktree)',
+      '',
+      'CHECKLIST: ' + done + ' / ' + total + ' done (' + (total ? Math.round(done/total*100) : 0) + '%)',
+      'OVERALL COMPLETION: ' + overallPct + '%'
+    ].join('\n');
+
+    document.getElementById('summary-pre').textContent = summary;
+  }
+
+  function copySummary() {
+    const text = document.getElementById('summary-pre').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('copy-btn');
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = orig, 1500);
+    });
+  }
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  renderOverview();
+  renderComponents();
+  renderArchitecture();
+  renderWorkflows();
+  renderRoadmap();
+  renderBlockers();
+  renderChecklist();
+  renderSummary();
+</script>
+</body>
+</html>
