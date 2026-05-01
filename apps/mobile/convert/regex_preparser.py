@@ -53,8 +53,10 @@ SYSTEM_NAMES = {
 #   SNOMED CT: 2.16.840.1.113883.6.96
 #   LOINC:     2.16.840.1.113883.6.1
 #   RxNorm:    2.16.840.1.113883.6.88
-_CDA_TAG_RE = re.compile(r"<[^>]*\bcodeSystem=\"([^\"]+)\"[^>]*>")
-_CODE_ATTR_RE = re.compile(r"\bcode=\"([^\"]+)\"")
+_CDA_TAG_RE = re.compile(
+    r"<[^>]*\bcodeSystem\s*=\s*(?P<q>['\"])(?P<oid>[^'\"]+)(?P=q)[^>]*>"
+)
+_CODE_ATTR_RE = re.compile(r"\bcode\s*=\s*(?P<q>['\"])(?P<code>[^'\"]*)(?P=q)")
 _CDA_OID_TO_BUCKET = {
     "2.16.840.1.113883.6.96": "snomed",
     "2.16.840.1.113883.6.1": "loinc",
@@ -95,7 +97,9 @@ class CodeMatch:
         return d
 
 
-_DISPLAY_NAME_ATTR_RE = re.compile(r'\bdisplayName="([^"]+)"')
+_DISPLAY_NAME_ATTR_RE = re.compile(
+    r"\bdisplayName\s*=\s*(?P<q>['\"])(?P<display>[^'\"]+)(?P=q)"
+)
 
 # c20 Bug 7: clinical-statement label prefixes that legitimize an inline
 # `(SNOMED 12345)` / `(LOINC ...)` / `(RxNorm ...)` annotation. When NONE of
@@ -204,7 +208,7 @@ def _extract_inline(text: str) -> list[CodeMatch]:
 def _extract_cda_matches(text: str) -> list[CodeMatch]:
     out: list[CodeMatch] = []
     for tag in _CDA_TAG_RE.finditer(text):
-        oid = tag.group(1)
+        oid = tag.group("oid")
         bucket = _CDA_OID_TO_BUCKET.get(oid)
         if bucket is None:
             continue
@@ -212,9 +216,11 @@ def _extract_cda_matches(text: str) -> list[CodeMatch]:
         code_match = _CODE_ATTR_RE.search(tag_text)
         if not code_match:
             continue
-        code = code_match.group(1)
+        code = code_match.group("code")
+        if not code:
+            continue
         display_match = _DISPLAY_NAME_ATTR_RE.search(tag_text)
-        display = display_match.group(1) if display_match else code
+        display = display_match.group("display") if display_match else code
         out.append(CodeMatch(
             code=code,
             display=display,
@@ -538,11 +544,11 @@ def _mask_cda_attributes(text: str) -> str:
     masked_displays: list[str] = []
     for tag in _CDA_TAG_RE.finditer(text):
         tag_text = tag.group(0)
-        oid = tag.group(1)
+        oid = tag.group("oid")
         if oid not in _CDA_OID_TO_BUCKET:
             continue
         code_match = _CODE_ATTR_RE.search(tag_text)
-        if not code_match or not code_match.group(1):
+        if not code_match or not code_match.group("code"):
             # Empty / missing code attribute — keep visible so lookup can fire
             # on the displayName (e.g. adv5_cda_displayname_no_code_attr).
             continue
@@ -550,10 +556,10 @@ def _mask_cda_attributes(text: str) -> str:
         # also mask any duplicate occurrences of this string in CDA narrative
         # cells (`<td>Zika virus envelope...</td>` etc.) below.
         disp = _DISPLAY_NAME_ATTR_RE.search(tag_text)
-        if disp and len(disp.group(1)) >= 8:
+        if disp and len(disp.group("display")) >= 8:
             # 8-char floor avoids masking generic tokens like "Final" /
             # "Active" that appear in many displayName attributes.
-            masked_displays.append(disp.group(1))
+            masked_displays.append(disp.group("display"))
         # Mask everything *inside the angle brackets* but keep the brackets
         # themselves so any further regex anchored on `<` boundaries still
         # works. We replace the inner span with spaces to preserve length.

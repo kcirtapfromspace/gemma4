@@ -11,6 +11,12 @@ the iOS app and TestFlight build work.
 | Broad90 agent/deterministic extraction | 676/676 matched, F1 1.000, 0 FP, 90/90 perfect | `apps/mobile/convert/build/broad90_agent_verify.json` |
 | Broad90 FHIR R4, Python backend | 90/90 pass | `apps/mobile/convert/build/broad90_fhir_python_verify.json` |
 | Broad90 FHIR R4, HL7 Java validator | 90/90 pass, 0 errors | `apps/mobile/convert/build/broad90_fhir_java_verify.json` |
+| LLM-required fixture | 8 cases; deterministic-only intentionally fails, 0/8 matched and 1 FP | `scripts/test_cases_llm_required.jsonl` |
+| CDA hardening deterministic extraction | 13/13 matched, F1 1.000, 0 FP, 5/5 perfect | `build/cda_hardening/det_cda_hardening_verify.json` |
+| CDA hardening FHIR R4, Python backend | 5/5 pass | `build/cda_hardening/fhir_python_cda_hardening_verify.json` |
+| CDA hardening FHIR R4, HL7 Java validator | 5/5 pass, 0 errors | `build/cda_hardening/fhir_java_cda_hardening_verify.json` |
+| Synthetic held-out corpus builder | 400 compact-val candidates / 1,228 expected codes, 0 protected skips | `scripts/build_heldout_corpus.py --dry-run` |
+| Trace-distillation manifest gate | Broad90 protected dry run admitted 0/90, leakage 0 | `tools/autoresearch/validate_trace_distill_manifest.py` |
 | Official HL7 eICR coverage | 10/10 official XML samples covered | `scripts/run_det_external.py --audit-official-coverage` |
 | External CDA deterministic extraction | 474/474 matched, F1 1.000, 0 FP, 10/10 perfect | `build/external/det_external_verify_after_agent_fix.json` |
 | External CDA FHIR R4, Python backend | 10/10 pass | `build/external/fhir_python_external_verify.json` |
@@ -37,6 +43,15 @@ the iOS app and TestFlight build work.
 - `scripts/summarize_eval_corpus.py`: reproducible sample-size summary for
   the curated code corpus, broad benchmark artifacts, and compact train/val
   datasets.
+- `apps/mobile/convert/agent_pipeline.py`: added `--force-agent` so
+  LLM-required suites can bypass production deterministic/fast-path
+  short-circuits and measure the model/tool loop directly.
+- `apps/mobile/convert/regex_preparser.py`: CDA attribute parsing now accepts
+  single or double quotes and optional whitespace around `=`.
+- `scripts/build_heldout_corpus.py`: builds larger synthetic held-out candidate
+  corpora from compact JSONL while excluding protected regression narratives.
+- `tools/autoresearch/validate_trace_distill_manifest.py`: fail-closed gate for
+  trace-distillation manifests and protected-eval leakage.
 
 ## Commands Re-run
 
@@ -106,6 +121,36 @@ python3 scripts/summarize_eval_corpus.py \
   --agent-bench apps/mobile/convert/build/broad90_agent_verify.json \
   --out-md tools/autoresearch/eval-corpus-summary.md \
   --out-json build/eval_corpus_summary.json
+
+python3 scripts/run_det_external.py \
+  --cases scripts/test_cases_cda_hardening.jsonl \
+  --out-json build/cda_hardening/det_cda_hardening_verify.json \
+  --fail-on-imperfect
+
+scripts/.venv/bin/python apps/mobile/convert/score_fhir.py \
+  --bench --backend python \
+  --cases scripts/test_cases_cda_hardening.jsonl \
+  --out-json build/cda_hardening/fhir_python_cda_hardening_verify.json
+
+CLINIQ_FHIR_TX_SERVER=n/a scripts/.venv/bin/python apps/mobile/convert/score_fhir.py \
+  --bench --backend java \
+  --cases scripts/test_cases_cda_hardening.jsonl \
+  --out-json build/cda_hardening/fhir_java_cda_hardening_verify.json
+
+python3 scripts/run_det_external.py \
+  --cases scripts/test_cases_llm_required.jsonl \
+  --out-json build/llm_required/det_llm_required_expected_fail.json
+
+python3 apps/mobile/convert/agent_pipeline.py \
+  --cases scripts/test_cases_llm_required.jsonl \
+  --out-json build/llm_required/llm_required_force_agent_endpoint_unavailable.json \
+  --force-agent \
+  --chat-timeout 3 \
+  --max-turns 2
+
+python3 scripts/build_heldout_corpus.py \
+  --source kaggle-training/dataset/val-compact.jsonl \
+  --dry-run
 
 scripts/.venv/bin/python apps/mobile/convert/score_fhir.py \
   --bench --backend python \

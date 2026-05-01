@@ -1042,6 +1042,15 @@ def main() -> None:
         help="Disable the c19 single-turn fast-path; always run the agent loop.",
     )
     ap.add_argument(
+        "--force-agent",
+        action="store_true",
+        help=(
+            "Bypass deterministic and fast-path short-circuits and route every "
+            "case through the model/tool loop. Use for LLM-required eval suites; "
+            "do not use for latency claims against the production pipeline."
+        ),
+    )
+    ap.add_argument(
         "--max-tokens",
         type=int,
         default=3072,
@@ -1139,7 +1148,7 @@ def main() -> None:
             # agent loop on a slow edge endpoint.
             det = deterministic_extract(case["user"])
             det_dict = det.to_provenance_dict()
-            if not args.no_fast_path and any(
+            if not args.force_agent and not args.no_fast_path and any(
                 m.tier in ("inline", "cda") for m in det.matches
             ):
                 extraction = {
@@ -1161,7 +1170,7 @@ def main() -> None:
                 # to the agent loop with the optional tool-call grammar.
                 fp_result = (
                     None
-                    if args.no_fast_path
+                    if args.no_fast_path or args.force_agent
                     else try_fast_path(
                         case["user"], threshold=args.fast_path_rag_threshold
                     )
@@ -1172,7 +1181,10 @@ def main() -> None:
                 extraction, trace = fp_result
                 path_label = "fast"
                 n_fast_path_hits += 1
-            elif any(det_dict.get(k) for k in ("conditions", "loincs", "rxnorms")):
+            elif (
+                not args.force_agent
+                and any(det_dict.get(k) for k in ("conditions", "loincs", "rxnorms"))
+            ):
                 extraction = {
                     "conditions": list(det_dict.get("conditions") or []),
                     "loincs": list(det_dict.get("loincs") or []),
@@ -1222,23 +1234,37 @@ def main() -> None:
                     )
         except (URLError, TimeoutError, OSError) as exc:
             # Don't kill the whole bench on a single slow/offline endpoint.
-            # Fall back to the deterministic extractor so hard-negative cases
-            # still score honestly instead of disappearing from the aggregate.
-            det = deterministic_extract(case["user"])
-            det_dict = det.to_provenance_dict()
-            extraction = {
-                "conditions": list(det_dict.get("conditions") or []),
-                "loincs": list(det_dict.get("loincs") or []),
-                "rxnorms": list(det_dict.get("rxnorms") or []),
-            }
-            trace = [{
-                "turn": 0,
-                "agent_error": str(exc),
-                "deterministic_fallback": True,
-                "elapsed_s": 0.0,
-                "extraction": extraction,
-            }]
-            path_label = "deterministic-fallback"
+            # In normal production-parity benches, fall back to deterministic
+            # extraction so hard-negative cases still score honestly instead of
+            # disappearing from the aggregate. In --force-agent mode, preserve
+            # the model outage as an agent miss; otherwise the LLM-required
+            # suite would silently become a deterministic suite.
+            if args.force_agent:
+                extraction = {"conditions": [], "loincs": [], "rxnorms": []}
+                trace = [{
+                    "turn": 0,
+                    "agent_error": str(exc),
+                    "force_agent": True,
+                    "elapsed_s": 0.0,
+                    "extraction": extraction,
+                }]
+                path_label = "agent-error"
+            else:
+                det = deterministic_extract(case["user"])
+                det_dict = det.to_provenance_dict()
+                extraction = {
+                    "conditions": list(det_dict.get("conditions") or []),
+                    "loincs": list(det_dict.get("loincs") or []),
+                    "rxnorms": list(det_dict.get("rxnorms") or []),
+                }
+                trace = [{
+                    "turn": 0,
+                    "agent_error": str(exc),
+                    "deterministic_fallback": True,
+                    "elapsed_s": 0.0,
+                    "extraction": extraction,
+                }]
+                path_label = "deterministic-fallback"
 
         m, e, fpc = score(extraction, case)
         total_m += m
