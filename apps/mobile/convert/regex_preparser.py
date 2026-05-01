@@ -11,6 +11,8 @@ Patterns covered:
 - "(SNOMED 12345)" / "SNOMED 12345" → 6-9 digit numeric SNOMED CT
 - "(LOINC 12345-6)" / "LOINC 12345-6" → LOINC code with check digit
 - "(RxNorm 12345)" / "RxNorm 12345" → RxNorm RXCUI
+- high-confidence reportable-condition RAG fallback when no condition code
+  was already asserted by inline/CDA/displayName lookup
 
 Patterns NOT covered (out of scope for Rank 2 first pass — handled by LLM
 or a follow-up adversarial pass):
@@ -22,9 +24,12 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
 
 # Capture the *whole* "(SNOMED 76272004)" match span so provenance can quote it
 # back to the user. group(1) is still the bare numeric code.
@@ -40,6 +45,7 @@ _TIER_CONFIDENCE = {
     "inline": 0.99,
     "cda": 0.99,
     "lookup": 0.85,
+    "rag": 0.75,
 }
 SYSTEM_NAMES = {
     "snomed": "SNOMED",
@@ -62,6 +68,10 @@ _CDA_OID_TO_BUCKET = {
     "2.16.840.1.113883.6.1": "loinc",
     "2.16.840.1.113883.6.88": "rxnorm",
 }
+
+# Local import kept one-way: `rag_search` stays independent and receives this
+# module's negation predicate at call time.
+from rag_search import FAST_PATH_THRESHOLD, fast_path_hit  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -712,6 +722,40 @@ def _extract_lookup(text: str, *, detect_negation: bool = True) -> dict[str, lis
     return buckets
 
 
+def _extract_rag_matches(text: str, *, detect_negation: bool = True) -> list[CodeMatch]:
+    """Tier 4 reportable-condition fallback.
+
+    This intentionally emits at most one SNOMED condition and is only called
+    after inline/CDA/displayName lookup found no condition. That keeps the
+    wider reportable-condition index from adding adjacent-condition false
+    positives to already-grounded cases.
+    """
+    is_negated = _is_negated if detect_negation else (lambda _t, _s, _e: False)
+    fp = fast_path_hit(
+        text,
+        threshold=FAST_PATH_THRESHOLD,
+        is_negated=is_negated,
+    )
+    if fp is None:
+        return []
+    hit = fp.hit
+    if hit.system.upper() != "SNOMED":
+        return []
+    return [CodeMatch(
+        code=hit.code,
+        display=hit.display,
+        system=hit.system,
+        bucket="snomed",
+        tier="rag",
+        confidence=_TIER_CONFIDENCE["rag"],
+        source_text=fp.span.text,
+        source_offset=fp.span.location,
+        source_length=fp.span.length,
+        alias=hit.matched_phrase,
+        source_url=hit.source_url,
+    )]
+
+
 @dataclass(frozen=True)
 class Extraction:
     conditions: list[str]
@@ -778,6 +822,8 @@ def extract(
     matches.extend(_extract_cda_matches(text))
     if use_lookup:
         matches.extend(_extract_lookup_matches(text, detect_negation=detect_negation))
+        if not any(cm.bucket == "snomed" for cm in matches):
+            matches.extend(_extract_rag_matches(text, detect_negation=detect_negation))
 
     # Dedup keeping the highest-priority (earliest-tier) record per code.
     seen: set[tuple[str, str]] = set()
