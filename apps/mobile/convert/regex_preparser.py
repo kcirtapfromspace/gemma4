@@ -412,6 +412,13 @@ def _is_wide_context_negation(text: str, match_start: int, match_end: int) -> bo
 
     if re.search(r"quoted\s+(?:post|text|message|item|news)\s+says?", pre_sentence, re.IGNORECASE):
         return True
+    if re.search(
+        r"\b(?:source\s+patient|family\s+history|family\s+member|"
+        r"mother|father|sibling|spouse|partner)\b",
+        pre_sentence,
+        re.IGNORECASE,
+    ):
+        return True
     if (
         re.search(r"\bdifferential\s+(?:diagnosis|dx)?\b", sentence, re.IGNORECASE)
         and re.search(r"\b(?:both\s+were\s+)?ruled\s+out\b|\bnot\s+diagnosed\b", post_sentence, re.IGNORECASE)

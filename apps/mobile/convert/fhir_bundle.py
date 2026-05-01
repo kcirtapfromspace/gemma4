@@ -24,6 +24,7 @@ through to the CDC NNDSS / WHO IDSR page that grounds it.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,76 @@ DEFAULT_PATIENT_ID = "cliniq-patient-1"
 
 # Cache the inverse lookup (code → displayName) so we don't rebuild per call.
 _DISPLAY_CACHE: dict[tuple[str, str], str] | None = None
+
+
+def _is_fhir_id_safe(value: str) -> bool:
+    """FHIR id-safe token check used for atypical local/CDA slot codes."""
+    if not value:
+        return False
+    return all(ch.isalnum() or ch in "-." for ch in value)
+
+
+def normalize_code_value(bucket: str, value: object) -> str | None:
+    """Return a raw code string for an extraction bucket.
+
+    The model sometimes emits display-bearing strings such as
+    ``"Pertussis (SNOMED 27836007)"``. Bundle generation and exact scoring both
+    need the raw code only. This parser intentionally stays conservative: if a
+    value has no bucket-appropriate code token, it is dropped rather than
+    converted into a display string masquerading as a code.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.lower() == "null":
+        return None
+
+    if bucket == "conditions":
+        if text.isdigit():
+            return text
+        # SNOMED CT identifiers are integer SCTIDs. Require at least five
+        # digits so malformed snippets like "SNOMED 68.90" do not become "68".
+        match = re.search(
+            r"\b(?:SNOMED(?:\s+CT)?\s*)?(\d{5,18})\b",
+            text,
+            re.IGNORECASE,
+        )
+        return match.group(1) if match else None
+
+    if bucket == "loincs":
+        match = re.search(r"\b\d{1,7}-\d\b", text)
+        if match:
+            return match.group(0)
+        # Existing CDA fixtures include a few author-assigned, LOINC-bucket
+        # identifiers that are not hyphenated LOINCs. Preserve only whole-token
+        # FHIR-id-safe values; never preserve display-bearing prose.
+        if _is_fhir_id_safe(text) and any(ch.isdigit() for ch in text):
+            return text
+        return None
+
+    if bucket == "rxnorms":
+        if text.isdigit():
+            return text
+        match = re.search(r"\b(?:RXNORM\s*)?(\d{3,18})\b", text, re.IGNORECASE)
+        return match.group(1) if match else None
+
+    return text if _is_fhir_id_safe(text) else None
+
+
+def normalize_extraction(extraction: dict) -> dict:
+    """Normalize/deduplicate a ClinIQ extraction while preserving order."""
+    out = {"conditions": [], "loincs": [], "rxnorms": []}
+    seen = {key: set() for key in out}
+    for key in out:
+        values = extraction.get(key) or []
+        if not isinstance(values, list):
+            continue
+        for raw in values:
+            code = normalize_code_value(key, raw)
+            if code and code not in seen[key]:
+                seen[key].add(code)
+                out[key].append(code)
+    return out
 
 
 def _build_display_index() -> dict[tuple[str, str], str]:
@@ -407,6 +478,7 @@ def to_bundle(
     `regex_preparser.extract(...).to_provenance_dict()` (Python).
     """
     provenance_map = provenance_map or {}
+    extraction = normalize_extraction(extraction)
     entries: list[dict] = [_patient_entry(patient_id)]
 
     for code in extraction.get("conditions") or []:
