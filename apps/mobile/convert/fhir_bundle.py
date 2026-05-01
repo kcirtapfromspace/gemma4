@@ -97,6 +97,11 @@ def _coding(system: str, code: str, *, display: str | None = None) -> dict:
     }
 
 
+def _codeable_concept(system: str, codes: list[str]) -> dict:
+    """Build a CodeableConcept with one or more codings."""
+    return {"coding": [_coding(system, code) for code in codes]}
+
+
 def _meta_with_source(source_url: str | None) -> dict | None:
     if not source_url:
         return None
@@ -148,15 +153,17 @@ def _condition_entry(
     return {"fullUrl": full_url, "resource": resource}
 
 
-_VITAL_SIGN_LOINCS = frozenset({
+_BP_COMPONENT_LOINCS = frozenset({
     "8480-6",   # Systolic blood pressure
     "8462-4",   # Diastolic blood pressure
+})
+_VITAL_SIGN_LOINCS = frozenset({
+    *_BP_COMPONENT_LOINCS,
     "8867-4",   # Heart rate
     "8310-5",   # Body temperature
     "9279-1",   # Respiratory rate
     "8302-2",   # Body height
     "29463-7",  # Body weight (canonical magic LOINC for `bodyweight` profile)
-    "39156-5",  # BMI
     "59408-5",  # SpO2 (pulse oximetry, O2 saturation in arterial blood)
     "2708-6",   # Oxygen saturation in arterial blood (canonical magic LOINC for `oxygensat` profile)
     "2710-2",   # Oxygen saturation in capillary blood (also auto-binds to `oxygensat`)
@@ -165,16 +172,33 @@ _VITAL_SIGN_LOINCS = frozenset({
     "8716-3",   # Vital signs panel (alt)
     "3141-9",   # Body weight measured (auto-binds to `bodyweight` profile)
 })
-# LOINC 2710-2 (capillary oxygen saturation) and 3141-9 (body weight
-# measured) auto-bind to the FHIR `oxygensat` and `bodyweight` profiles
-# respectively. Those profiles require their own canonical "magic LOINC
-# code" (2708-6 / 29463-7) AND a `valueQuantity` with hard-coded units —
-# constraints we cannot satisfy from the eICR-extraction surface (which
-# carries codes only, no measured values). We deliberately leave them
-# out of the vital-sign category set: the auto-bind still fires per the
-# validator's logic, but emitting them as plain Observations with
-# `dataAbsentReason` is the closest we can get without inventing data.
-# Three external CDA cases still fail Java validation for this reason.
+_VALUE_REQUIRED_VITAL_COMPONENT_LOINCS = frozenset({
+    "39156-5",  # BMI
+    "8287-5",   # Head circumference
+})
+# These are intentionally not classified as standalone vital-sign Observations.
+# Their FHIR R4 profiles require a numeric `valueQuantity`; ClinIQ's
+# extraction surface carries only the code, not the measured value. We handle
+# them explicitly below as vital-signs panel components with
+# `dataAbsentReason=unknown`, preserving the extracted LOINC without inventing
+# measurements.
+_VITAL_SIGN_MAGIC_CODE = {
+    # These CDA sample codes auto-bind to base vital-sign profiles that
+    # require a canonical "magic" LOINC in Observation.code. FHIR allows
+    # additional codings, so keep the extracted code and add the canonical
+    # profile code rather than rewriting the extraction answer.
+    "2710-2": "2708-6",   # Capillary O2 saturation -> O2 sat profile code
+    "3141-9": "29463-7",  # Measured body weight -> Body weight profile code
+}
+
+
+def _data_absent_reason_unknown() -> dict:
+    return {
+        "coding": [{
+            "system": "http://terminology.hl7.org/CodeSystem/data-absent-reason",
+            "code": "unknown",
+        }]
+    }
 
 # `Observation.category=vital-signs` slice required by the FHIR R4 base
 # `vitalsigns` profile. The HL7-published validator auto-binds any
@@ -203,11 +227,25 @@ def _observation_entry(
     there would be an over-claim.
     """
     rid, full_url = _entry_id_and_full_url("observation", code)
+    if code in _BP_COMPONENT_LOINCS:
+        return _blood_pressure_observation_entry(
+            code, patient_ref=patient_ref, source_url=source_url
+        )
+    if code in _VALUE_REQUIRED_VITAL_COMPONENT_LOINCS:
+        return _vital_component_observation_entry(
+            code, patient_ref=patient_ref, source_url=source_url
+        )
+
+    loinc_codes = [code]
+    magic_code = _VITAL_SIGN_MAGIC_CODE.get(code)
+    if magic_code and magic_code not in loinc_codes:
+        loinc_codes.append(magic_code)
+
     resource: dict[str, Any] = {
         "resourceType": "Observation",
         "id": rid,
         "status": "final",
-        "code": {"coding": [_coding("LOINC", code)]},
+        "code": _codeable_concept("LOINC", loinc_codes),
         "subject": {"reference": f"urn:cliniq:patient-{patient_ref}"},
     }
     if code in _VITAL_SIGN_LOINCS:
@@ -224,12 +262,78 @@ def _observation_entry(
         # plumbed through from the eICR extraction surface (extraction
         # surfaces *codes only*, not values), so emit a structured
         # dataAbsentReason. `unknown` is a valid value-set member.
-        resource["dataAbsentReason"] = {
-            "coding": [{
-                "system": "http://terminology.hl7.org/CodeSystem/data-absent-reason",
-                "code": "unknown",
-            }]
-        }
+        resource["dataAbsentReason"] = _data_absent_reason_unknown()
+    meta = _meta_with_source(source_url)
+    if meta:
+        resource["meta"] = meta
+    return {"fullUrl": full_url, "resource": resource}
+
+
+def _vital_component_observation_entry(
+    code: str, *, patient_ref: str, source_url: str | None = None
+) -> dict:
+    """Represent value-required code-only vitals as panel components.
+
+    Standalone Observations for codes like BMI (`39156-5`) and head
+    circumference (`8287-5`) must carry numeric `valueQuantity.value` under
+    their FHIR R4 profiles. The extraction surface has no value, so we wrap
+    the code as a component under the general vital-signs panel and mark the
+    value absent.
+    """
+    rid, full_url = _entry_id_and_full_url("observation", code)
+    resource: dict[str, Any] = {
+        "resourceType": "Observation",
+        "id": rid,
+        "status": "final",
+        "category": [_VSCAT_CATEGORY],
+        "code": _codeable_concept("LOINC", ["85353-3"]),
+        "subject": {"reference": f"urn:cliniq:patient-{patient_ref}"},
+        "effectiveDateTime": "2026-01-01",
+        "component": [
+            {
+                "code": _codeable_concept("LOINC", [code]),
+                "dataAbsentReason": _data_absent_reason_unknown(),
+            }
+        ],
+    }
+    meta = _meta_with_source(source_url)
+    if meta:
+        resource["meta"] = meta
+    return {"fullUrl": full_url, "resource": resource}
+
+
+def _blood_pressure_observation_entry(
+    code: str, *, patient_ref: str, source_url: str | None = None
+) -> dict:
+    """Represent systolic/diastolic LOINCs as a BP panel Observation.
+
+    The FHIR R4 base BP profile requires `Observation.code=85354-9` and
+    both systolic + diastolic component slices. ClinIQ's extraction surface
+    only carries codes, not measured values, so each component uses
+    `dataAbsentReason=unknown`. The triggering code remains represented as a
+    component, and the missing paired component is explicit rather than
+    invented.
+    """
+    rid, full_url = _entry_id_and_full_url("observation", code)
+    resource: dict[str, Any] = {
+        "resourceType": "Observation",
+        "id": rid,
+        "status": "final",
+        "category": [_VSCAT_CATEGORY],
+        "code": _codeable_concept("LOINC", ["85354-9"]),
+        "subject": {"reference": f"urn:cliniq:patient-{patient_ref}"},
+        "effectiveDateTime": "2026-01-01",
+        "component": [
+            {
+                "code": _codeable_concept("LOINC", ["8480-6"]),
+                "dataAbsentReason": _data_absent_reason_unknown(),
+            },
+            {
+                "code": _codeable_concept("LOINC", ["8462-4"]),
+                "dataAbsentReason": _data_absent_reason_unknown(),
+            },
+        ],
+    }
     meta = _meta_with_source(source_url)
     if meta:
         resource["meta"] = meta
@@ -294,8 +398,8 @@ def to_bundle(
 
     Bundle.type='collection' (per FHIR R4 Bundle.type binding for "set of
     resources collected together for a specific purpose"). Each entry has
-    a `resource` field; we don't generate `fullUrl` because the spec only
-    requires it on transactions, batches, and history.
+    both `fullUrl` and `resource` so relative subject references resolve
+    cleanly in the canonical HL7 validator.
 
     `provenance_map` is an optional `code -> source_url` dict; entries get
     `meta.source` stamped with the URL. Use the values produced by

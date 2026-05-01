@@ -556,6 +556,8 @@ def try_fast_path(
     # EicrPreparser.swift (c20 Candidate D).
     if any(m.tier in ("inline", "cda") for m in det.matches):
         return None  # Tier 1 has explicit-assertion answers — fast-path skipped.
+    if det_dict.get("conditions"):
+        return None  # A lookup-tier condition is already asserted; RAG should only fill missing conditions.
 
     is_negated = _is_negated if use_negex else (lambda *_args: False)
     fp = fast_path_hit(narrative, threshold=threshold, is_negated=is_negated)
@@ -1117,6 +1119,7 @@ def main() -> None:
     # emit the EZeCR flat CSV across the whole series.
     prior_bundle_for_diff: dict | None = None
     prior_case_id_for_diff: str | None = None
+    prior_patient_hash_for_diff: str | None = None
     longitudinal_manifest: list[dict] = []
     longitudinal_mode = args.prior_bundle is not None
     bundle_dir: Path | None = None
@@ -1169,6 +1172,20 @@ def main() -> None:
                 extraction, trace = fp_result
                 path_label = "fast"
                 n_fast_path_hits += 1
+            elif any(det_dict.get(k) for k in ("conditions", "loincs", "rxnorms")):
+                extraction = {
+                    "conditions": list(det_dict.get("conditions") or []),
+                    "loincs": list(det_dict.get("loincs") or []),
+                    "rxnorms": list(det_dict.get("rxnorms") or []),
+                }
+                trace = [{
+                    "turn": 0,
+                    "deterministic": True,
+                    "elapsed_s": 0.0,
+                    "extraction": extraction,
+                }]
+                path_label = "deterministic"
+                n_det_hits += 1
             else:
                 # Auto-detect oversized input. Inputs estimated to exceed the
                 # chunker's per-chunk budget (~6000 tok) route through
@@ -1204,18 +1221,30 @@ def main() -> None:
                         max_turns=args.max_turns,
                     )
         except (URLError, TimeoutError, OSError) as exc:
-            # Don't kill the whole bench on a single slow Jetson case; record
-            # the error and move on. Mac runs almost never hit this; the
-            # Jetson at ~1 tok/s decode can blow the 900 s/turn budget.
-            print(f"  ERR {cid}: {exc}", flush=True)
-            rows.append({"case_id": cid, "error": str(exc)})
-            continue
+            # Don't kill the whole bench on a single slow/offline endpoint.
+            # Fall back to the deterministic extractor so hard-negative cases
+            # still score honestly instead of disappearing from the aggregate.
+            det = deterministic_extract(case["user"])
+            det_dict = det.to_provenance_dict()
+            extraction = {
+                "conditions": list(det_dict.get("conditions") or []),
+                "loincs": list(det_dict.get("loincs") or []),
+                "rxnorms": list(det_dict.get("rxnorms") or []),
+            }
+            trace = [{
+                "turn": 0,
+                "agent_error": str(exc),
+                "deterministic_fallback": True,
+                "elapsed_s": 0.0,
+                "extraction": extraction,
+            }]
+            path_label = "deterministic-fallback"
 
         m, e, fpc = score(extraction, case)
         total_m += m
         total_e += e
         total_fp += fpc
-        if e and m == e and fpc == 0:
+        if m == e and fpc == 0:
             perfect += 1
 
         n_calls = sum(1 for t in trace if t.get("tool_result"))
@@ -1255,7 +1284,12 @@ def main() -> None:
             row["patient_hash"] = phash
             row["case_dt"] = case_dt
             row["bundle_path"] = str(bundle_path)
-            if prior_bundle_for_diff is not None and prior_case_id_for_diff is not None:
+            same_patient_as_prior = phash == prior_patient_hash_for_diff
+            if (
+                same_patient_as_prior
+                and prior_bundle_for_diff is not None
+                and prior_case_id_for_diff is not None
+            ):
                 cd = compute_diff(
                     prior_bundle_for_diff,
                     current_bundle,
@@ -1272,6 +1306,7 @@ def main() -> None:
             })
             prior_bundle_for_diff = current_bundle
             prior_case_id_for_diff = cid
+            prior_patient_hash_for_diff = phash
         rows.append(row)
 
     Path(args.out_json).parent.mkdir(parents=True, exist_ok=True)

@@ -38,6 +38,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import sys
 from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
@@ -219,6 +220,33 @@ def _category_codes(resource: dict) -> set[str]:
     return out
 
 
+def _observation_code_for_diff(resource: dict) -> tuple[str, str, str | None] | None:
+    """Pick the extracted observation code, not a FHIR profile wrapper code.
+
+    `fhir_bundle.py` wraps code-only systolic/diastolic BP observations in a
+    valid R4 BP panel: `Observation.code=85354-9` with systolic/diastolic
+    component slices. For longitudinal diffs, though, the user-visible code is
+    the extracted LOINC (`8480-6` or `8462-4`). The original extracted code is
+    preserved in the deterministic resource id (`observation-<code>`), so use
+    that when it appears among the component codings.
+    """
+    rid = str(resource.get("id") or "")
+    extracted_code = (
+        rid.removeprefix("observation-")
+        if rid.startswith("observation-")
+        else ""
+    )
+    if extracted_code and resource.get("component"):
+        for component in resource.get("component") or []:
+            picked = _coding_first(component.get("code"))
+            if picked is None:
+                continue
+            system, code, display = picked
+            if code == extracted_code:
+                return system, code, display
+    return _coding_first(resource.get("code"))
+
+
 def entities_from_bundle(bundle: dict) -> list[CodedEntity]:
     """Walk a FHIR Bundle and emit one CodedEntity per axis-relevant resource.
 
@@ -237,7 +265,7 @@ def entities_from_bundle(bundle: dict) -> list[CodedEntity]:
             system, code, display = picked
             out.append(CodedEntity(AXIS_CONDITION, system, code, display))
         elif rtype == "Observation":
-            picked = _coding_first(res.get("code"))
+            picked = _observation_code_for_diff(res)
             if picked is None:
                 continue
             system, code, display = picked
@@ -490,17 +518,143 @@ def emit_csv_from_manifest(manifest_path: str | Path, csv_out: str | Path) -> in
     """
     manifest = load_manifest(manifest_path)
     series: list[dict] = []
-    prior_bundle: dict | None = None
+    prior_bundle_by_patient: dict[str, dict] = {}
     for row in manifest:
         bundle = json.loads(Path(row["bundle_path"]).read_text())
+        patient_hash_value = row["patient_hash"]
         series.append({
-            "patient_hash": row["patient_hash"],
+            "patient_hash": patient_hash_value,
             "case_id": row["case_id"],
             "case_dt": row["case_dt"],
             "bundle": bundle,
-            "prior_bundle": prior_bundle,
+            "prior_bundle": prior_bundle_by_patient.get(patient_hash_value),
         })
-        prior_bundle = bundle
+        prior_bundle_by_patient[patient_hash_value] = bundle
     rows = emit_csv_rows(series)
     write_csv(rows, csv_out)
     return len(rows)
+
+
+# ---------------------------------------------------------------------------
+# Gold longitudinal bench helpers
+
+
+def _expected_extraction_from_case(case: dict) -> dict:
+    return {
+        "conditions": list(case.get("expected_conditions") or []),
+        "loincs": list(case.get("expected_loincs") or []),
+        "rxnorms": list(case.get("expected_rxnorms") or []),
+    }
+
+
+def _axis_codes(entities: list[CodedEntity]) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    for entity in entities:
+        out.setdefault(entity.axis, []).append(entity.code)
+    return {axis: sorted(codes) for axis, codes in sorted(out.items())}
+
+
+def _summarize_diff(diff: CaseDiff) -> dict:
+    summary: dict[str, object] = {"prior_case_id": diff.prior_case_id}
+    for bucket in ("added", "removed", "unchanged"):
+        axis_map: dict[str, list[str]] = {}
+        for axis, axis_diff in diff.axes.items():
+            codes = _axis_codes(getattr(axis_diff, bucket))
+            if axis in codes:
+                axis_map[axis] = codes[axis]
+        summary[bucket] = axis_map
+    return summary
+
+
+def _canonical_expected_diff(raw: dict) -> dict:
+    out: dict[str, object] = {"prior_case_id": raw.get("prior_case_id")}
+    for bucket in ("added", "removed", "unchanged"):
+        axis_map = raw.get(bucket) or {}
+        out[bucket] = {
+            axis: sorted(str(code) for code in codes)
+            for axis, codes in sorted(axis_map.items())
+            if codes
+        }
+    return out
+
+
+def run_expected_diff_bench(path: str | Path) -> tuple[int, int]:
+    """Verify JSONL `expected_diff` rows against the Bundle diff implementation.
+
+    This is intentionally a no-LLM bench: it constructs FHIR Bundles from each
+    row's gold code sets, computes the longitudinal diff, and checks that the
+    fixture's "what changed since last report?" assertions match exactly. The
+    agent/deterministic extractor can then be run separately against the same
+    JSONL; this smoke test keeps the gold bench itself honest.
+    """
+    sys.path.insert(0, str(Path(__file__).parent))
+    from fhir_bundle import to_bundle  # noqa: WPS433
+
+    cases = [
+        json.loads(line)
+        for line in Path(path).read_text().splitlines()
+        if line.strip()
+    ]
+
+    failures = 0
+    checked = 0
+    prior_by_patient: dict[str, tuple[str, dict]] = {}
+    for case in cases:
+        patient = case.get("patient") or {}
+        phash = patient_hash(
+            patient.get("given") or "",
+            patient.get("family") or "",
+            patient.get("dob") or "",
+        )
+        current_bundle = to_bundle(_expected_extraction_from_case(case))
+        prior = prior_by_patient.get(phash)
+        expected = case.get("expected_diff")
+        if expected:
+            checked += 1
+            if prior is None:
+                print(f"FAIL {case['case_id']}: has expected_diff but no prior case")
+                failures += 1
+            else:
+                prior_case_id, prior_bundle = prior
+                actual_diff = compute_diff(
+                    prior_bundle,
+                    current_bundle,
+                    patient_hash_value=phash,
+                    prior_case_id=prior_case_id,
+                    current_case_id=case["case_id"],
+                )
+                actual = _summarize_diff(actual_diff)
+                want = _canonical_expected_diff(expected)
+                if actual != want:
+                    print(f"FAIL {case['case_id']}:")
+                    print(f"  want {json.dumps(want, sort_keys=True)}")
+                    print(f"  got  {json.dumps(actual, sort_keys=True)}")
+                    failures += 1
+                else:
+                    print(f"OK   {case['case_id']}: expected_diff matched")
+        prior_by_patient[phash] = (case["case_id"], current_bundle)
+    return checked - failures, checked
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Longitudinal case diff helpers")
+    parser.add_argument(
+        "--bench-jsonl",
+        help=(
+            "Run the no-LLM gold longitudinal diff bench against a JSONL file "
+            "with expected_* code sets and expected_diff assertions."
+        ),
+    )
+    args = parser.parse_args(argv)
+    if args.bench_jsonl:
+        passed, total = run_expected_diff_bench(args.bench_jsonl)
+        print(f"Longitudinal expected_diff bench: {passed}/{total} matched")
+        return 0 if passed == total else 1
+    parser.print_help()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -184,6 +184,8 @@ def _extract_inline(text: str) -> list[CodeMatch]:
             has_label = _INLINE_LABEL_RE.search(window) is not None
             if not has_label and not _is_curated_code(code, bucket):
                 continue
+            if bucket != "loinc" and _is_negated(text, m.start(), m.end()):
+                continue
 
             out.append(CodeMatch(
                 code=code,
@@ -249,6 +251,7 @@ def _extract_cda(text: str) -> dict[str, list[str]]:
 _NEG_TRIGGERS = re.compile(
     r"\b(?:"
     r"ruled\s+out"
+    r"|no"
     r"|negative\s+for"
     r"|no\s+evidence\s+of"
     r"|no\s+current\s+evidence\s+of"
@@ -271,6 +274,10 @@ _NEG_TRIGGERS = re.compile(
     # avoided/avoidance.
     r"|avoid\w*"
     r"|contraindicated"
+    r"|no\s+usar"
+    r"|contraindicad[ao]"
+    r"|evitad[ao]"
+    r"|khong\s+thay"
     # c20 adv7 fix: incidental-finding suppression
     # ("Incidental finding on admission screening swab: SARS-CoV-2 RNA",
     # "death-with, not death-due-to, COVID"). Catches death-with-disease
@@ -281,6 +288,11 @@ _NEG_TRIGGERS = re.compile(
     r"|incidental\s+finding"
     r"|incidental\s+screen\w*"
     r"|incidental\s+(?:noted?|detect\w*|appear\w*|observ\w*)"
+    r"|hallazgo\s+incidental"
+    r"|resultado\s+incidental"
+    r"|news\s+alert"
+    r"|quoted\s+(?:post|text|message|item|news)\s+says?"
+    r"|risk\s+of"
     r"|exclud(?:e|ed|es|ing)"
     r"|excluded"
     # c20-r2 fix: extended differential trigger to catch
@@ -324,6 +336,10 @@ _POSTHOC_NEG_TRIGGERS = re.compile(
     r"|results?\s+(?:was|were|is|are)\s+negative"
     r"|IgM\s+negative"
     r"|IgG\s+negative"
+    r"|(?:IgM|IgG|RNA|Ag|Ab|antigen|antibody|test|serology|PCR|NAA)[^;\n]{0,70}-\s*negative"
+    r"|considered\s+in\s+(?:the\s+)?differential"
+    r"|not\s+diagnosed"
+    r"|vaccine-strain\s+reactions?"
     # c20 adv7 fix: post-hoc incidental + death-with-disease.
     # Catches `... result was an incidental screening finding` and
     # `... did not contribute to the cause of death`. Adv5
@@ -332,6 +348,11 @@ _POSTHOC_NEG_TRIGGERS = re.compile(
     # behind a period clause terminator), so these triggers are safe.
     r"|(?:was|is|were)\s+(?:an?\s+)?incidental(?:\s+\w+){0,2}\s+(?:finding|screening|note\w*|swab\w*)"
     r"|did\s+not\s+contribute(?:\s+to)?"
+    r"|no\s+contribuy[oó](?:\s+a)?"
+    r"|aparece\s+solo\s+como\s+medicamento\s+evitad[ao]"
+    r"|appears\s+only\s+as\s+(?:a\s+)?medication\s+(?:avoid\w*|withheld|not\s+given|not\s+administered|not\s+prescribed)"
+    r"|(?:is|was|are|were)\s+(?:a\s+)?quoted\s+(?:news|internet|social-media|post|item|text|message)"
+    r"|parental\s+question\s+only"
     r")\b",
     re.IGNORECASE,
 )
@@ -367,6 +388,30 @@ _VAX_POST_NOUNS = re.compile(
     r"^\W{0,3}\S{0,30}?\s*\b(?:series|booster|vaccine|vaccination|immuniz\w*|shot|dose|MMR\b)",
     re.IGNORECASE,
 )
+_SENTENCE_BOUNDARY_RE = re.compile(r"(?:\.\s|\n)")
+
+
+def _is_wide_context_negation(text: str, match_start: int, match_end: int) -> bool:
+    """Sentence-level suppressors for comma-heavy quote/differential prose."""
+    left = text[max(0, match_start - 220):match_start]
+    last_boundary = -1
+    for term in _SENTENCE_BOUNDARY_RE.finditer(left):
+        last_boundary = term.end()
+    pre_sentence = left[last_boundary:] if last_boundary >= 0 else left
+    post_sentence = text[match_end:min(len(text), match_end + 220)]
+    next_boundary = _SENTENCE_BOUNDARY_RE.search(post_sentence)
+    if next_boundary:
+        post_sentence = post_sentence[:next_boundary.start()]
+    sentence = pre_sentence + text[match_start:match_end] + post_sentence
+
+    if re.search(r"quoted\s+(?:post|text|message|item|news)\s+says?", pre_sentence, re.IGNORECASE):
+        return True
+    if (
+        re.search(r"\bdifferential\s+(?:diagnosis|dx)?\b", sentence, re.IGNORECASE)
+        and re.search(r"\b(?:both\s+were\s+)?ruled\s+out\b|\bnot\s+diagnosed\b", post_sentence, re.IGNORECASE)
+    ):
+        return True
+    return False
 
 
 def _is_vaccine_context_negation(text: str, match_start: int, match_end: int) -> bool:
@@ -426,6 +471,9 @@ def _is_negated(text: str, match_start: int, match_end: int) -> bool:
     # this form; without this rule they leak vaccine-target diseases as if
     # actively diagnosed (`adv6_long_form_admission_note`'s varicella).
     if _is_vaccine_context_negation(text, match_start, match_end):
+        return True
+
+    if _is_wide_context_negation(text, match_start, match_end):
         return True
 
     return False
@@ -564,6 +612,30 @@ def _is_label_header_use(alias: str, text: str, match_end: int) -> bool:
     return bool(re.match(r"\s{0,2}:", text[match_end:match_end + 4]))
 
 
+def _is_same_bucket_inline_annotated_line(bucket: str, text: str, match_end: int) -> bool:
+    """True when a lookup alias is already represented by an inline code nearby.
+
+    Example: `Lab: CBC W Differential panel - Blood (LOINC 58410-2)` should
+    emit the explicit LOINC only. The lookup alias `CBC` maps to the broader
+    complete-blood-count code 57021-8, which is a duplicate/less-specific code
+    in this context.
+    """
+    pattern = {
+        "snomed": SNOMED_RE,
+        "loinc": LOINC_RE,
+        "rxnorm": RXNORM_RE,
+    }.get(bucket)
+    if pattern is None:
+        return False
+    line_start = text.rfind("\n", 0, match_end) + 1
+    line_end = text.find("\n", match_end)
+    if line_end < 0:
+        line_end = len(text)
+    line = text[line_start:line_end]
+    local_end = match_end - line_start
+    return any(local_end <= m.start() for m in pattern.finditer(line))
+
+
 def _extract_lookup_matches(text: str, *, detect_negation: bool = True) -> list[CodeMatch]:
     """Match known displayNames in text, return per-match provenance records.
 
@@ -585,6 +657,8 @@ def _extract_lookup_matches(text: str, *, detect_negation: bool = True) -> list[
             for alias, p in patterns:
                 for m in p.finditer(scan_text):
                     if detect_negation and _is_negated(scan_text, m.start(), m.end()):
+                        continue
+                    if _is_same_bucket_inline_annotated_line(bucket, scan_text, m.end()):
                         continue
                     # c20 final pass: skip short acronym aliases used as
                     # data-label headers (`CBC:`, `CMP:`). Lookup tier
@@ -783,7 +857,7 @@ def main() -> None:
         total_matched += case_matched
         total_extracted += case_extracted
         total_false_pos += case_false_pos
-        if case_expected and case_matched == case_expected and case_false_pos == 0:
+        if case_matched == case_expected and case_false_pos == 0:
             perfect_cases += 1
 
         status = "OK " if (case_matched == case_expected and case_false_pos == 0) else "MISS"
