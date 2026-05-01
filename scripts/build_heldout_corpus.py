@@ -11,7 +11,7 @@ import argparse
 import hashlib
 import json
 import re
-from collections import Counter
+from collections import Counter, defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -138,14 +138,88 @@ def build_case(
     }
 
 
+def case_code_keys(case: dict[str, Any]) -> list[str]:
+    keys: list[str] = []
+    for bucket, field in (
+        ("conditions", "expected_conditions"),
+        ("loincs", "expected_loincs"),
+        ("rxnorms", "expected_rxnorms"),
+    ):
+        for code in case.get(field) or []:
+            keys.append(f"{bucket}:{code}")
+    return keys or ["__no_expected_codes__"]
+
+
+def select_cases(cases: list[dict[str, Any]], args: argparse.Namespace) -> list[dict[str, Any]]:
+    if args.limit <= 0 or len(cases) <= args.limit:
+        return list(cases)
+    if args.limit_mode == "first":
+        return cases[: args.limit]
+
+    by_code: dict[str, deque[int]] = defaultdict(deque)
+    for idx, case in enumerate(cases):
+        for key in case_code_keys(case):
+            by_code[key].append(idx)
+
+    # Rare-code buckets first, then stable lexical order. This gives small
+    # smoke samples better breadth than first-N while staying deterministic.
+    keys = sorted(by_code, key=lambda key: (len(by_code[key]), key))
+    selected_indices: list[int] = []
+    seen: set[int] = set()
+    while len(selected_indices) < args.limit:
+        progressed = False
+        for key in keys:
+            while by_code[key] and by_code[key][0] in seen:
+                by_code[key].popleft()
+            if not by_code[key]:
+                continue
+            idx = by_code[key].popleft()
+            seen.add(idx)
+            selected_indices.append(idx)
+            progressed = True
+            if len(selected_indices) >= args.limit:
+                break
+        if not progressed:
+            break
+
+    if len(selected_indices) < args.limit:
+        for idx in range(len(cases)):
+            if idx in seen:
+                continue
+            selected_indices.append(idx)
+            if len(selected_indices) >= args.limit:
+                break
+    return [cases[idx] for idx in selected_indices]
+
+
+def corpus_counts(cases: list[dict[str, Any]]) -> tuple[Counter[str], Counter[str], dict[str, Counter[str]]]:
+    source_counts: Counter[str] = Counter()
+    code_counts: Counter[str] = Counter()
+    code_distribution: dict[str, Counter[str]] = {
+        "conditions": Counter(),
+        "loincs": Counter(),
+        "rxnorms": Counter(),
+    }
+    for case in cases:
+        source = case.get("source") or {}
+        source_counts[str(source.get("path") or "unknown")] += 1
+        for bucket, field in (
+            ("conditions", "expected_conditions"),
+            ("loincs", "expected_loincs"),
+            ("rxnorms", "expected_rxnorms"),
+        ):
+            values = list(case.get(field) or [])
+            code_counts[bucket] += len(values)
+            code_distribution[bucket].update(values)
+    return source_counts, code_counts, code_distribution
+
+
 def build_corpus(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     protected_ids, protected_user_hashes, protected_files = protected_eval_state(
         args.protected_case_glob
     )
-    selected: list[dict[str, Any]] = []
+    candidates: list[dict[str, Any]] = []
     skipped = Counter()
-    source_counts: Counter[str] = Counter()
-    code_counts = Counter()
     generated_ids: set[str] = set()
 
     for source in args.source:
@@ -174,15 +248,10 @@ def build_corpus(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[s
                 skipped["no_expected_codes"] += 1
                 continue
             generated_ids.add(case["case_id"])
-            selected.append(case)
-            source_counts[str(path)] += 1
-            code_counts["conditions"] += len(case["expected_conditions"])
-            code_counts["loincs"] += len(case["expected_loincs"])
-            code_counts["rxnorms"] += len(case["expected_rxnorms"])
-            if args.limit and len(selected) >= args.limit:
-                break
-        if args.limit and len(selected) >= args.limit:
-            break
+            candidates.append(case)
+
+    selected = select_cases(candidates, args)
+    source_counts, code_counts, code_distribution = corpus_counts(selected)
 
     manifest = {
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -192,12 +261,15 @@ def build_corpus(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[s
         "protected_case_files": protected_files,
         "protected_case_ids_seen": len(protected_ids),
         "case_prefix": args.case_prefix,
+        "limit": args.limit,
+        "limit_mode": args.limit_mode,
         "synthetic": True,
         "claim_boundary": (
             "Rows assembled from compact synthetic train/validation data are "
             "held out from protected regression IDs, but are not independent "
             "real-world eICR cases."
         ),
+        "candidate_cases_before_limit": len(candidates),
         "cases": len(selected),
         "source_counts": dict(source_counts),
         "skipped": dict(skipped),
@@ -206,6 +278,17 @@ def build_corpus(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[s
             "loincs": code_counts["loincs"],
             "rxnorms": code_counts["rxnorms"],
             "total": sum(code_counts.values()),
+        },
+        "unique_expected_codes": {
+            bucket: len(dist)
+            for bucket, dist in code_distribution.items()
+        },
+        "top_expected_codes": {
+            bucket: [
+                {"code": code, "count": count}
+                for code, count in dist.most_common(10)
+            ]
+            for bucket, dist in code_distribution.items()
         },
         "case_id_sample": [case["case_id"] for case in selected[:10]],
     }
@@ -231,6 +314,8 @@ def render_summary(manifest: dict[str, Any], dry_run: bool) -> str:
         f"Protected case IDs checked: {manifest['protected_case_ids_seen']}",
         f"Skipped: {json.dumps(manifest['skipped'], sort_keys=True)}",
         f"Sources: {json.dumps(manifest['source_counts'], sort_keys=True)}",
+        f"Unique expected codes: {json.dumps(manifest['unique_expected_codes'], sort_keys=True)}",
+        f"Limit mode: {manifest['limit_mode']} (candidates before limit: {manifest['candidate_cases_before_limit']})",
         f"Case ID sample: {', '.join(manifest['case_id_sample'])}",
         f"Claim boundary: {manifest['claim_boundary']}",
     ]
@@ -253,6 +338,15 @@ def main() -> int:
     )
     parser.add_argument("--case-prefix", default="heldout_synth")
     parser.add_argument("--limit", type=int, default=0, help="Maximum cases to emit; 0 means all.")
+    parser.add_argument(
+        "--limit-mode",
+        choices=("first", "round-robin-code"),
+        default="first",
+        help=(
+            "How to choose rows when --limit is set. 'first' preserves source "
+            "order; 'round-robin-code' balances across expected code buckets."
+        ),
+    )
     parser.add_argument("--out-jsonl", default=DEFAULT_OUT_JSONL)
     parser.add_argument("--out-manifest", default=DEFAULT_OUT_MANIFEST)
     parser.add_argument("--dry-run", action="store_true")

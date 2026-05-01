@@ -55,6 +55,7 @@ Dry run:
 python3 scripts/build_heldout_corpus.py \
   --source kaggle-training/dataset/val-compact.jsonl \
   --limit 25 \
+  --limit-mode round-robin-code \
   --dry-run
 ```
 
@@ -75,6 +76,15 @@ python3 scripts/build_heldout_corpus.py \
   --source kaggle-training/dataset/val-compact.jsonl \
   --source kaggle-training/dataset/train_v2.jsonl \
   --limit 1000 \
+  --limit-mode round-robin-code \
   --out-jsonl tools/autoresearch/generated/heldout-synth-1000.jsonl \
   --out-manifest tools/autoresearch/generated/heldout-synth-1000.manifest.json
 ```
+
+When using `--limit` for a smoke or medium-size sample, prefer
+`--limit-mode round-robin-code`. The default `first` mode preserves source
+order, but source-order prefixes can overrepresent common codes. Round-robin
+mode deterministically walks rare expected-code buckets first and records
+`unique_expected_codes`, `top_expected_codes`, `limit_mode`, and
+`candidate_cases_before_limit` in the manifest, making sample-size claims easier
+to audit.
