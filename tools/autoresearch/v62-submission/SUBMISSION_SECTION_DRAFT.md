@@ -65,3 +65,45 @@ agent-path F1=1.000 claim — that remains the headline. v62 is the
 fastest-path demo option for inputs in the eICR pseudo-format the
 training set covers. Free-text clinician dictation and full HL7 CDA
 XML stay on the agent path.
+
+---
+
+## v63 follow-up — same recipe, longer context
+
+After v62 shipped, we ran the future-path experiment the v62 doc
+above named: same recipe, `max_seq_length` 512 → 1024, no extra training
+data. Run record and full log live at
+`tools/autoresearch/v63-experiment/EXPERIMENT.md` and
+`tools/autoresearch/v63-experiment/v63_kernel.log`; LoRA at
+`models/cliniq-gemma4-e2b-v63-lora/`.
+
+**Result on the same `val-compact` 200-case held-out split:**
+
+| Metric | v62 (max_seq=512) | v63 (max_seq=1024) | Delta |
+|---|---:|---:|---:|
+| Micro-F1 | 0.823 | **0.9989** | +0.176 |
+| Micro-precision | 0.979 | **0.9989** | +0.020 |
+| Micro-recall | 0.710 | **0.9989** | +0.289 |
+| JSON validity | 0.86 | **1.00** | +14 pp |
+| Schema-complete | 0.86 | **1.00** | +14 pp |
+| Cases ≥ F1 0.70 | 162 / 200 | **200 / 200** | +38 |
+| Train wall-clock (T4) | 1h 04m | 3h 04m | 2.85× |
+
+The v62 future-path cell predicted F1 ~0.90 / JSON-valid ~95%; v63 cleared
+both. The 14-pp truncation gap was entirely max-context-driven —
+`packing=True` at `max_seq_length=512` was clipping the long-expansion
+training cases mid-example, so the model never learned to close their
+JSON. Doubling the context let those cases train fully and the gap
+collapsed.
+
+**The Unsloth-specific lever that made this affordable on T4:**
+`use_gradient_checkpointing="unsloth"` (~30% peak-VRAM cut vs vanilla
+`gradient_checkpointing=True`). Without it, `max_seq_length=1024` +
+`packing=True` would have OOM'd on a 16 GB T4 at batch=1; v63's 3h 04m
+T4 train is the direct payoff of that recipe.
+
+**Latency claim status.** The 38.1 s p50 in the kernel log is unquantized
+PyTorch on T4 with `model.generate(max_new_tokens=1024)` — not comparable
+to v62's 4.1 s Mac-Metal-Q3_K_M number. A like-for-like Mac re-bench of
+the v63 GGUF is pending and not part of this submission's reported
+latency line.
