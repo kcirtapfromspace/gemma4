@@ -18,9 +18,34 @@ OUT_DIR="${1:-${REPO_ROOT}/out/space}"
 echo "Building Spaces deploy bundle → ${OUT_DIR}"
 mkdir -p "${OUT_DIR}/convert"
 
-cp "${REPO_ROOT}/spaces/app.py"             "${OUT_DIR}/app.py"
-cp "${REPO_ROOT}/spaces/zerogpu_engine_remote.py"  "${OUT_DIR}/zerogpu_engine.py"
-cp "${REPO_ROOT}/spaces/requirements-remote.txt"   "${OUT_DIR}/requirements.txt"
+# Backend variant — defaults to "zerogpu" (in-process PyTorch on ZeroGPU hardware,
+# the headline-feature path). Override with CLINIQ_SPACE_BACKEND=remote to deploy
+# the HTTP-proxy variant that calls the Kaggle inference-server kernel (saves
+# ZeroGPU minutes but adds tunnel-failure risk for live demos).
+BACKEND="${CLINIQ_SPACE_BACKEND:-zerogpu}"
+case "${BACKEND}" in
+  zerogpu)
+    ENGINE_SRC="${REPO_ROOT}/spaces/zerogpu_engine.py"
+    REQ_SRC="${REPO_ROOT}/spaces/requirements.txt"
+    ;;
+  mtp)
+    ENGINE_SRC="${REPO_ROOT}/spaces/zerogpu_engine_mtp.py"
+    REQ_SRC="${REPO_ROOT}/spaces/requirements-mtp.txt"
+    ;;
+  remote)
+    ENGINE_SRC="${REPO_ROOT}/spaces/zerogpu_engine_remote.py"
+    REQ_SRC="${REPO_ROOT}/spaces/requirements-remote.txt"
+    ;;
+  *)
+    echo "ERROR: unknown CLINIQ_SPACE_BACKEND=${BACKEND}; expected zerogpu|mtp|remote" >&2
+    exit 1
+    ;;
+esac
+echo "Engine: ${BACKEND} (${ENGINE_SRC##*/})"
+
+cp "${REPO_ROOT}/spaces/app.py"  "${OUT_DIR}/app.py"
+cp "${ENGINE_SRC}"               "${OUT_DIR}/zerogpu_engine.py"
+cp "${REQ_SRC}"                  "${OUT_DIR}/requirements.txt"
 cp "${REPO_ROOT}/spaces/README.md"          "${OUT_DIR}/README.md"
 
 # Copy the pipeline modules — only the ones imported by app.py + their deps.

@@ -22,13 +22,30 @@ F1 = 1.000 on Jetson Orin NX 8 GB k8s pod (edge deployment)
 0 parse errors over 81 runs of the agent path (grammar stability)
 ```
 
-**Unsloth track delta** (val-compact, 200 cases):
+**Unsloth track delta** (val-compact, 200 cases held out from training,
+Mac M-series Q3_K_M for like-for-like edge-deployment numbers):
 
-| | base Gemma 4 E2B Q3_K_M | + ClinIQ v62 LoRA | delta |
+| | base Gemma 4 E2B Q3_K_M | + v62 LoRA | + v63 LoRA |
 |---|---:|---:|---:|
-| F1 | 0.337 | **0.823** | **+0.486** |
-| Precision | 0.469 | **0.979** | +0.510 |
-| Latency p50 | 6.6 s | **4.1 s** | 1.6× |
+| Micro-F1 | 0.337 | **0.837** | 0.548 ⚠ |
+| Micro-precision | 0.469 | **0.837** | 0.393 ⚠ |
+| Micro-recall | 0.263 | 0.837 | **0.902** |
+| JSON-validity | 100% | 92% | 92% |
+| Latency p50 (Mac) | 6.6 s | 3.08 s | **2.79 s** |
+| Latency p95 (Mac) | — | 4.24 s | **3.86 s** |
+| Train wall-clock (T4) | — | 1h 04m | 3h 04m |
+
+**v62 is the shipped Unsloth-track LoRA.** v63 retrained at
+`max_seq_length=1024` benched at F1 = 0.9989 in unquantized PyTorch on
+Kaggle T4 but regresses on Mac/Q3_K_M because the latest Unsloth/PEFT
+release dropped k_proj + v_proj LoRA weights on Gemma 4's 20 global-
+attention layers (layers 15–34). The partial-coverage adapter can't
+survive Q3_K_M quantization. v63's latency win (9% faster than v62) is
+real and survives quantization. A **v63b retrain with explicit
+`layers_to_transform=range(35)` is queued** to recover Q3_K_M F1 ≥ v62
+while keeping v63's latency. Full diagnosis in
+`tools/autoresearch/v63-experiment/EXPERIMENT.md`; final submission
+narrative in `tools/autoresearch/hackathon-submission-2026-05-18.md`.
 
 ---
 
@@ -37,7 +54,7 @@ F1 = 1.000 on Jetson Orin NX 8 GB k8s pod (edge deployment)
 | Surface | URL | What you'll see |
 |---|---|---|
 | **Hosted demo (HF Spaces)** | https://huggingface.co/spaces/kcirtapfromspace/cliniq-eicr-fhir | Paste an eICR narrative, watch the 3-tier pipeline emit a FHIR Bundle on ZeroGPU H200 |
-| **iOS app** | `apps/mobile/ios-app/ClinIQ/` | SwiftUI app, builds on `iPhone17ProDemo` simulator (UDID `CADA1806-F64D-4B02-B983-B75F197D1EF3`), Gemma 4 E2B Q3_K_M GGUF in-bundle |
+| **iOS app** | `apps/mobile/ios-app/ClinIQ/` | SwiftUI app, builds on `iPhone17ProDemo` simulator (UDID `CADA1806-F64D-4B02-B983-B75F197D1EF3`). Gemma 4 E2B Q3_K_M GGUF is **side-loaded into the simulator's Documents/ on first demo run** (see `DEMO_SCRIPT.md` step 0); the app's loader probes `Documents/ → tmp/ → Bundle.main` so seeded weights take precedence. |
 | **60-second demo script** | `apps/mobile/ios-app/DEMO_SCRIPT.md` | Read-along narration timed to a 7-beat sim walkthrough |
 
 ---
@@ -81,9 +98,10 @@ scripts/test_cases*.jsonl Bench cases (combined-27, adv4-7, longitudinal)
 ## Read in this order (judges, 5-min path)
 
 1. **This README** — orientation
-2. **[`tools/autoresearch/hackathon-submission-2026-04-27.md`](tools/autoresearch/hackathon-submission-2026-04-27.md)** — judge-facing one-pager
-3. **[`tools/autoresearch/v62-submission/MODEL_CARD.md`](tools/autoresearch/v62-submission/MODEL_CARD.md)** — Unsloth-track model card
-4. **[HF Space](https://huggingface.co/spaces/kcirtapfromspace/cliniq-eicr-fhir)** — see it run
+2. **[`tools/autoresearch/hackathon-submission-2026-05-18.md`](tools/autoresearch/hackathon-submission-2026-05-18.md)** — final judge-facing one-pager (Health Impact + Unsloth)
+3. **[`tools/autoresearch/v62-submission/MODEL_CARD.md`](tools/autoresearch/v62-submission/MODEL_CARD.md)** — Unsloth-track model card (v62 shipped, v63 follow-up section appended)
+4. **[`tools/autoresearch/v63-experiment/EXPERIMENT.md`](tools/autoresearch/v63-experiment/EXPERIMENT.md)** — v63 run record (max_seq=1024 retrain, F1=0.9989)
+5. **[HF Space](https://huggingface.co/spaces/kcirtapfromspace/cliniq-eicr-fhir)** — see it run
 
 15-min path: add `tools/autoresearch/c20-llm-tuning-2026-04-25.md` (full
 ledger, 80-rep variance tables, every ablation) and `apps/mobile/convert/build/c45_sustained_*.json` (the 20 sustained-load reps).
@@ -137,11 +155,13 @@ scripts/.venv/bin/python apps/mobile/convert/bench_v62_singleshot.py \
 - **External credibility** — every Bundle structurally validates against
   HL7's official Java IG validator. 7/7 perfect on the same CDC eICR test
   vectors EZeCR uses.
-- **Unsloth-distilled single-shot path** — `unsloth/gemma-4-E2B-it` LoRA
-  trained for 1h 4m on a free Kaggle T4 ×2 turns the base model from
-  F1 = 0.34 into F1 = 0.82 with 0.98 precision, 1.6× faster. The fine-tune
-  isn't replacing the agent (which already hits 1.000) — it's the speed
-  tier for known-format inputs.
+- **Unsloth-distilled single-shot path** — `unsloth/gemma-4-E2B-it` v62
+  LoRA trained on a free Kaggle T4 in 1h 4m turns the base model from
+  F1 = 0.34 into F1 = 0.84 on Mac Q3_K_M with 0.84 precision, 9% faster
+  per inference than the v63 follow-up (which has a known Mac-quantization
+  regression being addressed in v63b). The fine-tune isn't replacing the
+  agent (which already hits 1.000) — it's the speed tier for known-format
+  inputs.
 
 ---
 

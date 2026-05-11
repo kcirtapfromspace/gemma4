@@ -107,3 +107,29 @@ PyTorch on T4 with `model.generate(max_new_tokens=1024)` — not comparable
 to v62's 4.1 s Mac-Metal-Q3_K_M number. A like-for-like Mac re-bench of
 the v63 GGUF is pending and not part of this submission's reported
 latency line.
+
+---
+
+## 2026-05-11 update — v63 Mac re-bench discovers a quantization regression
+
+The Mac Q3_K_M re-bench landed at F1 = 0.548 / precision = 0.393 vs v62's
+F1 = 0.837 / precision = 0.837 on the same val-compact 200-case split with
+the same `bench_v62_singleshot.py` harness. The 0.9989 Kaggle number was
+unquantized PyTorch and did not survive Q3_K_M quantization. Diagnosis:
+v63's LoRA safetensors has 410 tensors vs v62's 490 — missing k_proj +
+v_proj LoRA weights on the 20 global-attention layers (15-34) of Gemma 4's
+hybrid attention. Probable cause: a release of unsloth/peft ≥ 0.18 silently
+treats global-attention k/v as non-trainable for Gemma 4. v62 (trained
+2026-04-30) predates this regression. Full diagnosis at
+`tools/autoresearch/v63-experiment/EXPERIMENT.md` → "Mac Q3_K_M re-bench".
+
+**v63's latency win is real** (p50 2.79 s vs v62 3.08 s, 9% faster) — that
+part survives quantization. Only quality regresses.
+
+**For this submission, v62 is the shipped Unsloth-track LoRA.** v63b
+(retrain with explicit `layers_to_transform=list(range(35))` and a
+fail-fast tensor-count assertion) is queued at
+`tools/autoresearch/v63b-experiment/`. If v63b recovers F1 ≥ v62 at v63
+latency before the 2026-05-18 deadline, it becomes the shipped LoRA.
+Either way v62 remains on HF Hub for transparency and as the
+deadline-safe option.

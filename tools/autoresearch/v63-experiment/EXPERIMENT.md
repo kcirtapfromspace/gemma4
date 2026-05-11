@@ -87,20 +87,66 @@ offset by tighter packing density).
 The v62 future-path cell predicted F1 ~0.90 / JSON-valid ~95%. v63 cleared both —
 the entire JSON-validity gap was max-context-driven, not a separate decoding bug.
 
-## Latency caveat (don't oversell in the submission)
+## Mac Q3_K_M re-bench — 2026-05-11 (DISCOVERY: v63 regresses)
 
-The 38.1 s p50 / 51.0 s p95 in the kernel log is **unquantized PyTorch on T4 with
-`model.generate(max_new_tokens=1024)`**. This is NOT comparable to v62's 4.1 s p50
-on Mac M-series via llama.cpp Q3_K_M. To make a fair latency claim we need:
+After converting `cliniq_lora/` → GGUF via llama.cpp `convert_lora_to_gguf.py`
+(at upstream tag `b8890`) and running `apps/mobile/convert/bench_v62_singleshot.py`
+on Mac M-series at Q3_K_M, the quality picture flipped:
 
-1. Convert `cliniq_lora/` → GGUF locally with
-   `tools/llama-cpp/convert_lora_to_gguf.py`.
-2. Run `apps/mobile/convert/bench_v62_singleshot.py` against the v63 GGUF on
-   Mac at the same Q3_K_M quant.
-3. Compare wall-clock against v62 GGUF on the same machine.
+| metric | v62 LoRA | v63 LoRA | delta |
+|---|---:|---:|---:|
+| micro-F1 | **0.837** | 0.548 | -0.289 |
+| micro-precision | 0.837 | 0.393 | -0.444 |
+| micro-recall | 0.837 | **0.902** | +0.065 |
+| JSON-validity | 0.92 | 0.92 | 0 |
+| latency p50 (s) | 3.08 | **2.79** | -9.4% |
+| latency p95 (s) | 4.24 | **3.86** | -9.0% |
+| cases F1 ≥ 0.70 | 156 / 200 | 28 / 200 | -128 |
 
-Until step 3 is done, leave the v63 latency line as "TBD — Mac bench pending"
-in any submission edit.
+Raw outputs: `apps/mobile/convert/build/v62_val_compact_bench_localval.json`,
+`apps/mobile/convert/build/v63_val_compact_bench.json`.
+
+### Why the Kaggle 0.9989 did not survive quantization
+
+The v63 LoRA safetensors has 410 tensors. v62 has 490. Difference: 80
+tensors = 20 decoder layers × 2 modules (k_proj, v_proj) × 2 LoRA matrices
+(A and B). Specifically, v63 is missing k_proj and v_proj LoRA weights on
+decoder layers 15-34 — the 20 "global-attention" layers of Gemma 4's
+hybrid attention pattern. Layers 0-14 (local attention) and all q_proj /
+o_proj / MLP slots on all 35 layers are present.
+
+The `adapter_config.json` reports all 7 target_modules with
+`layers_to_transform=null` (meaning "all layers"). The runtime
+config looks correct. But the actual saved tensors are partial. Likely
+cause: a release of unsloth or peft ≥ 0.18 silently treats global-attention
+k/v as non-trainable for Gemma 4 hybrid attention (the
+`"unsloth_fixed": true` flag in `adapter_config.json`'s `auto_mapping` is
+the suspicious clue). v62 (trained 2026-04-30) predates this regression.
+
+Unquantized full-precision PyTorch can compensate for partial-coverage
+attention — Kaggle's inline bench saw F1 = 0.9989 — but Q3_K_M
+quantization introduces enough noise that the partial-coverage k/v can no
+longer hold the attention pattern. The model becomes recall-happy
+(emits ~8 codes/case vs the gold's 3) and precision collapses.
+
+### Latency win stands
+
+v63 is genuinely 9% faster than v62 at Mac Q3_K_M p50. This survives
+quantization because latency is dominated by the base model's matmul, and
+LoRA's incremental cost scales with adapter tensor count — fewer
+tensors = slightly cheaper inference.
+
+### Next step: v63b
+
+A v63b retrain is queued (`tools/autoresearch/v63b-experiment/`) with
+explicit `layers_to_transform=list(range(35))` in `get_peft_model` plus a
+post-save assertion that the adapter contains ≥ 490 tensors before the
+notebook exits. If v63b recovers F1 ≥ v62 at v63 latency, it becomes the
+shipped Unsloth-track artifact.
+
+For the submission, v62 stays as the primary shipped LoRA; v63 is
+documented as the iteration that discovered the hybrid-attention LoRA
+coverage regression.
 
 ## Honesty footer
 

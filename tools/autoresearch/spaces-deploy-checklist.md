@@ -182,6 +182,30 @@ says `suggested_hardware: zero-a10g`). The Space will rebuild and
 restart. First model load will take ~60-90 s (Gemma 4 E2B = ~5 GB
 download from `unsloth/gemma-4-E2B-it`).
 
+> **2026-05-11 audit found the Space silently running on `cpu-basic`,
+> not `zero-a10g`.** HF won't auto-upgrade hardware even when the
+> README frontmatter requests it — the dropdown change in the settings
+> page is the only way to flip it. Re-verify the hardware tier after
+> any deploy; the Tier 3 agent path is unusable on CPU.
+
+**Backend variant (build-time choice).** `spaces/build.sh` now reads
+`CLINIQ_SPACE_BACKEND` and produces one of three bundles:
+
+- `zerogpu` (default): in-process PyTorch on ZeroGPU H200 — the
+  headline-feature path for judging.
+- `mtp`: same path with Medusa-style speculative decoding (~1.9×
+  decode-throughput on A10G per `spaces-mtp-bench.mtp.json`).
+- `remote`: HTTP proxy to a Kaggle inference-server kernel; saves
+  ZeroGPU minutes but adds tunnel-failure risk. Requires the
+  `CLINIQ_REMOTE_URL` Space secret pointing at a healthy Kaggle tunnel.
+
+```bash
+# Default — what we ship for judging
+bash spaces/build.sh
+# Or pick a variant explicitly
+CLINIQ_SPACE_BACKEND=mtp bash spaces/build.sh
+```
+
 **Step 5 — Verify.** Open the Space URL. Expected behavior:
 - Page loads with the ClinIQ Gradio UI
 - "Backend" line in the Advanced accordion shows `Gemma 4 (gemma-4-E2B-it,

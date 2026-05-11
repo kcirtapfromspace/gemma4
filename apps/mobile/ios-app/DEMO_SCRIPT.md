@@ -3,6 +3,28 @@
 Read this verbatim while holding the simulator / device in view. Each
 section is timed for ~10-15 s at a moderate pace.
 
+## Step 0 (pre-demo, one-time) — Seed the Gemma GGUF into the simulator
+
+The iOS Inference loader probes `Documents/ → tmp/ → Bundle.main` for a
+Gemma 4 E2B Q3_K_M GGUF. The shipped Xcode project does NOT copy the
+~2 GB GGUF into the app bundle to keep the repo lean; instead, seed it
+into the iPhone17ProDemo simulator's Documents directory once per
+machine:
+
+```bash
+SIM_UDID=CADA1806-F64D-4B02-B983-B75F197D1EF3
+xcrun simctl boot "$SIM_UDID" 2>/dev/null || true
+DEVICE_DIR=$(xcrun simctl get_app_container "$SIM_UDID" \
+              com.thinkstudio.ClinIQ data)/Documents
+mkdir -p "$DEVICE_DIR"
+cp models/gemma-4-E2B-it-Q3_K_M.gguf "$DEVICE_DIR/"
+# (optional) seed the v63 LoRA-merged GGUF for the single-shot path
+cp models/cliniq-gemma4-e2b-v63-lora.gguf "$DEVICE_DIR/" 2>/dev/null || true
+```
+
+After the first install of the app on this simulator, `Documents/` is
+persistent across launches — re-seed only when wiping the simulator.
+
 ## 0:00 — Set the scene
 
 > "A clinician is in a remote clinic with no cellular or Wi-Fi during her
