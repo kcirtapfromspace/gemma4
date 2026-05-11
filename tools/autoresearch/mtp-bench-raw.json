@@ -1,0 +1,334 @@
+{
+  "base_no_mtp": [
+    {
+      "tokens": 87,
+      "secs": 6.584402799606323,
+      "tok_per_s": 13.213043406943704,
+      "target_calls": 87,
+      "case_id": "bench_minimal"
+    },
+    {
+      "tokens": 88,
+      "secs": 6.351771831512451,
+      "tok_per_s": 13.854401942370448,
+      "target_calls": 88,
+      "case_id": "bench_typical_covid"
+    },
+    {
+      "tokens": 128,
+      "secs": 10.5072340965271,
+      "tok_per_s": 12.18208320325776,
+      "target_calls": 128,
+      "case_id": "bench_complex_multi"
+    },
+    {
+      "tokens": 93,
+      "secs": 5.879610061645508,
+      "tok_per_s": 15.81737547642273,
+      "target_calls": 93,
+      "case_id": "bench_meningitis"
+    },
+    {
+      "tokens": 95,
+      "secs": 5.84745192527771,
+      "tok_per_s": 16.24639265341001,
+      "target_calls": 95,
+      "case_id": "bench_negative_lab"
+    },
+    {
+      "tokens": 87,
+      "secs": 5.549201250076294,
+      "tok_per_s": 15.677932026488293,
+      "target_calls": 87,
+      "case_id": "bench_lyme"
+    },
+    {
+      "tokens": 70,
+      "secs": 4.815977334976196,
+      "tok_per_s": 14.534952125215096,
+      "target_calls": 70,
+      "case_id": "bench_multi_enteric"
+    },
+    {
+      "tokens": 81,
+      "secs": 5.135962963104248,
+      "tok_per_s": 15.771141766770542,
+      "target_calls": 81,
+      "case_id": "bench_tb_multi_med"
+    },
+    {
+      "tokens": 58,
+      "secs": 4.609044075012207,
+      "tok_per_s": 12.583954298559487,
+      "target_calls": 58,
+      "case_id": "bench_no_vitals_no_meds"
+    }
+  ],
+  "base_mtp": [
+    {
+      "tokens": 87,
+      "secs": 3.5779600143432617,
+      "tok_per_s": 24.315531658049828,
+      "target_calls": 18,
+      "drafter_calls": 100,
+      "verify_rounds": 17,
+      "tokens_per_target_step": 5.117647058823529,
+      "acceptance_proxy": 0.7,
+      "case_id": "bench_minimal"
+    },
+    {
+      "tokens": 88,
+      "secs": 3.4935739040374756,
+      "tok_per_s": 25.189105030324278,
+      "target_calls": 18,
+      "drafter_calls": 99,
+      "verify_rounds": 17,
+      "tokens_per_target_step": 5.176470588235294,
+      "acceptance_proxy": 0.7171717171717171,
+      "case_id": "bench_typical_covid"
+    },
+    {
+      "tokens": 128,
+      "secs": 5.059579849243164,
+      "tok_per_s": 25.298543320577664,
+      "target_calls": 23,
+      "drafter_calls": 129,
+      "verify_rounds": 22,
+      "tokens_per_target_step": 5.818181818181818,
+      "acceptance_proxy": 0.8217054263565892,
+      "case_id": "bench_complex_multi"
+    },
+    {
+      "tokens": 93,
+      "secs": 4.211242914199829,
+      "tok_per_s": 22.083741521158668,
+      "target_calls": 17,
+      "drafter_calls": 92,
+      "verify_rounds": 16,
+      "tokens_per_target_step": 5.8125,
+      "acceptance_proxy": 0.8369565217391305,
+      "case_id": "bench_meningitis"
+    },
+    {
+      "tokens": 95,
+      "secs": 4.314974069595337,
+      "tok_per_s": 22.016354784006666,
+      "target_calls": 20,
+      "drafter_calls": 111,
+      "verify_rounds": 19,
+      "tokens_per_target_step": 5.0,
+      "acceptance_proxy": 0.6846846846846847,
+      "case_id": "bench_negative_lab"
+    },
+    {
+      "tokens": 87,
+      "secs": 3.4348323345184326,
+      "tok_per_s": 25.328747236274488,
+      "target_calls": 17,
+      "drafter_calls": 95,
+      "verify_rounds": 16,
+      "tokens_per_target_step": 5.4375,
+      "acceptance_proxy": 0.7473684210526316,
+      "case_id": "bench_lyme"
+    },
+    {
+      "tokens": 70,
+      "secs": 3.5979220867156982,
+      "tok_per_s": 19.45567422331213,
+      "target_calls": 16,
+      "drafter_calls": 86,
+      "verify_rounds": 15,
+      "tokens_per_target_step": 4.666666666666667,
+      "acceptance_proxy": 0.6395348837209303,
+      "case_id": "bench_multi_enteric"
+    },
+    {
+      "tokens": 81,
+      "secs": 3.0217092037200928,
+      "tok_per_s": 26.80602087728333,
+      "target_calls": 17,
+      "drafter_calls": 96,
+      "verify_rounds": 16,
+      "tokens_per_target_step": 5.0625,
+      "acceptance_proxy": 0.6770833333333334,
+      "case_id": "bench_tb_multi_med"
+    },
+    {
+      "tokens": 58,
+      "secs": 2.361283779144287,
+      "tok_per_s": 24.56290959700693,
+      "target_calls": 13,
+      "drafter_calls": 72,
+      "verify_rounds": 12,
+      "tokens_per_target_step": 4.833333333333333,
+      "acceptance_proxy": 0.6388888888888888,
+      "case_id": "bench_no_vitals_no_meds"
+    }
+  ],
+  "ft_no_mtp": [
+    {
+      "tokens": 87,
+      "secs": 5.462646961212158,
+      "tok_per_s": 15.926344978496424,
+      "target_calls": 87,
+      "case_id": "bench_minimal"
+    },
+    {
+      "tokens": 88,
+      "secs": 5.550339937210083,
+      "tok_per_s": 15.854884744993441,
+      "target_calls": 88,
+      "case_id": "bench_typical_covid"
+    },
+    {
+      "tokens": 128,
+      "secs": 8.14774203300476,
+      "tok_per_s": 15.709873911262699,
+      "target_calls": 128,
+      "case_id": "bench_complex_multi"
+    },
+    {
+      "tokens": 93,
+      "secs": 5.850115776062012,
+      "tok_per_s": 15.897121281008678,
+      "target_calls": 93,
+      "case_id": "bench_meningitis"
+    },
+    {
+      "tokens": 94,
+      "secs": 5.9112958908081055,
+      "tok_per_s": 15.901758554527323,
+      "target_calls": 94,
+      "case_id": "bench_negative_lab"
+    },
+    {
+      "tokens": 87,
+      "secs": 5.541651248931885,
+      "tok_per_s": 15.699291798048218,
+      "target_calls": 87,
+      "case_id": "bench_lyme"
+    },
+    {
+      "tokens": 70,
+      "secs": 5.05738091468811,
+      "tok_per_s": 13.84115635757227,
+      "target_calls": 70,
+      "case_id": "bench_multi_enteric"
+    },
+    {
+      "tokens": 108,
+      "secs": 7.773359060287476,
+      "tok_per_s": 13.893607533421456,
+      "target_calls": 108,
+      "case_id": "bench_tb_multi_med"
+    },
+    {
+      "tokens": 58,
+      "secs": 4.180084943771362,
+      "tok_per_s": 13.87531611921531,
+      "target_calls": 58,
+      "case_id": "bench_no_vitals_no_meds"
+    }
+  ],
+  "ft_mtp": [
+    {
+      "tokens": 87,
+      "secs": 3.0023138523101807,
+      "tok_per_s": 28.977649999201912,
+      "target_calls": 18,
+      "drafter_calls": 100,
+      "verify_rounds": 17,
+      "tokens_per_target_step": 5.117647058823529,
+      "acceptance_proxy": 0.7,
+      "case_id": "bench_minimal"
+    },
+    {
+      "tokens": 88,
+      "secs": 3.431117057800293,
+      "tok_per_s": 25.647623942162223,
+      "target_calls": 18,
+      "drafter_calls": 97,
+      "verify_rounds": 17,
+      "tokens_per_target_step": 5.176470588235294,
+      "acceptance_proxy": 0.7319587628865979,
+      "case_id": "bench_typical_covid"
+    },
+    {
+      "tokens": 128,
+      "secs": 3.898930072784424,
+      "tok_per_s": 32.8295192810649,
+      "target_calls": 23,
+      "drafter_calls": 129,
+      "verify_rounds": 22,
+      "tokens_per_target_step": 5.818181818181818,
+      "acceptance_proxy": 0.8217054263565892,
+      "case_id": "bench_complex_multi"
+    },
+    {
+      "tokens": 93,
+      "secs": 2.9616141319274902,
+      "tok_per_s": 31.401795054061733,
+      "target_calls": 18,
+      "drafter_calls": 98,
+      "verify_rounds": 17,
+      "tokens_per_target_step": 5.470588235294118,
+      "acceptance_proxy": 0.7755102040816326,
+      "case_id": "bench_meningitis"
+    },
+    {
+      "tokens": 94,
+      "secs": 3.541964054107666,
+      "tok_per_s": 26.538948042396665,
+      "target_calls": 19,
+      "drafter_calls": 105,
+      "verify_rounds": 18,
+      "tokens_per_target_step": 5.222222222222222,
+      "acceptance_proxy": 0.7238095238095238,
+      "case_id": "bench_negative_lab"
+    },
+    {
+      "tokens": 87,
+      "secs": 2.827425956726074,
+      "tok_per_s": 30.770036539078397,
+      "target_calls": 17,
+      "drafter_calls": 95,
+      "verify_rounds": 16,
+      "tokens_per_target_step": 5.4375,
+      "acceptance_proxy": 0.7473684210526316,
+      "case_id": "bench_lyme"
+    },
+    {
+      "tokens": 70,
+      "secs": 2.6631999015808105,
+      "tok_per_s": 26.284170391584087,
+      "target_calls": 16,
+      "drafter_calls": 86,
+      "verify_rounds": 15,
+      "tokens_per_target_step": 4.666666666666667,
+      "acceptance_proxy": 0.6395348837209303,
+      "case_id": "bench_multi_enteric"
+    },
+    {
+      "tokens": 108,
+      "secs": 3.572622776031494,
+      "tok_per_s": 30.229891810735054,
+      "target_calls": 20,
+      "drafter_calls": 113,
+      "verify_rounds": 19,
+      "tokens_per_target_step": 5.684210526315789,
+      "acceptance_proxy": 0.7876106194690266,
+      "case_id": "bench_tb_multi_med"
+    },
+    {
+      "tokens": 58,
+      "secs": 2.0102977752685547,
+      "tok_per_s": 28.851447140586828,
+      "target_calls": 13,
+      "drafter_calls": 72,
+      "verify_rounds": 12,
+      "tokens_per_target_step": 4.833333333333333,
+      "acceptance_proxy": 0.6388888888888888,
+      "case_id": "bench_no_vitals_no_meds"
+    }
+  ]
+}

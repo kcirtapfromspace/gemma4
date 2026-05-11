@@ -1,0 +1,189 @@
+{
+  "meta": {
+    "target_path": "/Users/thinkstudio/mnt/models/cliniq/v2-fp16-merged/cliniq-compact-merged-fp16",
+    "compile_mode": "default",
+    "compile_backend": "inductor",
+    "n_prompts": 3,
+    "max_new_tokens": 96,
+    "device": "mps",
+    "dtype": "float16",
+    "torch": "2.11.0"
+  },
+  "scenarios": {
+    "s0_baseline": {
+      "label": "s0_baseline",
+      "with_compile": false,
+      "with_mtp": false,
+      "compile_drafter": true,
+      "compile_status": {
+        "target": "skipped",
+        "drafter": "skipped"
+      },
+      "warmup_secs": 2.9129669666290283,
+      "results": [
+        {
+          "tokens": 87,
+          "secs": 6.353729963302612,
+          "tok_per_s": 13.692744341117415,
+          "target_calls": 87,
+          "status": "ok",
+          "case_id": "bench_minimal"
+        },
+        {
+          "tokens": 88,
+          "secs": 5.919121742248535,
+          "tok_per_s": 14.867070459437935,
+          "target_calls": 88,
+          "status": "ok",
+          "case_id": "bench_typical_covid"
+        },
+        {
+          "tokens": 96,
+          "secs": 7.2183332443237305,
+          "tok_per_s": 13.29946910881281,
+          "target_calls": 96,
+          "status": "ok",
+          "case_id": "bench_complex_multi"
+        }
+      ],
+      "summary": {
+        "n_ok": 3,
+        "n_total": 3,
+        "total_tokens": 271,
+        "total_secs": 19.491184949874878,
+        "tok_per_s": 13.903721128136935,
+        "warmup_secs": 2.9129669666290283
+      }
+    },
+    "s2_mtp_only": {
+      "label": "s2_mtp_only",
+      "with_compile": false,
+      "with_mtp": true,
+      "compile_drafter": true,
+      "compile_status": {
+        "target": "skipped",
+        "drafter": "skipped"
+      },
+      "warmup_secs": 1.6670258045196533,
+      "results": [
+        {
+          "tokens": 87,
+          "secs": 2.9088289737701416,
+          "tok_per_s": 29.908943009199696,
+          "target_calls": 18,
+          "status": "ok",
+          "drafter_calls": 100,
+          "verify_rounds": 17,
+          "tokens_per_target_step": 5.117647058823529,
+          "acceptance_proxy": 0.7,
+          "case_id": "bench_minimal"
+        },
+        {
+          "tokens": 88,
+          "secs": 3.3671858310699463,
+          "tok_per_s": 26.134583719140146,
+          "target_calls": 18,
+          "status": "ok",
+          "drafter_calls": 97,
+          "verify_rounds": 17,
+          "tokens_per_target_step": 5.176470588235294,
+          "acceptance_proxy": 0.7319587628865979,
+          "case_id": "bench_typical_covid"
+        },
+        {
+          "tokens": 96,
+          "secs": 4.530029058456421,
+          "tok_per_s": 21.191917040971784,
+          "target_calls": 18,
+          "status": "ok",
+          "drafter_calls": 102,
+          "verify_rounds": 17,
+          "tokens_per_target_step": 5.647058823529412,
+          "acceptance_proxy": 0.7745098039215687,
+          "case_id": "bench_complex_multi"
+        }
+      ],
+      "summary": {
+        "n_ok": 3,
+        "n_total": 3,
+        "total_tokens": 271,
+        "total_secs": 10.806043863296509,
+        "tok_per_s": 25.078558205789875,
+        "warmup_secs": 1.6670258045196533
+      }
+    },
+    "s1_compile_only": {
+      "label": "s1_compile_only",
+      "with_compile": true,
+      "with_mtp": false,
+      "compile_drafter": true,
+      "compile_status": {
+        "target": "ok backend=inductor mode=default",
+        "drafter": "skipped"
+      },
+      "warmup_secs": 2.7863850593566895,
+      "results": [
+        {
+          "tokens": 87,
+          "secs": 6.09109091758728,
+          "tok_per_s": 14.283155706771366,
+          "target_calls": 0,
+          "status": "ok",
+          "case_id": "bench_minimal"
+        },
+        {
+          "tokens": 88,
+          "secs": 5.617855072021484,
+          "tok_per_s": 15.66434143847267,
+          "target_calls": 0,
+          "status": "ok",
+          "case_id": "bench_typical_covid"
+        },
+        {
+          "tokens": 96,
+          "secs": 6.152238130569458,
+          "tok_per_s": 15.60407740444763,
+          "target_calls": 0,
+          "status": "ok",
+          "case_id": "bench_complex_multi"
+        }
+      ],
+      "summary": {
+        "n_ok": 3,
+        "n_total": 3,
+        "total_tokens": 271,
+        "total_secs": 17.861184120178223,
+        "tok_per_s": 15.172566285448264,
+        "warmup_secs": 2.7863850593566895
+      }
+    },
+    "s3_compile_mtp": {
+      "label": "s3_compile_mtp",
+      "with_compile": true,
+      "with_mtp": true,
+      "compile_drafter": true,
+      "compile_status": {
+        "target": "ok backend=inductor mode=default",
+        "drafter": "ok backend=inductor mode=default"
+      },
+      "warmup_secs": 0.02485489845275879,
+      "results": [
+        {
+          "case_id": "warmup",
+          "tokens": 0,
+          "secs": 0.0,
+          "tok_per_s": 0.0,
+          "target_calls": 0,
+          "status": "error: ValueError: inputs_embeds and shared_kv_states cannot be None.",
+          "traceback_first_line": "ValueError: inputs_embeds and shared_kv_states cannot be None.",
+          "traceback": "Traceback (most recent call last):\n  File \"/Users/thinkstudio/gemma4/tools/autoresearch/mtp_compile_bench.py\", line 142, in run_one\n    out = target.generate(**inputs, **gen_kwargs)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/thinkstudio/gemma4/tools/autoresearch/mtp-bench-venv/lib/python3.12/site-packages/torch/utils/_contextlib.py\", line 124, in decorate_context\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/thinkstudio/gemma4/tools/autoresearch/mtp-bench-venv/lib/python3.12/site-packages/transformers/generation/utils.py\", line 2560, in generate\n    result = decoding_method(\n             ^^^^^^^^^^^^^^^^\n  File \"/Users/thinkstudio/gemma4/tools/autoresearch/mtp-bench-venv/lib/python3.12/site-packages/transformers/generation/utils.py\", line 3563, in _assisted_decoding\n    candidate_input_ids, candidate_logits = candidate_generator.get_candidates(input_ids)\n                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/thinkstudio/gemma4/tools/autoresearch/mtp-bench-venv/lib/python3.12/site-packages/transformers/generation/candidate_generator.py\", line 224, in get_candidates\n    candidate_ids, candidate_logits = self._generate_candidates(generation_args)\n                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/thinkstudio/gemma4/tools/autoresearch/mtp-bench-venv/lib/python3.12/site-packages/transformers/generation/candidate_generator.py\", line 326, in _generate_candidates\n    assistant_output = self.assistant_model.generate(**generation_args, **self.assistant_kwargs)\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/thinkstudio/gemma4/tools/autoresearch/mtp-bench-venv/lib/python3.12/site-packages/torch/utils/_contextlib.py\", line 124, in decorate_context\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/thinkstudio/gemma4/tools/autoresearch/mtp-bench-venv/lib/python3.12/site-packages/transformers/generation/utils.py\", line 2560, in generate\n    result = decoding_method(\n             ^^^^^^^^^^^^^^^^\n  File \"/Users/thinkstudio/gemma4/tools/autoresearch/mtp-bench-venv/lib/python3.12/site-packages/transformers/generation/utils.py\", line 2753, in _sample\n    outputs = self._prefill(\n              ^^^^^^^^^^^^^^\n  File \"/Users/thinkstudio/gemma4/tools/autoresearch/mtp-bench-venv/lib/python3.12/site-packages/transformers/generation/utils.py\", line 3799, in _prefill\n    return self(**model_inputs, return_dict=True)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/thinkstudio/gemma4/tools/autoresearch/mtp-bench-venv/lib/python3.12/site-packages/torch/nn/modules/module.py\", line 1779, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/thinkstudio/gemma4/tools/autoresearch/mtp-bench-venv/lib/python3.12/site-packages/torch/nn/modules/module.py\", line 1790, in _call_impl\n    return forward_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/thinkstudio/gemma4/tools/autoresearch/mtp-bench-venv/lib/python3.12/site-packages/transformers/utils/generic.py\", line 900, in wrapper\n    output = func(self, *args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/thinkstudio/gemma4/tools/autoresearch/mtp-bench-venv/lib/python3.12/site-packages/transformers/models/gemma4_assistant/modeling_gemma4_assistant.py\", line 167, in forward\n    raise ValueError(\"inputs_embeds and shared_kv_states cannot be None.\")\nValueError: inputs_embeds and shared_kv_states cannot be None.\n",
+          "warmup_secs": 0.02485489845275879
+        }
+      ],
+      "summary": {
+        "failed": true,
+        "reason": "error: ValueError: inputs_embeds and shared_kv_states cannot be None."
+      }
+    }
+  }
+}
