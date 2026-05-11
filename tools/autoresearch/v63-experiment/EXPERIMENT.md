@@ -112,7 +112,9 @@ the F1=1.000 verified-RAG agent path that headlines the submission.
 ## Pull results
 
 ```bash
-export KAGGLE_API_TOKEN=KGAT_815bad4b042568001ff75ed86e46852b
+# KGAT_... value lives in tools/autoresearch/handoff-2026-04-27.md.
+# Not duplicated here; export before running.
+export KAGGLE_API_TOKEN="${KAGGLE_API_TOKEN:?set from handoff first}"
 mkdir -p /tmp/v63-out
 kaggle kernels output patrickdeutsch/cliniq-gemma4-unsloth-v63-experiment \
   -p /tmp/v63-out
