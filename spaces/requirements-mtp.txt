@@ -1,0 +1,24 @@
+# MTP-enabled requirements for the ZeroGPU engine.
+#
+# Mirrors spaces/requirements.txt but pins transformers to the exact
+# main-HEAD SHA the mtp-bench agent used (2026-05-04). That commit is
+# the first to ship the `gemma4_assistant` model_type recognized by
+# AutoModelForCausalLM, which is required to load the
+# `google/gemma-4-E2B-it-assistant` 78M drafter for assisted decoding.
+#
+# transformers >= 5.5.4 (latest tagged as of 2026-05-04) does NOT recognize
+# `gemma4_assistant`, so the dep MUST be pinned to a main-HEAD SHA from
+# after 2026-05-04. Verified working SHA: 41c3a5ac (transformers 5.8.0.dev0)
+# from /Users/thinkstudio/gemma4/tools/autoresearch/mtp-bench-venv.
+#
+# To use this file as the active Spaces requirements, see
+# tools/autoresearch/spaces-mtp-swap.md for the swap procedure.
+
+gradio>=5.9,<6
+fhir.resources>=7.0,<9.0
+spaces>=0.31
+transformers @ git+https://github.com/huggingface/transformers.git@41c3a5ac425e81aa1c9b3e6288eebaccf0c89835
+accelerate>=1.0
+torch>=2.4
+huggingface_hub>=0.26
+sentencepiece>=0.2

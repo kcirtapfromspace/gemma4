@@ -58,9 +58,31 @@ from regex_preparser import extract as deterministic_extract  # noqa: E402
 # model on cuda (PyTorch CUDA emulation outside @spaces.GPU keeps that safe);
 # `chat_http_shim` is a drop-in replacement for `agent_pipeline.chat()` so
 # `run_agent(...)` works unchanged with no HTTP endpoint.
-from zerogpu_engine import chat_http_shim, model_banner  # noqa: E402
+#
+# Local-PoC fallback: when running on a developer Mac without the full HF
+# stack installed (no `spaces` / `transformers` / `torch`), or with
+# CLINIQ_DISABLE_AGENT=1 set explicitly, we skip the heavy import. The
+# deterministic + fast-path tiers still work; the agent tier surfaces a
+# clear "backend unavailable" status. This keeps `python spaces/app.py`
+# bootable in any venv that has gradio + fhir.resources.
+_AGENT_BACKEND_ERROR: str | None = None
+chat_http_shim = None  # type: ignore[assignment]
+def model_banner() -> str:  # noqa: E306 — reassigned below if zerogpu loads
+    return f"Agent backend unavailable: {_AGENT_BACKEND_ERROR or 'disabled'}"
 
-agent_pipeline.chat = chat_http_shim
+if os.environ.get("CLINIQ_DISABLE_AGENT", "").lower() in ("1", "true", "yes"):
+    _AGENT_BACKEND_ERROR = "CLINIQ_DISABLE_AGENT=1"
+else:
+    try:
+        from zerogpu_engine import (  # noqa: E402
+            chat_http_shim as _chat_http_shim,
+            model_banner as _model_banner,
+        )
+        chat_http_shim = _chat_http_shim
+        model_banner = _model_banner  # type: ignore[assignment]
+        agent_pipeline.chat = chat_http_shim
+    except Exception as exc:  # noqa: BLE001 — surface to the UI
+        _AGENT_BACKEND_ERROR = f"{type(exc).__name__}: {exc}"[:300]
 
 
 # Lazy: fhir.resources is heavy (pulls pydantic v2 + R4B schema modules).
@@ -293,6 +315,19 @@ def run_pipeline(
             "<b>Enable Gemma 4 agent loop</b> below to invoke the model."
         )
         return (_badge("no_match", detail), {}, {}, [], {"path": "no_match"})
+
+    if chat_http_shim is None:
+        # Local-PoC fallback: zerogpu_engine isn't loaded (no torch /
+        # transformers / spaces in this venv, or CLINIQ_DISABLE_AGENT=1).
+        # Surface the reason and return — keeps the demo bootable on a
+        # bare developer venv with only gradio + fhir.resources installed.
+        detail = (
+            f"Agent backend unavailable on this host: "
+            f"<code>{_AGENT_BACKEND_ERROR or 'disabled'}</code>. "
+            f"Deploy to ZeroGPU or install transformers + torch to enable the "
+            f"Gemma 4 tier."
+        )
+        return (_badge("agent_error", detail), {}, {}, [], {"path": "agent_unavailable", "error": _AGENT_BACKEND_ERROR})
 
     t0 = time.perf_counter()
     try:

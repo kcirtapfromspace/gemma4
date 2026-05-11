@@ -1,0 +1,17 @@
+# Slim requirements for the remote-backend Space deploy.
+#
+# The Tier-3 Gemma 4 agent runs on a Kaggle T4 (see kaggle/) reachable via
+# cloudflared, so the Space itself only does Tier 1 (deterministic preparser),
+# Tier 2 (RAG fast-path), FHIR Bundle assembly + R4 validation, and HTTP
+# round-trips for Tier 3. No torch / transformers / accelerate / sentencepiece
+# needed on the Space side — drops the build from ~3 GB to ~150 MB and lets
+# this run on cpu-basic without ZeroGPU.
+#
+# To use this file as the active Spaces requirements, see
+# tools/autoresearch/kaggle-backend-runbook.md for the swap procedure.
+
+gradio>=5.9,<6
+fhir.resources>=7.0,<9.0
+spaces>=0.31
+huggingface_hub>=0.26
+requests>=2.32

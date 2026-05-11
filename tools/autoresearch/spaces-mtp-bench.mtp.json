@@ -1,0 +1,167 @@
+{
+  "scenario": "mtp",
+  "mtp_env": "true",
+  "banner": "Gemma 4 (gemma-4-E2B-it, 5.1 B params, float32) running in-process on CPU (slow \u2014 switch the Space hardware to ZeroGPU for usable latency) \u00b7 MTP on (drafter gemma-4-E2B-it-assistant, 78 M)",
+  "n_prompts": 9,
+  "max_new_tokens": 64,
+  "totals": {
+    "tokens": 570,
+    "wall_secs": 53.6115357875824,
+    "tok_per_s": 10.632040131408145
+  },
+  "results": [
+    {
+      "case_id": "bench_minimal",
+      "wall_secs": 6.640108108520508,
+      "completion_tokens": 64,
+      "prompt_tokens": 265,
+      "engine_tok_per_s": 9.63966478220072,
+      "engine_predicted_n": 64,
+      "engine_predicted_ms": 6639.235019683838,
+      "mtp": {
+        "enabled": true,
+        "active": true,
+        "drafter_id": "google/gemma-4-E2B-it-assistant",
+        "drafter_load_error": null
+      },
+      "wall_tok_per_s": 9.638397290230253,
+      "finish_reason": "stop"
+    },
+    {
+      "case_id": "bench_typical_covid",
+      "wall_secs": 6.376981973648071,
+      "completion_tokens": 64,
+      "prompt_tokens": 294,
+      "engine_tok_per_s": 10.037667917557357,
+      "engine_predicted_n": 64,
+      "engine_predicted_ms": 6375.982999801636,
+      "mtp": {
+        "enabled": true,
+        "active": true,
+        "drafter_id": "google/gemma-4-E2B-it-assistant",
+        "drafter_load_error": null
+      },
+      "wall_tok_per_s": 10.03609548599486,
+      "finish_reason": "stop"
+    },
+    {
+      "case_id": "bench_complex_multi",
+      "wall_secs": 6.225708961486816,
+      "completion_tokens": 64,
+      "prompt_tokens": 413,
+      "engine_tok_per_s": 10.281627916739312,
+      "engine_predicted_n": 64,
+      "engine_predicted_ms": 6224.695205688477,
+      "mtp": {
+        "enabled": true,
+        "active": true,
+        "drafter_id": "google/gemma-4-E2B-it-assistant",
+        "drafter_load_error": null
+      },
+      "wall_tok_per_s": 10.27995372027728,
+      "finish_reason": "stop"
+    },
+    {
+      "case_id": "bench_meningitis",
+      "wall_secs": 5.243461847305298,
+      "completion_tokens": 64,
+      "prompt_tokens": 299,
+      "engine_tok_per_s": 12.207778784245823,
+      "engine_predicted_n": 64,
+      "engine_predicted_ms": 5242.55895614624,
+      "mtp": {
+        "enabled": true,
+        "active": true,
+        "drafter_id": "google/gemma-4-E2B-it-assistant",
+        "drafter_load_error": null
+      },
+      "wall_tok_per_s": 12.205676681502062,
+      "finish_reason": "stop"
+    },
+    {
+      "case_id": "bench_negative_lab",
+      "wall_secs": 6.358093023300171,
+      "completion_tokens": 64,
+      "prompt_tokens": 291,
+      "engine_tok_per_s": 10.067204943469834,
+      "engine_predicted_n": 64,
+      "engine_predicted_ms": 6357.27596282959,
+      "mtp": {
+        "enabled": true,
+        "active": true,
+        "drafter_id": "google/gemma-4-E2B-it-assistant",
+        "drafter_load_error": null
+      },
+      "wall_tok_per_s": 10.065911235564272,
+      "finish_reason": "stop"
+    },
+    {
+      "case_id": "bench_lyme",
+      "wall_secs": 5.853299140930176,
+      "completion_tokens": 64,
+      "prompt_tokens": 270,
+      "engine_tok_per_s": 10.935585038445481,
+      "engine_predicted_n": 64,
+      "engine_predicted_ms": 5852.453231811523,
+      "mtp": {
+        "enabled": true,
+        "active": true,
+        "drafter_id": "google/gemma-4-E2B-it-assistant",
+        "drafter_load_error": null
+      },
+      "wall_tok_per_s": 10.934004645767935,
+      "finish_reason": "stop"
+    },
+    {
+      "case_id": "bench_multi_enteric",
+      "wall_secs": 5.230427026748657,
+      "completion_tokens": 64,
+      "prompt_tokens": 248,
+      "engine_tok_per_s": 12.237941076990781,
+      "engine_predicted_n": 64,
+      "engine_predicted_ms": 5229.637861251831,
+      "mtp": {
+        "enabled": true,
+        "active": true,
+        "drafter_id": "google/gemma-4-E2B-it-assistant",
+        "drafter_load_error": null
+      },
+      "wall_tok_per_s": 12.236094619559914,
+      "finish_reason": "stop"
+    },
+    {
+      "case_id": "bench_tb_multi_med",
+      "wall_secs": 6.458768844604492,
+      "completion_tokens": 64,
+      "prompt_tokens": 286,
+      "engine_tok_per_s": 9.910255220342254,
+      "engine_predicted_n": 64,
+      "engine_predicted_ms": 6457.956790924072,
+      "mtp": {
+        "enabled": true,
+        "active": true,
+        "drafter_id": "google/gemma-4-E2B-it-assistant",
+        "drafter_load_error": null
+      },
+      "wall_tok_per_s": 9.909009215194958,
+      "finish_reason": "stop"
+    },
+    {
+      "case_id": "bench_no_vitals_no_meds",
+      "wall_secs": 5.224686861038208,
+      "completion_tokens": 58,
+      "prompt_tokens": 214,
+      "engine_tok_per_s": 11.102752393231633,
+      "engine_predicted_n": 58,
+      "engine_predicted_ms": 5223.929882049561,
+      "mtp": {
+        "enabled": true,
+        "active": true,
+        "drafter_id": "google/gemma-4-E2B-it-assistant",
+        "drafter_load_error": null
+      },
+      "wall_tok_per_s": 11.101143770456456,
+      "finish_reason": "stop"
+    }
+  ]
+}
