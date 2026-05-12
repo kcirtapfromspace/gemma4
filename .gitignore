@@ -68,3 +68,4 @@ tools/autoresearch/litert-bins/
 # tokenizer.json + config files in this dir aren't artifacts we want tracked;
 # the LoRA lives on HF Hub for distribution)
 models/cliniq-gemma4-e2b-v63-lora/
+models/cliniq-gemma4-e2b-v63b-lora/

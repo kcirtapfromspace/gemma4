@@ -18,9 +18,11 @@ Java validator structural pass on every emitted FHIR R4 Bundle.**
 **Unsloth track: v62 LoRA on `unsloth/gemma-4-E2B-it` is the shipped
 fine-tune — F1 = 0.84 / precision = 0.84 on Mac Q3_K_M (the same
 edge-deployment quantization the iOS app uses), up from base Gemma's
-F1 = 0.337. v63 retrained at `max_seq_length=1024` is queued for
-release as v63b once we resolve a Gemma 4 hybrid-attention LoRA-coverage
-issue (see Unsloth track section).**
+F1 = 0.337. v63 and v63b are documented diagnostic work that found a
+silent post-2026-04-30 regression in the unsloth/peft/transformers
+chain that drops LoRA k/v weights on Gemma 4's global-attention layers;
+the bug hides at full precision and only surfaces under Q3_K_M
+quantization.**
 
 ```
 Agent path (deterministic + RAG + 6-turn agent loop):
@@ -36,12 +38,13 @@ Unsloth single-shot path (val-compact 200 cases, Mac Q3_K_M edge deploy):
   base Gemma 4 E2B Q3_K_M:         F1 = 0.337
   v62 LoRA (shipped):              F1 = 0.837, precision = 0.837, recall = 0.837
                                    JSON-valid = 92%, p50 = 3.08 s on Mac
-  v63 LoRA (KNOWN ISSUE):          F1 = 0.548 on Mac Q3_K_M (regression);
+  v63 LoRA (toolchain regression): F1 = 0.548 on Mac Q3_K_M;
                                    F1 = 0.9989 in unquantized PyTorch on T4
-                                   p50 = 2.79 s — 9% faster than v62
                                    Cause: missing k/v LoRA weights on 20 of 35
                                    decoder layers (Gemma 4 global-attention).
-                                   Fix in flight as v63b — see Unsloth section.
+  v63b LoRA (coverage-fix probe):  F1 = 0.610 on Mac Q3_K_M (50-case sample)
+                                   Coverage gate passed (35/35 k/v wrapping).
+                                   Halfway-back; ship gate F1 >= 0.85 not met.
 ```
 
 The pipeline runs on a clinician's phone. No internet round-trip, no PHI
@@ -119,15 +122,15 @@ Kaggle inline bench runs) and Mac Q3_K_M (what the iOS app and the
 hosted demo's edge path actually use). The latter is what counts for
 "can a clinician run this on their phone."
 
-| | v62 (shipped) | v63 (KNOWN ISSUE) | v63b (in flight) |
+| | v62 (shipped) | v63 (toolchain regression) | v63b (coverage-fix probe) |
 |---|---|---|---|
 | Base | `unsloth/gemma-4-E2B-it` | same | same |
 | `max_seq_length` | 512 | 1024 | 1024 |
 | Train cost (T4) | 1h 04m | 3h 04m | ~3h |
-| Unquantized F1 (Kaggle PyTorch) | 0.82 | **0.9989** | TBD |
-| Mac Q3_K_M F1 | **0.837** | 0.548 ⚠ | _target ≥ v62_ |
-| Mac Q3_K_M latency p50 | 3.08 s | **2.79 s** | target = v63 |
-| LoRA tensor count | 490 (full) | 410 (partial) | target ≥ 490 |
+| Unquantized F1 (Kaggle PyTorch) | 0.82 | 0.9989 | (bench cell crashed) |
+| **Mac Q3_K_M F1** | **0.837** | 0.548 ⚠ | 0.610 ⚠ |
+| Mac Q3_K_M latency p50 | 3.08 s | **2.79 s** | 2.81 s |
+| LoRA tensor count | 490 (decoder full) | 410 (k/v partial) | 786 (decoder full + vision wrap) |
 
 **What the three Unsloth APIs did (in all three iterations):**
 
@@ -148,13 +151,17 @@ the 20 global-attention layers of Gemma 4's hybrid attention (layers
 quantization can't. **v63's latency win (9% faster p50) is real and
 survives quantization** — only the quality regresses.
 
-**v63b is the queued fix.** Same recipe as v63, with explicit
-`layers_to_transform=list(range(35))` in `get_peft_model` and a
-fail-fast assertion that the saved adapter contains 490 tensors. If
-v63b lands ≥ v62 F1 at v63 latency before the deadline, it becomes the
-shipped Unsloth-track artifact; otherwise v62 ships. Both v62 and v63
-remain on HF Hub for transparency, with model cards naming the
-deployment surface where each is appropriate.
+**v63b — coverage fix verified, but not enough to recover v62 F1.** v63b
+clears the k/v coverage assertion (full 35/35 wrapping confirmed in the
+kernel log, 786 saved tensors). Mac Q3_K_M F1 = 0.61, precision = 0.47,
+recall = 0.86 — halfway back from v63's 0.55, but still well below v62's
+0.84. The latency win is preserved (p50 2.81 s, 9% faster than v62). The
+remaining gap is not the coverage bug; the 786-tensor adapter also wraps
+the SigLIP vision tower's attention slots, and gradients from text-only
+training flow into those vision weights in ways that hurt the language
+model's schema-completeness (0.00 vs v62's 0.92). A v63c that excludes
+vision modules via a tighter target-module regex is the obvious next
+experiment but deferred past the 2026-05-18 deadline. v62 ships.
 
 **Honest framing.** Even v63b at F1 = 0.99 (if it lands there
 unquantized) is on synthetic in-distribution val-compact. The headline

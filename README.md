@@ -25,27 +25,29 @@ F1 = 1.000 on Jetson Orin NX 8 GB k8s pod (edge deployment)
 **Unsloth track delta** (val-compact, 200 cases held out from training,
 Mac M-series Q3_K_M for like-for-like edge-deployment numbers):
 
-| | base Gemma 4 E2B Q3_K_M | + v62 LoRA | + v63 LoRA |
-|---|---:|---:|---:|
-| Micro-F1 | 0.337 | **0.837** | 0.548 ⚠ |
-| Micro-precision | 0.469 | **0.837** | 0.393 ⚠ |
-| Micro-recall | 0.263 | 0.837 | **0.902** |
-| JSON-validity | 100% | 92% | 92% |
-| Latency p50 (Mac) | 6.6 s | 3.08 s | **2.79 s** |
-| Latency p95 (Mac) | — | 4.24 s | **3.86 s** |
-| Train wall-clock (T4) | — | 1h 04m | 3h 04m |
+| | base Q3_K_M | v62 (ships) | v63 ⚠ | v63b ⚠ |
+|---|---:|---:|---:|---:|
+| Micro-F1 | 0.337 | **0.837** | 0.548 | 0.610 |
+| Micro-precision | 0.469 | **0.837** | 0.393 | 0.474 |
+| Micro-recall | 0.263 | 0.837 | **0.902** | 0.856 |
+| JSON-validity | 100% | **92%** | 92% | 80% |
+| Latency p50 (Mac) | 6.6 s | 3.08 s | **2.79 s** | 2.81 s |
+| LoRA tensors | — | 490 | 410 ⚠ | 786 |
+| Train wall-clock (T4) | — | 1h 04m | 3h 04m | 3h 04m |
 
-**v62 is the shipped Unsloth-track LoRA.** v63 retrained at
-`max_seq_length=1024` benched at F1 = 0.9989 in unquantized PyTorch on
-Kaggle T4 but regresses on Mac/Q3_K_M because the latest Unsloth/PEFT
-release dropped k_proj + v_proj LoRA weights on Gemma 4's 20 global-
-attention layers (layers 15–34). The partial-coverage adapter can't
-survive Q3_K_M quantization. v63's latency win (9% faster than v62) is
-real and survives quantization. A **v63b retrain with explicit
-`layers_to_transform=range(35)` is queued** to recover Q3_K_M F1 ≥ v62
-while keeping v63's latency. Full diagnosis in
-`tools/autoresearch/v63-experiment/EXPERIMENT.md`; final submission
-narrative in `tools/autoresearch/hackathon-submission-2026-05-18.md`.
+**v62 is the shipped Unsloth-track LoRA.** v63 and v63b are documented
+diagnostic work that found a silent toolchain regression: post-2026-04-30
+releases of unsloth/peft drop LoRA k_proj + v_proj weights on Gemma 4's
+20 global-attention layers (15–34) when transformers > 5.5.0 is
+installed. The bug hides at full precision (Kaggle PyTorch F1 = 0.9989)
+and only surfaces under Q3_K_M quantization (Mac F1 = 0.548). v63b's
+explicit `layers_to_transform=list(range(35))` cleared the coverage
+gate (35/35 wrapping confirmed) but only recovered F1 to 0.610 — the
+remaining gap is the 786-tensor adapter wrapping the SigLIP vision
+tower in addition to the decoder. Ship gate (F1 ≥ 0.85) not met; v62
+stays. Full diagnosis in `tools/autoresearch/v63-experiment/EXPERIMENT.md`
+and `tools/autoresearch/v63b-experiment/EXPERIMENT.md`; final
+submission narrative at `tools/autoresearch/hackathon-submission-2026-05-18.md`.
 
 ---
 

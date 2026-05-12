@@ -1,0 +1,28 @@
+
+=== v63b_lora @ http://127.0.0.1:8091 ===
+  [  0/50] f1=0.615 json=True t=3.02s
+  [ 10/50] f1=0.545 json=True t=2.55s
+  [ 20/50] f1=1.000 json=True t=2.50s
+  [ 30/50] f1=1.000 json=True t=2.94s
+  [ 40/50] f1=0.000 json=False t=2.39s
+  [ 49/50] f1=0.500 json=True t=2.93s
+  -> micro_f1=0.6102 json=0.8
+
+Wrote apps/mobile/convert/build/v63b_val_compact_bench_quick50.json
+{
+  "n": 50,
+  "tp": 137,
+  "fp": 152,
+  "fn": 23,
+  "micro_precision": 0.474,
+  "micro_recall": 0.8562,
+  "micro_f1": 0.6102,
+  "macro_precision": 0.4289,
+  "macro_recall": 0.776,
+  "macro_f1": 0.5274,
+  "json_valid_rate": 0.8,
+  "schema_complete_rate": 0.0,
+  "latency_p50_s": 2.81,
+  "latency_p95_s": 4.231,
+  "latency_mean_s": 2.868
+}
