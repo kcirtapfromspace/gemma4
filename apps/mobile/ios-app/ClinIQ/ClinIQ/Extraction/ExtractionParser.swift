@@ -111,6 +111,11 @@ enum ExtractionParser {
         }
         if let s = obj["encounter_date"] as? String {
             parsed.encounterDate = Self.parseDate(s)
+        } else if let p = obj["patient"] as? [String: Any],
+                  let s = p["encounter_date"] as? String {
+            // Some compact audit turns put encounter_date under patient even
+            // though the canonical schema keeps it top-level.
+            parsed.encounterDate = Self.parseDate(s)
         }
 
         // conditions
@@ -122,6 +127,12 @@ enum ExtractionParser {
                 return ParsedCondition(code: code,
                                        system: (entry["system"] as? String) ?? "SNOMED",
                                        display: display)
+            }
+        } else if let codes = Self.codeStrings(from: obj["conditions"]) {
+            parsed.conditions = codes.map { code in
+                ParsedCondition(code: code,
+                                system: "SNOMED",
+                                display: Self.displayName(for: code, system: "SNOMED"))
             }
         }
 
@@ -140,6 +151,15 @@ enum ExtractionParser {
                                  value: v,
                                  unit: entry["unit"] as? String)
             }
+        } else if let codes = Self.codeStrings(from: obj["labs"] ?? obj["loincs"]) {
+            parsed.labs = codes.map { code in
+                ParsedLab(code: code,
+                          system: "LOINC",
+                          display: Self.displayName(for: code, system: "LOINC"),
+                          interpretation: nil,
+                          value: nil,
+                          unit: nil)
+            }
         }
 
         // medications
@@ -151,6 +171,12 @@ enum ExtractionParser {
                 return ParsedMedication(code: code,
                                         system: (entry["system"] as? String) ?? "RxNorm",
                                         display: display)
+            }
+        } else if let codes = Self.codeStrings(from: obj["medications"] ?? obj["rxnorms"]) {
+            parsed.medications = codes.map { code in
+                ParsedMedication(code: code,
+                                 system: "RxNorm",
+                                 display: Self.displayName(for: code, system: "RxNorm"))
             }
         }
 
@@ -171,6 +197,48 @@ enum ExtractionParser {
     }
 
     // MARK: - Helpers
+
+    private static func codeStrings(from value: Any?) -> [String]? {
+        guard let arr = value as? [Any] else { return nil }
+        let codes = arr.compactMap { item -> String? in
+            if let code = item as? String, !code.isEmpty {
+                return code
+            }
+            if let number = item as? NSNumber {
+                return number.stringValue
+            }
+            if let dict = item as? [String: Any],
+               let code = dict["code"] as? String,
+               !code.isEmpty {
+                return code
+            }
+            return nil
+        }
+        return codes.isEmpty ? nil : codes
+    }
+
+    private static func displayName(for code: String, system: String) -> String {
+        switch system.uppercased() {
+        case "SNOMED":
+            if let entry = LookupTable.snomed.first(where: { $0.code == code }) {
+                return entry.aliases.first ?? code
+            }
+            if let entry = ReportableConditions.all.first(where: { $0.system == "SNOMED" && $0.code == code }) {
+                return entry.display
+            }
+        case "LOINC":
+            if let entry = LookupTable.loincs.first(where: { $0.code == code }) {
+                return entry.aliases.first ?? code
+            }
+        case "RXNORM":
+            if let entry = LookupTable.rxnorms.first(where: { $0.code == code }) {
+                return entry.aliases.first ?? code
+            }
+        default:
+            break
+        }
+        return code
+    }
 
     private static func findJSONObject(in text: String) -> [String: Any]? {
         // Look for the outermost balanced `{...}`. Model output may include

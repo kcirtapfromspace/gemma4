@@ -63,6 +63,7 @@
     {"code": "723",     "aliases": ["amoxicillin"]},
     {"code": "197612",  "aliases": ["acyclovir 800 MG Oral Tablet", "acyclovir 800 MG", "acyclovir"]},
     {"code": "105220",  "aliases": ["penicillin G benzathine 2400000 UNT", "penicillin G benzathine"]},
+    {"code": "197650",  "aliases": ["azithromycin 250 MG Oral Tablet", "azithromycin"]},
     {"code": "2599543", "aliases": ["nirmatrelvir 150 MG / ritonavir 100 MG", "Paxlovid", "nirmatrelvir"]},
     {"code": "1999563", "aliases": ["bictegravir 50 MG / emtricitabine 200 MG / tenofovir alafenamide 25 MG", "bictegravir/emtricitabine/tenofovir alafenamide", "bictegravir"]},
     {"code": "197696",  "aliases": ["fluconazole 200 MG Oral Tablet", "fluconazole"]},

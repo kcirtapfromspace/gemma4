@@ -314,13 +314,14 @@ enum RagSearch {
         threshold: Double = fastPathThreshold,
         isNegated: IsNegated = neverNegated
     ) -> FastPathHit? {
-        let hits = search(query: narrative, topK: 1, minScore: threshold)
-        guard let top = hits.first, top.score >= threshold else { return nil }
-        guard let span = firstAssertedSpan(in: narrative,
-                                           for: top,
-                                           isNegated: isNegated) else {
-            return nil
+        let hits = search(query: narrative, topK: 3, minScore: threshold)
+        for hit in hits where hit.score >= threshold {
+            if let span = firstAssertedSpan(in: narrative,
+                                            for: hit,
+                                            isNegated: isNegated) {
+                return FastPathHit(hit: hit, span: span)
+            }
         }
-        return FastPathHit(hit: top, span: span)
+        return nil
     }
 }

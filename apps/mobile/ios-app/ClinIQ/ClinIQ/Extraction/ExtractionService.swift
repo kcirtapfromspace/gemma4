@@ -62,6 +62,16 @@ final class ExtractionService: ObservableObject {
     /// surfaces this as a soft chip so the demoer knows.
     var isStubEngine: Bool { usingStub }
 
+    private var llmReviewMode: LLMReviewMode {
+        let raw = UserDefaults.standard.string(forKey: LLMReviewMode.appStorageKey)
+            ?? LLMReviewMode.default.rawValue
+        return LLMReviewMode(rawValue: raw) ?? .default
+    }
+
+    private var shouldForceLLMAudit: Bool {
+        !usingStub && llmReviewMode == .always
+    }
+
     /// Run extraction for the given narrative. Returns a `ParsedExtraction`
     /// that `ReviewViewModel` can turn into SwiftData rows, plus timing.
     ///
@@ -118,7 +128,17 @@ final class ExtractionService: ObservableObject {
         var det = detResult.extraction
         det.matches = detResult.provenance
         let detElapsed = Date().timeIntervalSince(detStart)
-        if det.shortCircuitsLLM {
+        let forceLLMAudit = shouldForceLLMAudit
+        var baseline = det
+        if det.shortCircuitsLLM && !forceLLMAudit {
+            lastElapsed = detElapsed
+            lastTokens = 0
+            tokensPerSecond = 0
+            isRunning = false
+            activeBackendLabel = "Deterministic preparser"
+            return det
+        }
+        if !det.conditions.isEmpty && !forceLLMAudit {
             lastElapsed = detElapsed
             lastTokens = 0
             tokensPerSecond = 0
@@ -215,12 +235,41 @@ final class ExtractionService: ObservableObject {
                     )
                 )
             }
-            lastElapsed = Date().timeIntervalSince(fpStart) + detElapsed
+            baseline = fast
+            if !forceLLMAudit {
+                lastElapsed = Date().timeIntervalSince(fpStart) + detElapsed
+                lastTokens = 0
+                tokensPerSecond = 0
+                isRunning = false
+                activeBackendLabel = "RAG fast-path"
+                return fast
+            }
+        }
+        if baseline.hasAnyDeterministic && !forceLLMAudit {
+            lastElapsed = detElapsed
             lastTokens = 0
             tokensPerSecond = 0
             isRunning = false
-            activeBackendLabel = "RAG fast-path"
-            return fast
+            activeBackendLabel = "Deterministic preparser"
+            return baseline
+        }
+
+        // Mobile-first LLM audit. When the deterministic/RAG stack already
+        // has a credible baseline, ask the model to audit a compact prompt
+        // before paying the full multi-turn tool-agent prefill cost. This is
+        // still real LLM usage, but it avoids putting tool declarations into
+        // the hot simulator demo path.
+        if forceLLMAudit && baseline.hasAnyDeterministic && !usingStub {
+            let backendName = "\(Self.label(for: engine)) compact audit"
+            let modelName = Self.modelName(for: engine, usingStub: usingStub)
+            if let audited = await runCompactLLMAudit(
+                narrative: narrative,
+                baseline: baseline,
+                backendName: backendName,
+                modelName: modelName
+            ) {
+                return audited
+            }
         }
 
         // Tier 2 — Gemma 4 agent loop. The model orchestrates the same
@@ -230,21 +279,65 @@ final class ExtractionService: ObservableObject {
         if !usingStub {
             let agentStart = Date()
             let runner = AgentRunner(engine: engine)
+            let backendName = "\(Self.label(for: engine)) agent"
+            let modelName = Self.modelName(for: engine, usingStub: usingStub)
+            var agentOutput = ""
+            var agentTokens = 0
+            let initialPromptChars = AgentRunner.initialPromptCharacterCount(narrative: narrative)
+            InferenceMetrics.shared.begin(backend: backendName,
+                                          model: modelName,
+                                          promptChars: initialPromptChars,
+                                          maxTokens: 2048 * 10)
             do {
-                let trace = try await runner.run(narrative: narrative)
-                if let extraction = trace.finalExtraction,
-                   extraction.hasAnyDeterministic {
-                    lastElapsed = Date().timeIntervalSince(agentStart)
-                    lastTokens = 0
-                    tokensPerSecond = 0
+                let trace = try await runner.run(narrative: narrative) { [weak self] text, chunkTokens in
+                    guard let self else { return }
+                    agentOutput += text
+                    agentTokens += chunkTokens
+                    let elapsed = Date().timeIntervalSince(agentStart)
+                    self.tokensPerSecond = elapsed > 0 ? Double(agentTokens) / elapsed : 0
+                    self.streamedOutput = agentOutput
+                    InferenceMetrics.shared.record(chunkTokens: chunkTokens)
+                }
+                InferenceMetrics.shared.finalize()
+                let elapsed = Date().timeIntervalSince(agentStart)
+                lastElapsed = elapsed
+                lastTokens = max(agentTokens, trace.outputTokens)
+                tokensPerSecond = elapsed > 0 ? Double(lastTokens) / elapsed : 0
+
+                if let extraction = trace.finalExtraction {
+                    let merged = Self.merge(modelExtraction: extraction, baseline: baseline)
+                    if Self.hasClinicalContent(merged) {
+                        isRunning = false
+                        activeBackendLabel = forceLLMAudit
+                            ? "Gemma 4 agent audit + RAG"
+                            : "Gemma 4 agent + RAG"
+                        InferenceMetrics.shared.end()
+                        return merged
+                    }
+                }
+
+                InferenceMetrics.shared.end()
+                if forceLLMAudit && baseline.hasAnyDeterministic {
                     isRunning = false
-                    activeBackendLabel = "Gemma 4 agent + RAG"
-                    return extraction
+                    activeBackendLabel = "Gemma 4 agent audit + deterministic baseline"
+                    return baseline
                 }
             } catch {
                 // Agent loop failed — fall through to legacy raw-LLM path
                 // rather than dropping the request.
+                InferenceMetrics.shared.end(error: error.localizedDescription)
+                if forceLLMAudit && baseline.hasAnyDeterministic {
+                    isRunning = false
+                    activeBackendLabel = "LLM audit failed; deterministic baseline"
+                    return baseline
+                }
             }
+        }
+
+        if baseline.hasAnyDeterministic {
+            isRunning = false
+            activeBackendLabel = "Deterministic preparser"
+            return baseline
         }
 
         // Tier 3 — legacy raw LLM. Single-shot prompt, no tool calling.
@@ -262,13 +355,7 @@ final class ExtractionService: ObservableObject {
         let backendName = usingStub
             ? "Stub (rule-based)"
             : String(describing: type(of: engine)).replacingOccurrences(of: "InferenceEngine", with: "")
-        let modelName: String = {
-            if engine is LlamaCppInferenceEngine {
-                return (LlamaCppInferenceEngine.resolveModelPath() as NSString?)?
-                    .lastPathComponent ?? "on-device model"
-            }
-            return usingStub ? "—" : "on-device model"
-        }()
+        let modelName = Self.modelName(for: engine, usingStub: usingStub)
         // Bumped from 512 after observing the model needs ~700-900 tokens
         // to emit the full schema for a vitals-heavy eICR. Truncated JSON
         // makes the parser bail and the review sheet shows "0 entities".
@@ -312,5 +399,179 @@ final class ExtractionService: ObservableObject {
             InferenceMetrics.shared.end(error: error.localizedDescription)
             return nil
         }
+    }
+
+    private func runCompactLLMAudit(
+        narrative: String,
+        baseline: ParsedExtraction,
+        backendName: String,
+        modelName: String
+    ) async -> ParsedExtraction? {
+        let user = """
+Narrative:
+\(narrative)
+
+Baseline extraction from local deterministic/RAG tools:
+\(Self.compactBaselineJSON(baseline))
+
+Audit the baseline against the narrative. Keep supported codes, remove unsupported codes, and add obvious missing SNOMED/LOINC/RxNorm codes. Return only the final minified JSON object.
+"""
+        let prompt = PromptBuilder.wrapTurns(system: Self.compactAuditSystemPrompt,
+                                             user: user)
+        let maxTokens = 512
+        let start = Date()
+        var accum = ""
+        var tokens = 0
+
+        activeBackendLabel = "Gemma 4 compact audit + baseline"
+        InferenceMetrics.shared.begin(backend: backendName,
+                                      model: modelName,
+                                      promptChars: prompt.count,
+                                      maxTokens: maxTokens)
+
+        do {
+            let stream = try await engine.generate(prompt: prompt, maxTokens: maxTokens)
+            for try await chunk in stream {
+                accum += chunk.text
+                tokens += max(1, chunk.tokenCount)
+                let elapsed = Date().timeIntervalSince(start)
+                tokensPerSecond = elapsed > 0 ? Double(tokens) / elapsed : 0
+                streamedOutput = accum
+                InferenceMetrics.shared.record(chunkTokens: max(1, chunk.tokenCount))
+            }
+            InferenceMetrics.shared.finalize()
+            let elapsed = Date().timeIntervalSince(start)
+            lastElapsed = elapsed
+            lastTokens = tokens
+            tokensPerSecond = elapsed > 0 ? Double(tokens) / elapsed : 0
+
+            let parsed = ExtractionParser.parse(accum)
+            let merged = Self.merge(modelExtraction: parsed, baseline: baseline)
+            guard Self.hasClinicalContent(merged) else {
+                InferenceMetrics.shared.end()
+                return nil
+            }
+
+            isRunning = false
+            activeBackendLabel = "Gemma 4 compact audit + RAG"
+            InferenceMetrics.shared.end()
+            Self.writeRawDebugOutput(
+                backendName: backendName,
+                modelName: modelName,
+                tokens: tokens,
+                elapsed: elapsed,
+                raw: accum
+            )
+            return merged
+        } catch {
+            InferenceMetrics.shared.end(error: error.localizedDescription)
+            return nil
+        }
+    }
+
+    private static func modelName(for engine: any InferenceEngine, usingStub: Bool) -> String {
+        if engine is LlamaCppInferenceEngine {
+            return (LlamaCppInferenceEngine.resolveModelPath() as NSString?)?
+                .lastPathComponent ?? "on-device model"
+        }
+        if engine is LiteRtLmInferenceEngine {
+            return (LiteRtLmInferenceEngine.resolveModelPath() as NSString?)?
+                .lastPathComponent ?? "on-device model"
+        }
+        return usingStub ? "—" : "on-device model"
+    }
+
+    private static let compactAuditSystemPrompt: String = """
+You are an on-device clinical extraction auditor. Given a narrative and a \
+baseline extraction, return one minified JSON object using this schema: \
+patient.gender, patient.birth_date, encounter_date, \
+conditions[{code,system:"SNOMED",display}], \
+labs[{code,system:"LOINC",display,value?,unit?,interpretation?}], \
+medications[{code,system:"RxNorm",display}], \
+vitals.{temp_c,hr,rr,spo2,bp_systolic}. \
+Keep baseline codes only when supported by the narrative. Add obvious missing \
+codes. Return JSON only, with conditions/labs/medications arrays present.
+"""
+
+    private static func compactBaselineJSON(_ extraction: ParsedExtraction) -> String {
+        let conditions = extraction.conditions.map {
+            ["code": $0.code, "system": $0.system, "display": $0.display]
+        }
+        let labs = extraction.labs.map {
+            ["code": $0.code, "system": $0.system, "display": $0.display]
+        }
+        let medications = extraction.medications.map {
+            ["code": $0.code, "system": $0.system, "display": $0.display]
+        }
+        let object: [String: Any] = [
+            "conditions": conditions,
+            "labs": labs,
+            "medications": medications,
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: object, options: []) else {
+            return "{\"conditions\":[],\"labs\":[],\"medications\":[]}"
+        }
+        return String(data: data, encoding: .utf8)
+            ?? "{\"conditions\":[],\"labs\":[],\"medications\":[]}"
+    }
+
+    private static func writeRawDebugOutput(
+        backendName: String,
+        modelName: String,
+        tokens: Int,
+        elapsed: Double,
+        raw: String
+    ) {
+        if let docs = FileManager.default.urls(for: .documentDirectory,
+                                                in: .userDomainMask).first {
+            let path = docs.appendingPathComponent("last-extraction-raw.txt")
+            let header = "backend=\(backendName) model=\(modelName) tokens=\(tokens) elapsed=\(String(format: "%.1f", elapsed))s\n---\n"
+            try? (header + raw).write(to: path, atomically: true, encoding: .utf8)
+        }
+    }
+
+    private static func hasClinicalContent(_ extraction: ParsedExtraction) -> Bool {
+        extraction.hasAnyDeterministic
+            || extraction.vitals != nil
+            || extraction.patientGender != nil
+            || extraction.patientBirthDate != nil
+            || extraction.encounterDate != nil
+    }
+
+    private static func merge(modelExtraction: ParsedExtraction, baseline: ParsedExtraction) -> ParsedExtraction {
+        var merged = hasClinicalContent(modelExtraction) ? modelExtraction : baseline
+
+        if merged.patientGender == nil { merged.patientGender = baseline.patientGender }
+        if merged.patientBirthDate == nil { merged.patientBirthDate = baseline.patientBirthDate }
+        if merged.encounterDate == nil { merged.encounterDate = baseline.encounterDate }
+        if merged.vitals == nil { merged.vitals = baseline.vitals }
+        if merged.raw.isEmpty {
+            merged.raw = modelExtraction.raw.isEmpty ? baseline.raw : modelExtraction.raw
+        }
+
+        var conditionCodes = Set(merged.conditions.map(\.code))
+        for condition in baseline.conditions where conditionCodes.insert(condition.code).inserted {
+            merged.conditions.append(condition)
+        }
+
+        var labCodes = Set(merged.labs.map(\.code))
+        for lab in baseline.labs where labCodes.insert(lab.code).inserted {
+            merged.labs.append(lab)
+        }
+
+        var medicationCodes = Set(merged.medications.map(\.code))
+        for medication in baseline.medications where medicationCodes.insert(medication.code).inserted {
+            merged.medications.append(medication)
+        }
+
+        var provenanceKeys = Set(merged.matches.map { "\($0.system)|\($0.code)|\($0.sourceOffset)" })
+        for match in baseline.matches {
+            let key = "\(match.system)|\(match.code)|\(match.sourceOffset)"
+            if provenanceKeys.insert(key).inserted {
+                merged.matches.append(match)
+            }
+        }
+
+        return merged
     }
 }

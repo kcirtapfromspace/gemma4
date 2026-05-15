@@ -255,7 +255,7 @@ enum EicrPreparser {
     // so re-adding TEN to the RAG (closes adv7_genuine_ten miss) doesn't
     // FP on the SJS case where TEN is mentioned only as a differential.
     private static let negTriggers = NSRegularExpression.cached(
-        pattern: #"\b(?:ruled\s+out|negative\s+for|no\s+evidence\s+of|no\s+current\s+evidence\s+of|no\s+signs?\s+of|no\s+history\s+of|denies|without|absent|not\s+detected|not\s+positive\s+for|not\s+suspected|not\s+invoking|do(?:es)?\s+not\s+have|did\s+not\s+have|not\s+eligible\s+for|avoid\w*|contraindicated|incidental\s+finding|incidental\s+screen\w*|incidental\s+(?:noted?|detect\w*|appear\w*|observ\w*)|exclud(?:e|ed|es|ing)|differential\s+(?:diagnosis|dx|consider\w*|entertain\w*|includ(?:ed|es|ing)))\b"#,
+        pattern: #"\b(?:ruled\s+out|no|negative\s+for|no\s+evidence\s+of|no\s+current\s+evidence\s+of|no\s+signs?\s+of|no\s+history\s+of|denies|without|absent|not\s+detected|not\s+positive\s+for|not\s+suspected|not\s+invoking|do(?:es)?\s+not\s+have|did\s+not\s+have|not\s+eligible\s+for|avoid\w*|contraindicated|no\s+usar|contraindicad[ao]|evitad[ao]|khong\s+thay|incidental\s+finding|incidental\s+screen\w*|incidental\s+(?:noted?|detect\w*|appear\w*|observ\w*)|hallazgo\s+incidental|resultado\s+incidental|news\s+alert|quoted\s+(?:post|text|message|item|news)\s+says?|risk\s+of|exclud(?:e|ed|es|ing)|differential\s+(?:diagnosis|dx|consider\w*|entertain\w*|includ(?:ed|es|ing)))\b"#,
         options: [.caseInsensitive]
     )
     // c20 adv6 fix: comma added so "no history of stroke, history of HIV"
@@ -284,7 +284,7 @@ enum EicrPreparser {
     // significant" sit >100 chars from their curated aliases (and behind
     // a clause terminator), so these triggers don't regress on them.
     private static let postHocNegTriggers = NSRegularExpression.cached(
-        pattern: #"\b(?:came\s+back\s+negative|returned\s+negative|(?:was|is|were|are)\s+negative|reported\s+negative|results?\s+(?:was|were|is|are)\s+negative|IgM\s+negative|IgG\s+negative|(?:was|is|were)\s+(?:an?\s+)?incidental(?:\s+\w+){0,2}\s+(?:finding|screening|note\w*|swab\w*)|did\s+not\s+contribute(?:\s+to)?)\b"#,
+        pattern: #"\b(?:came\s+back\s+negative|returned\s+negative|(?:was|is|were|are)\s+negative|reported\s+negative|results?\s+(?:was|were|is|are)\s+negative|IgM\s+negative|IgG\s+negative|(?:IgM|IgG|RNA|Ag|Ab|antigen|antibody|test|serology|PCR|NAA)[^;\n]{0,70}-\s*negative|considered\s+in\s+(?:the\s+)?differential|not\s+diagnosed|vaccine-strain\s+reactions?|(?:was|is|were)\s+(?:an?\s+)?incidental(?:\s+\w+){0,2}\s+(?:finding|screening|note\w*|swab\w*)|did\s+not\s+contribute(?:\s+to)?|no\s+contribuy[oó](?:\s+a)?|aparece\s+solo\s+como\s+medicamento\s+evitad[ao]|appears\s+only\s+as\s+(?:a\s+)?medication\s+(?:avoid\w*|withheld|not\s+given|not\s+administered|not\s+prescribed)|(?:is|was|are|were)\s+(?:a\s+)?quoted\s+(?:news|internet|social-media|post|item|text|message)|parental\s+question\s+only)\b"#,
         options: [.caseInsensitive]
     )
     private static let postHocTerminators = NSRegularExpression.cached(
@@ -304,6 +304,22 @@ enum EicrPreparser {
     )
     private static let vaxPostNouns = NSRegularExpression.cached(
         pattern: #"^\W{0,3}\S{0,30}?\s*\b(?:series|booster|vaccine|vaccination|immuniz\w*|shot|dose|MMR\b)"#,
+        options: [.caseInsensitive]
+    )
+    private static let sentenceBoundary = NSRegularExpression.cached(
+        pattern: #"(?:\.\s|\n)"#,
+        options: []
+    )
+    private static let quotedPostSays = NSRegularExpression.cached(
+        pattern: #"quoted\s+(?:post|text|message|item|news)\s+says?"#,
+        options: [.caseInsensitive]
+    )
+    private static let differentialContext = NSRegularExpression.cached(
+        pattern: #"\bdifferential\s+(?:diagnosis|dx)?\b"#,
+        options: [.caseInsensitive]
+    )
+    private static let ruledOutContext = NSRegularExpression.cached(
+        pattern: #"\b(?:both\s+were\s+)?ruled\s+out\b|\bnot\s+diagnosed\b"#,
         options: [.caseInsensitive]
     )
 
@@ -326,6 +342,43 @@ enum EicrPreparser {
         let postRange = NSRange(location: matchEnd, length: postEnd - matchEnd)
         if postRange.length <= 0 { return false }
         return vaxPostNouns.firstMatch(in: text, range: postRange) != nil
+    }
+
+    /// Sentence-level suppressors for comma-heavy quoted/differential prose.
+    static func isWideContextNegation(in text: String,
+                                      matchStart: Int,
+                                      matchEnd: Int) -> Bool {
+        let total = text.utf16.count
+        let leftStart = max(0, matchStart - 220)
+        let leftRange = NSRange(location: leftStart, length: matchStart - leftStart)
+        var preStart = leftStart
+        var lastBoundary = -1
+        for bm in sentenceBoundary.matches(in: text, range: leftRange) {
+            lastBoundary = bm.range.location + bm.range.length
+        }
+        if lastBoundary >= 0 { preStart = lastBoundary }
+        let preRange = NSRange(location: preStart, length: matchStart - preStart)
+
+        let postEnd = min(total, matchEnd + 220)
+        let rawPostRange = NSRange(location: matchEnd, length: postEnd - matchEnd)
+        var postSentenceEnd = postEnd
+        if let boundary = sentenceBoundary.firstMatch(in: text, range: rawPostRange) {
+            postSentenceEnd = boundary.range.location
+        }
+        let postRange = NSRange(location: matchEnd, length: postSentenceEnd - matchEnd)
+        let sentenceRange = NSRange(location: preStart, length: postSentenceEnd - preStart)
+
+        if preRange.length > 0,
+           quotedPostSays.firstMatch(in: text, range: preRange) != nil {
+            return true
+        }
+        if sentenceRange.length > 0,
+           postRange.length > 0,
+           differentialContext.firstMatch(in: text, range: sentenceRange) != nil,
+           ruledOutContext.firstMatch(in: text, range: postRange) != nil {
+            return true
+        }
+        return false
     }
 
     /// True if the alias span at [matchStart, matchEnd) sits in negation scope.
@@ -386,6 +439,12 @@ enum EicrPreparser {
             return true
         }
 
+        if isWideContextNegation(in: text,
+                                 matchStart: matchStart,
+                                 matchEnd: matchEnd) {
+            return true
+        }
+
         return false
     }
 
@@ -430,6 +489,7 @@ enum EicrPreparser {
         // apps/mobile/convert/regex_preparser.py.
         for hit in inlineSnomed.allMatches(in: text) {
             guard let code = hit.group(2) else { continue }
+            guard let codeRange = hit.groupRange(2) else { continue }
             let display = hit.group(1)?.trimmingChars() ?? code
             // Locate the SNOMED token's position so we can window-check
             // for a clinical-statement label preceding it.
@@ -441,6 +501,11 @@ enum EicrPreparser {
             let curated = LookupTable.snomed.contains { $0.code == code }
             let hasLabel = hasInlineLabelPrefix(in: text, matchStart: codeEnd)
             if !curated && !hasLabel { continue }
+            if isNegated(in: text,
+                         matchStart: codeRange.location,
+                         matchEnd: codeRange.location + codeRange.length) {
+                continue
+            }
             if seen.addCondition(code: code, system: "SNOMED", display: display, into: &out) {
                 let r = hit.result.range
                 prov.append(CodeProvenance(
@@ -474,11 +539,17 @@ enum EicrPreparser {
         }
         for hit in inlineRxNorm.allMatches(in: text) {
             guard let code = hit.group(2) else { continue }
+            guard let codeRange = hit.groupRange(2) else { continue }
             let display = hit.group(1)?.trimmingChars() ?? code
             let codeEnd = hit.result.range.location + hit.result.range.length
             let curated = LookupTable.rxnorms.contains { $0.code == code }
             let hasLabel = hasInlineLabelPrefix(in: text, matchStart: codeEnd)
             if !curated && !hasLabel { continue }
+            if isNegated(in: text,
+                         matchStart: codeRange.location,
+                         matchEnd: codeRange.location + codeRange.length) {
+                continue
+            }
             if seen.addMedication(code: code, system: "RxNorm", display: display, into: &out) {
                 let r = hit.result.range
                 prov.append(CodeProvenance(
@@ -672,6 +743,12 @@ private struct RegexMatch {
         let r = result.range(at: idx)
         guard r.location != NSNotFound else { return nil }
         return Self.substring(source, range: r)
+    }
+    func groupRange(_ idx: Int) -> NSRange? {
+        guard idx <= result.numberOfRanges - 1 else { return nil }
+        let r = result.range(at: idx)
+        guard r.location != NSNotFound else { return nil }
+        return r
     }
     static func substring(_ s: String, range: NSRange) -> String? {
         guard range.location != NSNotFound,

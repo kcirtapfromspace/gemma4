@@ -195,7 +195,16 @@ def _extract_inline(text: str) -> list[CodeMatch]:
             # handled by `_extract_cda_matches` and unaffected.
             window_start = max(0, m.start() - _INLINE_LABEL_WINDOW)
             window = text[window_start:m.start()]
-            has_label = _INLINE_LABEL_RE.search(window) is not None
+            # Long lab display names can put "Lab:" more than 60 chars before
+            # the inline LOINC, e.g. "Lab: Respiratory syncytial virus RNA
+            # [Presence] in Respiratory specimen by NAA (LOINC 92131-2)".
+            # Keep the adversarial bait guard, but accept a clinical label that
+            # appears earlier on the same physical line.
+            same_line_before_code = text[line_start:m.start()]
+            has_label = (
+                _INLINE_LABEL_RE.search(window) is not None
+                or _INLINE_LABEL_RE.search(same_line_before_code) is not None
+            )
             if not has_label and not _is_curated_code(code, bucket):
                 continue
             if bucket != "loinc" and _is_negated(text, m.start(), m.end()):
@@ -365,6 +374,11 @@ _POSTHOC_NEG_TRIGGERS = re.compile(
     r"|(?:was|is|were)\s+(?:an?\s+)?incidental(?:\s+\w+){0,2}\s+(?:finding|screening|note\w*|swab\w*)"
     r"|did\s+not\s+contribute(?:\s+to)?"
     r"|no\s+contribuy[oó](?:\s+a)?"
+    r"|(?:explicitly\s+)?not\s+prescribed"
+    r"|not\s+(?:administered|given)"
+    r"|prophylaxis\s+for\s+household\s+contacts"
+    r"|vaccine\s+targets?\s+reviewed"
+    r"|vaccine\s+counseling"
     r"|aparece\s+solo\s+como\s+medicamento\s+evitad[ao]"
     r"|appears\s+only\s+as\s+(?:a\s+)?medication\s+(?:avoid\w*|withheld|not\s+given|not\s+administered|not\s+prescribed)"
     r"|(?:is|was|are|were)\s+(?:a\s+)?quoted\s+(?:news|internet|social-media|post|item|text|message)"
@@ -420,10 +434,60 @@ def _is_wide_context_negation(text: str, match_start: int, match_end: int) -> bo
         post_sentence = post_sentence[:next_boundary.start()]
     sentence = pre_sentence + text[match_start:match_end] + post_sentence
 
-    if re.search(r"quoted\s+(?:post|text|message|item|news)\s+says?", pre_sentence, re.IGNORECASE):
+    if re.search(
+        r"(?:quoted\s+(?:post|text|message|item|news)\s+says?|"
+        r"(?:printed\s+)?internet\s+post\s+claim\w*)",
+        pre_sentence,
+        re.IGNORECASE,
+    ):
+        return True
+    if re.search(
+        r"\b(?:quoted\s+misinformation|misinformation\s+only|"
+        r"not\s+the\s+patient['’]s\s+(?:diagnosis|symptoms?|lab\s+result))\b",
+        sentence,
+        re.IGNORECASE,
+    ):
+        return True
+    if re.search(
+        r"\b(?:unrelated\s+\w{0,40}\s*news|background\s+only)\b",
+        sentence,
+        re.IGNORECASE,
+    ):
+        return True
+    if re.search(
+        r"\b(?:as\s+)?vaccine\s+targets?\s+reviewed\b",
+        post_sentence,
+        re.IGNORECASE,
+    ):
+        return True
+    if (
+        re.search(
+            r"\b(?:vaccine\s+counseling|vaccine\s+targets?\s+reviewed|"
+            r"as\s+vaccine\s+targets?)\b",
+            sentence,
+            re.IGNORECASE,
+        )
+        and re.search(
+            r"\b(?:well|no\s+symptoms?|no\s+positive\s+labs?|"
+            r"no\s+active\s+infectious\s+diagnosis)\b",
+            sentence,
+            re.IGNORECASE,
+        )
+    ):
+        return True
+    if (
+        re.search(r"\bno\b", pre_sentence, re.IGNORECASE)
+        and re.search(
+            r"\b(?:or\s+other\s+reportable|(?:is|are)\s+diagnosed)\b",
+            post_sentence,
+            re.IGNORECASE,
+        )
+        and not re.search(r"\b(?:but|however|except)\b", sentence, re.IGNORECASE)
+    ):
         return True
     if re.search(
         r"\b(?:source\s+patient|family\s+history|family\s+member|"
+        r"past\s+medical\s+history|chronic\s+conditions?|"
         r"mother|father|sibling|spouse|partner)\b",
         pre_sentence,
         re.IGNORECASE,
@@ -659,6 +723,27 @@ def _is_same_bucket_inline_annotated_line(bucket: str, text: str, match_end: int
     return any(local_end <= m.start() for m in pattern.finditer(line))
 
 
+def _is_snomed_lookup_inside_inline_loinc_lab_line(text: str, match_end: int) -> bool:
+    """True when a SNOMED alias match is just the target name of a coded lab.
+
+    Example: `Lab: Monkeypox virus DNA ... (LOINC 100434-0)` should ground the
+    lab Observation, not add a second condition code for "Monkeypox" when the
+    diagnosis line has already asserted its own SNOMED.
+    """
+    line_start = text.rfind("\n", 0, match_end) + 1
+    line_end = text.find("\n", match_end)
+    if line_end < 0:
+        line_end = len(text)
+    line = text[line_start:line_end]
+    before_match = text[line_start:match_end]
+    has_lab_label = re.search(
+        r"\b(?:Lab|Labs|Laboratory|Microbiology|Pathology|Workup)\s*:",
+        before_match,
+        re.IGNORECASE,
+    )
+    return has_lab_label is not None and LOINC_RE.search(line) is not None
+
+
 def _extract_lookup_matches(text: str, *, detect_negation: bool = True) -> list[CodeMatch]:
     """Match known displayNames in text, return per-match provenance records.
 
@@ -682,6 +767,14 @@ def _extract_lookup_matches(text: str, *, detect_negation: bool = True) -> list[
                     if detect_negation and _is_negated(scan_text, m.start(), m.end()):
                         continue
                     if _is_same_bucket_inline_annotated_line(bucket, scan_text, m.end()):
+                        continue
+                    if (
+                        bucket == "snomed"
+                        and _is_snomed_lookup_inside_inline_loinc_lab_line(
+                            scan_text,
+                            m.end(),
+                        )
+                    ):
                         continue
                     # c20 final pass: skip short acronym aliases used as
                     # data-label headers (`CBC:`, `CMP:`). Lookup tier

@@ -53,6 +53,7 @@ private actor LlamaContext {
     private let vocab: OpaquePointer
     private var sampling: UnsafeMutablePointer<llama_sampler>
     private var batch: llama_batch
+    private let batchCapacity: Int32 = 1024
     private var tokensList: [llama_token] = []
     private var temporaryInvalidCChars: [CChar] = []
 
@@ -68,9 +69,11 @@ private actor LlamaContext {
     init(model: OpaquePointer, context: OpaquePointer) {
         self.model = model
         self.context = context
-        // 1024-token batch is enough to prefill our ~700-token prompts without
-        // splitting. Adjust if the system prompt grows.
-        self.batch = llama_batch_init(1024, 0, 1)
+        // Keep the batch modest for iOS memory, then split long prompts
+        // during prefill. Agent-mode prompts include tool schemas and can
+        // exceed 1024 tokens; writing them into a fixed batch at once would
+        // overrun llama_batch's buffers.
+        self.batch = llama_batch_init(batchCapacity, 0, 1)
         self.vocab = llama_model_get_vocab(model)
         self.sampling = Self.makeDefaultSampler()
     }
@@ -102,7 +105,7 @@ private actor LlamaContext {
         llama_backend_free()
     }
 
-    static func create(path: String, nCtx: UInt32 = 2048) throws -> LlamaContext {
+    static func create(path: String, nCtx: UInt32 = 4096) throws -> LlamaContext {
         llama_backend_init()
         var modelParams = llama_model_default_params()
         #if targetEnvironment(simulator)
@@ -143,17 +146,27 @@ private actor LlamaContext {
             // Clip maxTokens to what fits.
             nLen = Int32(max(0, nCtx - tokensList.count - 4))
         }
-
-        llama_batch_clear(&batch)
-        for (i, tok) in tokensList.enumerated() {
-            llama_batch_add(&batch, tok, Int32(i), [0], false)
+        guard tokensList.count < nCtx else {
+            throw InferenceError.runtimeFailure(
+                "prompt has \(tokensList.count) tokens, exceeding llama.cpp context \(nCtx)"
+            )
         }
-        batch.logits[Int(batch.n_tokens) - 1] = 1
 
-        if llama_decode(context, batch) != 0 {
-            throw InferenceError.runtimeFailure("llama_decode failed during prefill")
+        var start = 0
+        while start < tokensList.count {
+            let end = min(start + Int(batchCapacity), tokensList.count)
+            llama_batch_clear(&batch)
+            for i in start..<end {
+                let isLastPromptToken = (i == tokensList.count - 1)
+                llama_batch_add(&batch, tokensList[i], Int32(i), [0], isLastPromptToken)
+            }
+
+            if llama_decode(context, batch) != 0 {
+                throw InferenceError.runtimeFailure("llama_decode failed during prefill")
+            }
+            start = end
         }
-        nCur = batch.n_tokens
+        nCur = Int32(tokensList.count)
         return tokensList.count
     }
 
