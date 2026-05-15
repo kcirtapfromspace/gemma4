@@ -3,10 +3,9 @@
 // each row showing a chip strip of axis-tagged additions / removals /
 // unchanged from the previous case in the series.
 //
-// Mirrors CDC EZeCR's "what's new vs prior" CSV at the edge: every visit
-// the clinician sees on this device contributes to the patient's
-// longitudinal record. Tap a row to open the existing CaseDetailView for
-// that case.
+// Mirrors ClinIQ's "what's new vs prior" diff at the edge: every visit the
+// clinician sees on this device contributes to the patient's longitudinal
+// record. Tap a row to open the existing CaseDetailView for that case.
 
 import SwiftUI
 import SwiftData

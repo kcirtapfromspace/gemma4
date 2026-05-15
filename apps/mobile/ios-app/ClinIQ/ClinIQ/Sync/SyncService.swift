@@ -203,6 +203,12 @@ enum ReportPayload {
         var payload: [String: Any] = [:]
         payload["caseId"] = c.id.uuidString
         payload["createdAt"] = ISO8601DateFormatter().string(from: c.createdAt)
+        payload["jurisdiction"] = JurisdictionProfile.currentName
+        payload["jurisdictionRules"] = [
+            "requireClinicianReview": JurisdictionProfile.requireClinicianReview,
+            "includeOnlyAddedFindings": JurisdictionProfile.includeOnlyAddedFindings,
+            "enabledCategories": Array(JurisdictionProfile.enabledCategories).sorted(),
+        ]
 
         if let p = c.patient {
             var patient: [String: Any] = [:]
@@ -221,7 +227,15 @@ enum ReportPayload {
         payload["conditions"] = c.conditions
             .filter { $0.reviewState != .rejected }
             .map {
-                ["code": $0.code, "system": $0.system, "display": $0.displayName]
+                [
+                    "code": $0.code,
+                    "system": $0.system,
+                    "display": $0.displayName,
+                    "reviewState": $0.reviewStateRaw,
+                    "ruleDecision": JurisdictionProfile.decision(axis: .condition,
+                                                                  code: $0.code,
+                                                                  reviewState: $0.reviewState).rawValue,
+                ]
             }
 
         payload["labs"] = c.labs
@@ -235,13 +249,25 @@ enum ReportPayload {
                 if let i = lab.interpretation { entry["interpretation"] = i }
                 if let v = lab.value { entry["value"] = v }
                 if let u = lab.unit { entry["unit"] = u }
+                entry["reviewState"] = lab.reviewStateRaw
+                entry["ruleDecision"] = JurisdictionProfile.decision(axis: .lab,
+                                                                     code: lab.code,
+                                                                     reviewState: lab.reviewState).rawValue
                 return entry
             }
 
         payload["medications"] = c.medications
             .filter { $0.reviewState != .rejected }
             .map {
-                ["code": $0.code, "system": $0.system, "display": $0.displayName]
+                [
+                    "code": $0.code,
+                    "system": $0.system,
+                    "display": $0.displayName,
+                    "reviewState": $0.reviewStateRaw,
+                    "ruleDecision": JurisdictionProfile.decision(axis: .medication,
+                                                                  code: $0.code,
+                                                                  reviewState: $0.reviewState).rawValue,
+                ]
             }
 
         if let v = c.vitals, !v.isEmpty {

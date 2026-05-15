@@ -135,7 +135,7 @@ async fn ingest_one(
     let hash = case::dedup_hash(family, given, &ext.patient.dob, primary_snomed);
     let is_dup = state.store.is_graylist(&hash).unwrap_or(false);
 
-    // 6b. Patient hash + eCR diff (eCRims-001/005)
+    // 6b. Patient hash + ClinIQ case diff
     let patient_hash_val = case::patient_hash(family, given, &ext.patient.dob);
     let case_id = uuid::Uuid::new_v4().to_string();
     let (diff_json_str, prev_case_id_val) = match state.store.find_previous_case(&patient_hash_val, &case_id) {

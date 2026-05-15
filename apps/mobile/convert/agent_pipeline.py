@@ -1114,7 +1114,7 @@ def main() -> None:
     # Longitudinal-diff state. `prior_bundle` is the previous case's Bundle
     # (None for the first case); `prior_case_id` is its id. The manifest
     # accumulates rows that `score_fhir.py --diff-csv` can later consume to
-    # emit the EZeCR flat CSV across the whole series.
+    # emit the ClinIQ flat CSV across the whole series.
     prior_bundle_for_diff: dict | None = None
     prior_case_id_for_diff: str | None = None
     longitudinal_manifest: list[dict] = []

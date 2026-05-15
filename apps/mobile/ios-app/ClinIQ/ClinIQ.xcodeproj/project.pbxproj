@@ -20,7 +20,6 @@
 		C12C12C112C12C0012C12C03 /* llama.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C12C12C112C12C0012C12C04 /* llama.xcframework */; };
 		C12C12C112C12C0012C12C05 /* llama.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C12C12C112C12C0012C12C04 /* llama.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C15C15C115C15C0015C15C01 /* LiteRtLmInferenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15C15C115C15C0015C15C02 /* LiteRtLmInferenceEngine.swift */; };
-		C15C15C115C15C0015C15C03 /* LiteRtLm in Frameworks */ = {isa = PBXBuildFile; productRef = C15C15C115C15C0015C15C04 /* LiteRtLm */; };
 		D13C130100000101D13C1301 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130100000102D13C1301 /* Models.swift */; };
 		D13C130200000101D13C1302 /* PersistenceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130200000102D13C1302 /* PersistenceController.swift */; };
 		D13C130300000101D13C1303 /* DemoSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C130300000102D13C1303 /* DemoSeed.swift */; };
@@ -77,7 +76,6 @@
 		E14C141F00000102E14C141F /* InferenceStatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceStatusBar.swift; sourceTree = "<group>"; };
 		C12C12C112C12C0012C12C04 /* llama.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = llama.xcframework; path = Frameworks/llama.xcframework; sourceTree = SOURCE_ROOT; };
 		C15C15C115C15C0015C15C02 /* LiteRtLmInferenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteRtLmInferenceEngine.swift; sourceTree = "<group>"; };
-		C15C15C115C15C0015C15C05 /* LiteRtLm (local) */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = "litertlm-swift"; path = ../../litertlm-swift; sourceTree = "<group>"; };
 		D13C130100000102D13C1301 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		D13C130200000102D13C1302 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
 		D13C130300000102D13C1303 /* DemoSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoSeed.swift; sourceTree = "<group>"; };
@@ -125,7 +123,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				C12C12C112C12C0012C12C03 /* llama.xcframework in Frameworks */,
-				C15C15C115C15C0015C15C03 /* LiteRtLm in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -359,7 +356,6 @@
 			);
 			name = ClinIQ;
 			packageProductDependencies = (
-				C15C15C115C15C0015C15C04 /* LiteRtLm */,
 			);
 			productName = ClinIQ;
 			productReference = F667F7CDEB334C2C89C7B1FD /* ClinIQ.app */;
@@ -391,7 +387,6 @@
 			mainGroup = 5DE1E457F30D4226AFEDCD99;
 			productRefGroup = B27A92E78F0744BAAC53CED4 /* Products */;
 			packageReferences = (
-				C15C15C115C15C0015C15C06 /* XCLocalSwiftPackageReference "../../litertlm-swift" */,
 			);
 			projectDirPath = "";
 			projectRoot = "";
@@ -400,20 +395,6 @@
 			);
 		};
 /* End PBXProject section */
-
-/* Begin XCLocalSwiftPackageReference section */
-		C15C15C115C15C0015C15C06 /* XCLocalSwiftPackageReference "../../litertlm-swift" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../../litertlm-swift;
-		};
-/* End XCLocalSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		C15C15C115C15C0015C15C04 /* LiteRtLm */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = LiteRtLm;
-		};
-/* End XCSwiftPackageProductDependency section */
 
 /* Begin PBXResourcesBuildPhase section */
 		2756ECEDB44142BB8D10FF1F /* Resources */ = {

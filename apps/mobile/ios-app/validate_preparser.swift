@@ -54,6 +54,7 @@ struct ParsedExtraction {
     var labs: [ParsedLab] = []
     var medications: [ParsedMedication] = []
     var vitals: ParsedVitals?
+    var matches: [CodeProvenance] = []
     var raw: String = ""
 }
 

@@ -47,13 +47,15 @@ to show a prefilled narrative if typing would be slow on camera.)
 
 ## 0:20 — Run AI extraction
 
-> "She taps Review with AI. Gemma 4 runs entirely on the phone. No data
-> leaves the device. A live tokens-per-second counter shows inference
-> progressing — on a real iPhone this is under ten seconds."
+> "She taps Review with AI. When the GGUF model is present, Gemma 4 runs
+> entirely on the phone. If the model is missing, ClinIQ labels the
+> deterministic fallback instead of pretending the model ran. No data leaves
+> the device."
 
 (Tap **Review with AI**. For the demo, the running state shows the
-streaming tok/s readout; the sample cases run through the deterministic
-fallback so the review view appears promptly.)
+streaming tok/s readout when a model is present. If recording on simulator
+without the GGUF, point at Settings → About → Fallback so the viewer sees
+the rule-based path is intentional.)
 
 ## 0:30 — Review and curate
 
@@ -82,14 +84,14 @@ pending count.)
 > prior eCRs and shows what's new — Dengue confirmed (unchanged), but a
 > new chest X-ray finding and a positive vital. The epidemiologist sees
 > one row of new findings instead of re-reading both eCRs. That's
-> EZeCR's longitudinal CSV vision running offline on her phone."
+> ClinIQ's longitudinal diff running offline on her phone."
 
 (Open the **Patient timeline** for Maria Santos: three eCRs across ten
 days, each row with green/red/gray chips for added / resolved /
 unchanged findings vs the prior visit. Tap the most recent row → the
 **AI Review** sheet now shows a teal "what's new" banner at the top.
 Tap the banner to expand the added / resolved / carried-forward
-sections.)
+sections. Tap **Copy ClinIQ diff JSON** to show the flat export.)
 
 ## 1:00 — Network returns, auto-sync
 
@@ -111,9 +113,10 @@ audit record.)
 - Clinician sees clinical names; audit codes stay visible but muted.
 - Every submission is logged with endpoint + response for audit.
 - The clinician's phone IS the longitudinal source of truth for the
-  patients they've seen. CDC EZeCR's MVP "flat CSV diff between case
-  versions for the same patient" — running on-device, no Verato, exact
-  identity-hash match only.
+  patients they've seen. ClinIQ's flat diff between case versions for the
+  same patient runs on-device, no Verato, exact identity-hash match only.
+- Arizona Demo PHA rules tag each reviewed entity as reportable, needs
+  review, or not included before queueing/export.
 - The sync endpoint is configurable (`SyncConfig.swift`). Real public
   health interop (mTLS, jurisdiction routing) is explicitly out of scope
   for this PoC — documented, not wired.

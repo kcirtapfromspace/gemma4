@@ -249,7 +249,10 @@ Supported: `CLINIQ_TAB`, `CLINIQ_OPEN_NEW_CASE`, `CLINIQ_OPEN_REVIEW`, `CLINIQ_O
 | SwiftData persistence (encrypted at rest) | ✅ | — | — |
 | Offline detection via NWPathMonitor | ✅ | overridable via Settings toggle | — |
 | Sync to public health endpoint | — | — | ✅ HTTP POST to `SyncConfig.endpoint` (default `http://localhost:8080/reports`); success/fail toggleable |
-| FHIR R4 transaction bundle formatting | — | ✅ sketched in `SyncConfig.swift` | — |
+| FHIR R4 Bundle payload | ✅ Patient + Condition + Observation + MedicationStatement Bundle built on-device | — | — |
+| FHIR transaction / MessageHeader integration | — | ✅ documented production path | — |
+| Jurisdiction demo rules | ✅ UserDefaults-backed Arizona Demo PHA profile tags rows as reportable / needs review / not included | — | — |
+| ClinIQ flat diff export | ✅ copyable JSON from the "what's new" banner | — | — |
 | mTLS / jurisdiction routing | — | ✅ documented | — |
 | SNOMED autocomplete | ✅ ships w/ 100-condition slim subset | — | — |
 | LOINC / RxNorm autocomplete | — | ✅ edit sheet allows free text | — |
@@ -262,21 +265,23 @@ Supported: `CLINIQ_TAB`, `CLINIQ_OPEN_NEW_CASE`, `CLINIQ_OPEN_REVIEW`, `CLINIQ_O
 | Inference path | tok/s | 200-token extraction |
 |---|---|---|
 | Simulator CPU (measured by C12, C13 independently) | **1.0–4.4** (median 4.0 warm, cold 1.3) | 45s–200s |
-| iPhone 17 Pro CPU (projected, llama.cpp Metal off) | 5–8 | 25–40s |
-| iPhone 17 Pro Metal (projected, llama.cpp Metal on) | **10–20** | **10–20s** |
-| iPhone 17 Pro Metal via LiteRT-LM Swift (C11 package, not wired yet) | **52–56** | **~4s** |
+| Physical iPhone llama.cpp CPU/Metal | **pending required measurement** | pending |
+| LiteRT-LM Swift path | not wired into the canonical demo | not claimed |
 
-For a live demo on a physical iPhone, expect 10-20s per extraction. For the simulator during recording, lean on the seeded pre-extracted cases — the `Review with AI` flow is shown with the stub fallback so the screen renders promptly.
+Do not claim measured physical-iPhone throughput until the evidence ledger
+has cold load, warm extraction, tok/s, and Metal success/failure recorded.
+For simulator recording, use seeded pre-extracted cases or explicitly point
+to Settings → About → Fallback when the rule-based path is active.
 
 ---
 
 ## 9. Known limitations
 
-1. **Simulator inference is slow.** 1-4 tok/s CPU. Seeded cases ship pre-extracted for that reason. Real iPhone is 10x-50x faster.
-2. **Metal on device is unvalidated** for Gemma 4's sliding-window attention kernels. If the graph fails to compile, the Review flow hangs at "Extracting...". Mitigation: Settings → Force CPU.
+1. **Simulator inference is slow.** 1-4 tok/s CPU. Seeded cases ship pre-extracted for that reason.
+2. **Physical iPhone Metal is a required final gate, not a current claim.** If the graph fails to compile, the Review flow may hang at "Extracting...". Mitigation: Settings → Force CPU and record the failure in `tools/autoresearch/evidence-ledger.md`.
 3. **SNOMED autocomplete is a slim 100-condition subset.** Real deployment needs full SNOMED CT US Edition behind a licensed terminology service.
 4. **LoRA v1 quality gaps** documented by Team C8: `bench_minimal` (syphilis) scored 0/3 and `bench_typical_covid` scored 1/3 on the LiteRT-LM validator. The llama.cpp path (C12) recovers some of these but not all. LoRA v2 retrain (Kaggle, in flight) targets the two specific failure modes.
-5. **No real public-health-system integration.** Sync is a mock HTTP POST. Production would need FHIR R4 MessageHeader + Bundle, mTLS with jurisdiction-specific CAs, and resilient retry with exponential backoff — all documented in `SyncConfig.swift` but not wired.
+5. **No real public-health-system integration.** Sync is a mock/optional HTTP POST of the FHIR Bundle payload. Production would need FHIR R4 MessageHeader/transaction semantics, mTLS with jurisdiction-specific CAs, and resilient retry with exponential backoff — documented, not wired.
 6. **No authentication.** The clinician opens the app; no login. Production would add either FaceID gate or an OAuth flow to the state surveillance system.
 
 ---
@@ -288,7 +293,7 @@ For a live demo on a physical iPhone, expect 10-20s per extraction. For the simu
 | Wait for Kaggle v2 LoRA to finish; re-merge → re-validate | ~2 hrs human wait + 30 min rebuild | Higher per-case extraction scores |
 | Sideload to a physical iPhone with free Apple ID | ~30 min per `BUILD.md` § Sideload | Real Metal tok/s measurement |
 | Add FaceID gate on app launch | ~2 hrs | Clinical-grade auth story |
-| Swap from llama.cpp to C11's LiteRT-LM Swift package | ~1-2 days | 5x faster inference (~56 tok/s) |
+| Swap from llama.cpp to LiteRT-LM Swift package | ~1-2 days | Faster inference path, requires fresh quality validation |
 | Wire real FHIR R4 transaction bundle to a jurisdiction endpoint | 3-5 days + jurisdictional sign-off | Production-grade submission |
 | Build full SNOMED CT US Edition autocomplete | 1-2 days (need license or MIT-licensed mirror) | Clinical-grade terminology coverage |
 | Add an eICR XML upload path (paste CDA/XML, extract) | 1 day | Handles the "forwarded from an EHR" case |

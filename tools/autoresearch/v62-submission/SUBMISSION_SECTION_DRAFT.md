@@ -39,8 +39,10 @@ not in this submission.
 The fine-tune isn't redundant with the agent path — it solves a *different*
 problem. The agent hits F1=1.000 in 5–35s using a verified RAG database +
 multi-turn lookup. The fine-tune does single-shot extraction in ~4.1s
-without RAG, at F1=0.895 with grammar. For demo, that's ~5× faster than
-the agent on the same hardware. For LMIC clinic deployment, the fine-tune's
+without RAG, at shipped F1=0.823 and 0.979 precision; the JSON-valid subset
+is F1=0.895, while the measured grammar path regressed to F1=0.780. For
+demo, v62 is still the fast single-shot path on known-format inputs. For
+LMIC clinic deployment, the fine-tune's
 smaller footprint (no embedded ~60-entry RAG db) matters.
 
 **What Unsloth specifically did:**

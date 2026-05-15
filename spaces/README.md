@@ -11,7 +11,7 @@ pinned: false
 license: apache-2.0
 hardware: zero-a10g
 suggested_hardware: zero-a10g
-short_description: eICR → FHIR R4 via Gemma 4 on ZeroGPU
+short_description: eICR → FHIR R4 via Gemma 4 with explicit demo status
 ---
 
 # ClinIQ — eICR to FHIR (Gemma 4)
@@ -30,10 +30,10 @@ app, exposed behind Gradio so judges can try it without Xcode.
 | 3. Gemma 4 agent | Native function calling — agent invokes tiers (1) and (2) as tools, validates its own output, bounded at 6 turns | ~5–15 s | Yes |
 
 Most cases land on tier 1 or 2 and never invoke a model. The agent tier
-runs **Gemma 4 E2B-it (bf16) in-process on the Space's ZeroGPU H200**
-via the `transformers` backend in `zerogpu_engine.py` — the model is
-loaded on `cuda` at module level and each agent call is wrapped in
-`@spaces.GPU(duration=120)`. Each turn parses Gemma's native
+runs **Gemma 4 E2B-it** through the configured Space backend when the model
+is available. `zerogpu_engine.py` detects ZeroGPU, ordinary CUDA, and CPU;
+if the model cannot load, the UI shows an explicit agent-error state while
+deterministic and RAG tiers continue to work. Each turn parses Gemma's native
 `<|tool_call>...<tool_call|>` sentinels into OpenAI-format `tool_calls`
 so `agent_pipeline.run_agent` works unchanged.
 
@@ -51,17 +51,20 @@ a binary **✓ R4-valid** signal next to each extraction.
 | Valley fever | 2 | RAG matches an alt-name (`valley fever` → coccidioidomycosis) |
 | Marburg outbreak | 2 | RAG over a low-frequency disease |
 | C. diff colitis | 2 | RAG over a colloquial abbreviation |
+| Hard narrative | 3 / fallback | Deterministic + RAG miss; invokes Gemma agent when backend is available, otherwise shows a clear unavailable/error state |
 | Negated lab | (no match) | Precision check — NegEx prevents `NOT detected` from emitting codes |
 
 ## Local run
 
 ```bash
 python -m pip install -r spaces/requirements.txt
-python spaces/app.py
+CLINIQ_DISABLE_AGENT_MODEL=1 python spaces/app.py
 ```
 
 `app.py` finds `apps/mobile/convert/` automatically when run from the repo
-root.
+root. The environment flag skips the multi-GB model download for local
+screenshots; deterministic/RAG paths still run and the hard narrative sample
+shows the explicit agent-unavailable state.
 
 ## Deploying to Hugging Face Spaces
 
@@ -79,34 +82,27 @@ git add . && git commit -m "Initial commit" && git push origin main
 The `app.py` import logic detects the flat layout and pulls modules from
 `./convert/` — no code change needed between local and HF.
 
-## Live agent loop on Spaces (optional)
+## Live agent loop on Spaces
 
-Two ways to demo tier 3 from a deployed Space:
-
-- **Bring your own endpoint:** point `llama-server` at the Gemma 4 E2B
-  Q3_K_M GGUF (anywhere reachable — HF Inference Endpoint, your own GPU
-  box, an ngrok tunnel) and paste the URL into the Advanced panel.
-- **GPU-tier Space:** upgrade the Space hardware and add a startup script
-  that spawns `llama-server` in the background. Not included here — see
-  `apps/mobile/convert/REGEN.md` for the GGUF artifact.
-
-For the deterministic + fast-path tiers, no setup is needed.
+Tier 3 is enabled by default, but it depends on the deployed Space hardware
+and model download. If Gemma is unavailable, the status badge reports the
+agent error instead of silently pretending the model ran. For the
+deterministic + fast-path tiers, no model hardware is needed.
 
 ## Bench numbers
 
-Same Python pipeline, no demo-specific tuning. Source: `tools/autoresearch/results.tsv`
-+ `tools/autoresearch/c20-llm-tuning-2026-04-25.md`.
+Same Python pipeline, no demo-specific tuning. Canonical source:
+`tools/autoresearch/evidence-ledger.md`.
 
 | Bench | F1 | Recall | Precision | Notes |
 |-------|----|---------|-----------|-------|
-| Combined-27 + adv4 + adv5 (45 cases) | **1.000** | **1.000** | **1.000** | **45/45 perfect**, 0 FP — clean baseline post Cand D + lookup expansion + NegEx fixes |
-| Combined-54 (+ adv6 stress) | **0.983** | 0.993 | 0.973 | 50/54 perfect, 4 FPs surfaced by adversarial-6 stress cases (long-form, code-injection bait, syndrome name not in curated DB, polypharmacy fast-path edge); deferred for next sprint |
-| Combined-27 alone (agent path × 3 seeds, 81 runs) | 1.000 | 1.000 | 1.000 | 81/81 perfect, 0 parse errors (Rank 4 grammar stability) |
-| FHIR R4 validity (combined-54, `fhir.resources.R4B`) | — | — | — | **54/54** Bundles parse via pydantic structural validator |
-| FHIR R4 validity (combined-54, HL7 `validator_cli.jar` 6.9.7) | — | — | — | **30/54** pass canonical validator. 24 fails are all "Unknown code" terminology-snapshot mismatches (LOINC ≥2.83, RxNorm post-03/2026, SNOMED post-20250201) — 0 structural / cardinality / invariant errors. |
-| Adversarial-4 (deterministic + lookup) | 1.000 | 1.000 | 1.000 | 8/8 perfect after curated H5N1 / strep LOINC aliases |
-| Combined-11 (Jetson Orin NX 8GB, k8s) | **1.000** | **1.000** | **1.000** | **11/11 perfect, 11/11 R4-valid** end-to-end on a Talos-hosted llama-server pod (same base Gemma 4 E2B GGUF, same Python pipeline). Endpoint decodes at **~0.97 tok/s** — agent tier needs `--ctx-size > 2048` to fit multi-turn loops; deterministic + fast-path tiers (~70% of combined-54) run identically to Mac. See [`tools/autoresearch/jetson-bench-2026-04-26.md`](../tools/autoresearch/jetson-bench-2026-04-26.md). |
-| External CDA (HL7 STU 1.1 / 1.3.0 / 3.1.1, agent path with chunker) | **0.993** | 0.989 | 0.997 | **5/7 perfect, 356/360 matched** on the chunked Gemma 4 agent path. 7 HL7 reference CDA samples (50–200KB each, 25–60K tokens) split on `</section>` / `</component>` boundaries (~14KB / 4000 tok per chunk) and merged. Pre-chunker the agent path 400'd on all 7 (Gemma 4 E2B per-slot context = 8K). The 2 misses are 1–3 codes each on the largest pertussis CDAs; deterministic-only stays at F1=1.000. See `tools/autoresearch/c20-llm-tuning-2026-04-25.md` § "Long-context CDA chunking". |
+| Combined-64 default | **0.997** | **1.000** | 0.994 | Current public headline for the adversarial suite |
+| Combined-45 / combined-54 sustained loops | **1.000** | **1.000** | **1.000** | Reproducibility claim from the c20/c21 ledgers |
+| Agent grammar stability | — | — | — | 0 parse errors over 81 combined-27 agent-path runs |
+| FHIR R4 validity | — | — | — | Structural Bundle validation via `fhir.resources.R4B`; HL7 Java validator structure pass, terminology-snapshot warnings possible |
+| External CDC/HL7 eICR vectors | **1.000** | **1.000** | **1.000** | Deterministic CDA path recovered 360/360 authored codes on 7/7 vectors |
+| Jetson Orin NX 8GB | **1.000** | **1.000** | **1.000** | 11/11 edge smoke; agent decode about 0.97 tok/s, too slow for live demo |
+| Unsloth v62 LoRA | **0.823** | 0.710 | **0.979** | JSON validity 86%; JSON-valid subset F1 0.895; GBNF grammar regressed to 0.780 |
 
 ### External validation
 
@@ -122,13 +118,11 @@ The submission passes two independent external credibility checks:
    with every FHIR extractor that targets newer codesets.
 
 2. **HL7 CDA eICR sample test vectors.** The pipeline's deterministic CDA
-   preparser is benched against 7 of HL7's 10 official CDA eICR sample
-   XMLs (across STU 1.1, 1.3.0, and the latest 3.1.1 from Oct 2024 — see
-   `https://github.com/HL7/CDA-phcaserpt`). Result: **F1 = 0.994 with
-   recall = 1.000** — every code authored in every sample (360 codes
-   spanning SNOMED + LOINC + RxNorm) is recovered. 4 FPs from a known
-   cross-axis lookup-tier issue (LOINC display containing a curated
-   alt_name); flagged for follow-up.
+   preparser is benched against 7 of HL7's official CDA eICR sample XMLs
+   (across STU 1.1, 1.3.0, and 3.1.1 — see
+   `https://github.com/HL7/CDA-phcaserpt`). Current public claim:
+   **7/7 vectors, 360/360 authored codes recovered**. Use the evidence
+   ledger as the canonical source before changing this number.
 
 Reproducibility:
 
@@ -156,7 +150,8 @@ Drop it at `/tmp/fhir-validator/validator_cli.jar` (or set
 
 ## Screenshots
 
-Captured against the local Gradio app (Python pipeline, no LLM endpoint):
+Captured against the local Gradio app (Python pipeline; agent path depends
+on configured model hardware):
 
 | State | Image |
 |-------|-------|

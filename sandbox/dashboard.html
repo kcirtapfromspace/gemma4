@@ -489,7 +489,7 @@
     {name: 'agent_pipeline.py', status: 'complete', cat: 'pipeline', desc: 'Tier-3 Gemma 4 agent orchestration: native function calling, 6-turn cap, GBNF tool-call grammar lock, Cand D short-circuit gate.', file: 'apps/mobile/convert/agent_pipeline.py', tags: ['1234 LoC', 'GBNF']},
     {name: 'fhir_bundle.py', status: 'complete', cat: 'pipeline', desc: 'Assembles extracted entities into FHIR R4 Bundle with Patient + Condition + Observation + MedicationStatement resources.', file: 'apps/mobile/convert/fhir_bundle.py', tags: ['351 LoC', 'FHIR R4']},
     {name: 'score_fhir.py', status: 'complete', cat: 'pipeline', desc: 'Bench scorer + HL7 Java validator integration. Code-level F1 + structural validation.', file: 'apps/mobile/convert/score_fhir.py', tags: ['653 LoC']},
-    {name: 'case_diff.py', status: 'complete', cat: 'pipeline', desc: 'Longitudinal diff engine for EZeCR-style "what changed since last eCR" CSV. Matches Swift CaseDiff exactly.', file: 'apps/mobile/convert/case_diff.py', tags: ['~500 LoC', 'NEW']},
+    {name: 'case_diff.py', status: 'complete', cat: 'pipeline', desc: 'Longitudinal diff engine for ClinIQ "what changed since last eCR" CSV. Matches Swift CaseDiff exactly.', file: 'apps/mobile/convert/case_diff.py', tags: ['~500 LoC', 'NEW']},
     {name: 'bench_v62_singleshot.py', status: 'complete', cat: 'pipeline', desc: 'Single-shot v62 Unsloth fine-tune bench against val-compact.jsonl + base comparison.', file: 'apps/mobile/convert/bench_v62_singleshot.py', tags: ['NEW']},
     {name: 'GBNF grammars', status: 'complete', cat: 'pipeline', desc: 'cliniq_extraction.gbnf + cliniq_toolcall.gbnf + cliniq_v62_compact.gbnf — JSON output + tool-call format constraints.', file: 'apps/mobile/convert/*.gbnf', tags: ['3 grammars']},
     {name: 'lookup_table.json', status: 'complete', cat: 'pipeline', desc: 'Curated SNOMED/LOINC/RxNorm aliases + NegEx triggers. 73 entries.', file: 'apps/mobile/convert/lookup_table.json', tags: ['73 entries']},
@@ -632,7 +632,7 @@
       {kind: 'primary', name: 'iOS app', meta: 'on-device, offline'},
       {kind: 'primary', name: 'HF Spaces', meta: 'ZeroGPU H200, hosted demo'},
       {kind: 'primary', name: 'Jetson Orin NX', meta: '3-node Talos cluster'},
-      {kind: 'output', name: 'CDC EZeCR ref arch', meta: 'edge tier of cloud pipeline'}
+      {kind: 'output', name: 'ClinIQ ref arch', meta: 'edge tier of cloud pipeline'}
     ]}
   ];
 
@@ -656,7 +656,7 @@
         {icon: '🔬', name: 'Extract current', actor: 'three-tier pipeline', desc: 'New eICR → FHIR Bundle, same as standalone flow'},
         {icon: '⚖', name: 'Diff', actor: 'CaseDiff', desc: 'added / removed / unchanged per axis (cond/lab/med/vital)'},
         {icon: '✨', name: 'Surface', actor: 'WhatsNewBanner', desc: '"X new findings since last eCR (N days ago)" + chip strip on timeline'},
-        {icon: '📊', name: 'Export', actor: 'case_diff CSV', desc: 'EZeCR-style flat CSV for downstream surveillance integration'}
+        {icon: '📊', name: 'Export', actor: 'case_diff CSV', desc: 'ClinIQ flat CSV for downstream surveillance integration'}
       ]
     },
     {
@@ -680,7 +680,7 @@
     {date: '2026-04-26', state: 'done', title: 'Jetson edge bench + adv7 stress', desc: 'F1 = 1.000 on Orin NX cluster, bench grew 27 → 64 cases'},
     {date: '2026-04-27', state: 'done', title: 'HF Spaces hosted demo live', desc: 'ZeroGPU H200 backend, judge-friendly URL'},
     {date: '2026-04-27', state: 'done', title: '80-rep sustained reproducibility', desc: '50 / 50 reps at F1 = 1.000 + 30 reps on combined-64'},
-    {date: '2026-04-28', state: 'done', title: 'Longitudinal "what\'s new" view', desc: 'Python + Swift mirrored. EZeCR vision at the edge.'},
+    {date: '2026-04-28', state: 'done', title: 'Longitudinal "what\'s new" view', desc: 'Python + Swift mirrored. ClinIQ vision at the edge.'},
     {date: '2026-04-28', state: 'done', title: 'v62 single-shot bench complete', desc: 'F1 = 0.823, P = 0.979, +0.486 vs base, MARGINAL/SHIP-worthy'},
     {date: '2026-04-30', state: 'now', title: 'TODAY — README + screencast + Kaggle notebook', desc: 'Three pieces shipped: README.md, sim screencast, public_notebook.ipynb + push runbooks'},
     {date: '2026-05-02', state: 'future', title: 'User: rotate BLOG_REPO_TOKEN', desc: 'unblocks experiment article publishing chain'},
