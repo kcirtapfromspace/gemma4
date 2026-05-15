@@ -54,7 +54,7 @@ final class InferenceMetrics: ObservableObject {
         case .idle:
             return "Ready · \(backend)"
         case .loading, .prefilling, .finalizing:
-            return phase.rawValue
+            return String(format: "%@ · %.1f s", phase.rawValue, elapsedSeconds)
         case .decoding:
             return String(format: "%@ · %.1f tok/s · %d tok",
                           phase.rawValue, instantTokensPerSecond, outputTokens)
@@ -74,10 +74,13 @@ final class InferenceMetrics: ObservableObject {
 
     private var runStart: Date?
     private var lastChunkAt: Date?
+    private var lastHostStatsAt: Date?
+    private var heartbeatTask: Task<Void, Never>?
     private var recentWindow: [(at: Date, tokens: Int)] = []
 
     /// Called by `ExtractionService` right before calling `engine.generate(...)`.
     func begin(backend: String, model: String, promptChars: Int, maxTokens: Int) {
+        stopHeartbeat()
         self.phase = .prefilling
         self.backend = backend
         self.modelName = model
@@ -96,8 +99,10 @@ final class InferenceMetrics: ObservableObject {
         self.lastError = nil
         self.runStart = Date()
         self.lastChunkAt = nil
+        self.lastHostStatsAt = nil
         self.recentWindow.removeAll(keepingCapacity: true)
         self.sampleHostStats()
+        self.startHeartbeat()
     }
 
     /// Called for every streamed chunk. `chunkTokens` is the token count in
@@ -132,6 +137,7 @@ final class InferenceMetrics: ObservableObject {
 
         lastChunkAt = now
         sampleHostStats()
+        lastHostStatsAt = now
     }
 
     func finalize() {
@@ -151,6 +157,37 @@ final class InferenceMetrics: ObservableObject {
         }
         if let runStart {
             elapsedSeconds = Date().timeIntervalSince(runStart)
+        }
+        stopHeartbeat()
+    }
+
+    private func startHeartbeat() {
+        heartbeatTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: 500_000_000)
+                } catch {
+                    break
+                }
+                await MainActor.run {
+                    self?.tickActiveRun()
+                }
+            }
+        }
+    }
+
+    private func stopHeartbeat() {
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
+    }
+
+    private func tickActiveRun() {
+        guard isActive, let runStart else { return }
+        let now = Date()
+        elapsedSeconds = now.timeIntervalSince(runStart)
+        if lastHostStatsAt == nil || now.timeIntervalSince(lastHostStatsAt ?? now) >= 2.0 {
+            sampleHostStats()
+            lastHostStatsAt = now
         }
     }
 

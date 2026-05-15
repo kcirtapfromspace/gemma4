@@ -15,13 +15,18 @@ struct SettingsTab: View {
     @AppStorage(JurisdictionProfile.requireReviewKey) private var requireReview: Bool = true
     @AppStorage(JurisdictionProfile.includeOnlyAddedKey) private var includeOnlyAddedFindings: Bool = false
     @AppStorage(InferenceBackend.appStorageKey) private var backendRaw: String = InferenceBackend.default.rawValue
+    @AppStorage(LLMReviewMode.appStorageKey) private var llmReviewModeRaw: String = LLMReviewMode.default.rawValue
     // Bridge to the shared ExtractionService so flipping the backend
     // picker invalidates the cached engine on the next extract call.
     @EnvironmentObject private var extractionService: ExtractionService
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: [SortDescriptor(\ClinicalCase.createdAt, order: .reverse)])
+    private var allCases: [ClinicalCase]
 
     @State private var showResetConfirm = false
     @State private var lastResetAt: Date? = nil
+    @State private var performanceExportURL: URL?
+    @State private var performanceExportError: String?
 
     var body: some View {
         NavigationStack {
@@ -40,10 +45,16 @@ struct SettingsTab: View {
                         Text(extractionService.activeBackendLabel)
                             .foregroundStyle(.secondary)
                     }
+                    Picker("LLM usage", selection: $llmReviewModeRaw) {
+                        ForEach(LLMReviewMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 } header: {
                     Text("Inference backend")
                 } footer: {
-                    Text("llama.cpp runs our fine-tuned Gemma 4 via the vendored GGUF. LiteRT-LM runs the stock base model from Google. Switching reloads the model on the next extraction (takes a few seconds on first use).")
+                    Text("llama.cpp runs Gemma 4 via the vendored GGUF. Always audit forces a model-backed review even when deterministic extraction finds codes, so physical-device benchmarks prove real LLM invocation. Auto shortcuts preserves the faster deterministic/RAG path.")
                 }
 
                 // Demo controls live near the top of Settings so the
@@ -66,6 +77,35 @@ struct SettingsTab: View {
                     Text("Demo")
                 } footer: {
                     Text("Wipes every case and re-seeds the four demo patients (Maria, Daniel, Michael, Aisha). Use between demo handoffs so the next reviewer sees the same starting state.")
+                }
+
+                Section {
+                    Button {
+                        preparePerformanceExport()
+                    } label: {
+                        Label("Prepare benchmark JSON", systemImage: "doc.badge.gearshape")
+                    }
+                    if let url = performanceExportURL {
+                        ShareLink(item: url) {
+                            Label("Share latest JSON", systemImage: "square.and.arrow.up")
+                        }
+                        LabeledContent("Latest file") {
+                            Text(url.lastPathComponent)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                    if let error = performanceExportError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(Color(red: 0.66, green: 0.15, blue: 0.12))
+                    }
+                } header: {
+                    Text("Performance export")
+                } footer: {
+                    Text("Writes a PHI-light JSON artifact for physical-device benchmarking: app/build metadata, device profile, live model metrics, per-case latency, tokens/sec, extracted codes, and sync attempts. Narratives are hashed, not exported.")
                 }
 
                 Section("Connectivity") {
@@ -202,5 +242,17 @@ struct SettingsTab: View {
                     : values.sorted().joined(separator: ",")
             }
         )
+    }
+
+    private func preparePerformanceExport() {
+        do {
+            performanceExportURL = try PerformanceExportBuilder.write(
+                cases: allCases,
+                activeBackendLabel: extractionService.activeBackendLabel
+            )
+            performanceExportError = nil
+        } catch {
+            performanceExportError = "Export failed: \(error.localizedDescription)"
+        }
     }
 }

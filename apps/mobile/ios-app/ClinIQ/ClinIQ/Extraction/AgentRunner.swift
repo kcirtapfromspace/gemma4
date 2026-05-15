@@ -46,6 +46,14 @@ struct AgentTrace {
     /// post-response turns). Recorded in the trace so the bench harness
     /// can correlate failure counts with grammar mode.
     var grammarEngaged: Bool = false
+
+    var outputTokens: Int {
+        turns.reduce(0) { $0 + $1.outputTokens }
+    }
+
+    var elapsedSeconds: Double {
+        turns.reduce(0) { $0 + $1.elapsedSeconds }
+    }
 }
 
 struct AgentTurn {
@@ -53,6 +61,7 @@ struct AgentTurn {
     let rawOutput: String
     let toolCalls: [GemmaToolCall]
     let elapsedSeconds: Double
+    let outputTokens: Int
     /// True when the grammar was applied to this specific turn (not just
     /// the run as a whole). Useful for debug overlays and the bench TSV.
     var grammarConstrained: Bool = false
@@ -220,7 +229,18 @@ final class AgentRunner {
         return ToolCallGrammarResource.gbnf
     }
 
-    static let defaultSystemPrompt: String = """
+    /// UI telemetry helper. The app status panel should show the rendered
+    /// agent prompt size, not just the raw narrative size, because the tool
+    /// declarations dominate prefill cost.
+    nonisolated static func initialPromptCharacterCount(narrative: String) -> Int {
+        GemmaToolTemplate.renderInitial(
+            system: defaultSystemPrompt,
+            tools: AgentTools.defaults(),
+            user: narrative
+        ).count
+    }
+
+    nonisolated static let defaultSystemPrompt: String = """
         You are a clinical NLP agent. Given an eICR narrative, produce a JSON \
         object with three keys: 'conditions' (SNOMED), 'loincs' (LOINC), and \
         'rxnorms' (RxNorm).
@@ -249,7 +269,10 @@ final class AgentRunner {
     ///     JSON answer — exactly the two legal continuations.
     /// On engines that don't support grammar (LiteRT-LM, stub) the grammar
     /// argument is accepted-and-ignored, so this method is backend-agnostic.
-    func run(narrative: String) async throws -> AgentTrace {
+    func run(
+        narrative: String,
+        onChunk: ((String, Int) -> Void)? = nil
+    ) async throws -> AgentTrace {
         var trace = AgentTrace()
         var prompt = GemmaToolTemplate.renderInitial(
             system: systemPrompt,
@@ -264,6 +287,7 @@ final class AgentRunner {
         for turnIndex in 0..<maxTurns {
             let turnStart = Date()
             var rawOutput = ""
+            var outputTokens = 0
             // Conditional grammar: pass it only when we know the prompt
             // ends with a tool response — turn 0 (user only) and after a
             // model-final turn (which we already early-return from) never
@@ -277,6 +301,9 @@ final class AgentRunner {
             )
             for try await chunk in stream {
                 rawOutput += chunk.text
+                let chunkTokens = max(1, chunk.tokenCount)
+                outputTokens += chunkTokens
+                onChunk?(chunk.text, chunkTokens)
             }
             let elapsed = Date().timeIntervalSince(turnStart)
             // Strict-mode parse when the grammar is on — the parser must
@@ -309,6 +336,7 @@ final class AgentRunner {
                 rawOutput: rawOutput,
                 toolCalls: calls,
                 elapsedSeconds: elapsed,
+                outputTokens: outputTokens,
                 grammarConstrained: activeGrammar != nil
             ))
 

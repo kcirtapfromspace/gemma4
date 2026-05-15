@@ -32,8 +32,9 @@ from urllib import error as urlerror
 from urllib import request as urlrequest
 
 
-# Top-level keys the prompt promises.
-SCHEMA_KEYS = {"patient", "encounter", "conditions", "labs", "meds", "vitals"}
+# Top-level keys the compact prompt/gold data promise. `encounter` exists in
+# the source narrative, but v62/v63 compact JSON does not train on it.
+SCHEMA_KEYS = {"patient", "conditions", "labs", "meds", "vitals"}
 
 # Code systems we score on. (system_label, key_in_record)
 CODE_SYSTEMS_LIST = [

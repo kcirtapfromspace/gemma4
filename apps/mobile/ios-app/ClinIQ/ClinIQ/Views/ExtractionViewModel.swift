@@ -30,6 +30,25 @@ enum InferenceBackend: String, CaseIterable, Identifiable {
     static let `default`: InferenceBackend = .llamacpp
 }
 
+/// Controls whether the review flow may use deterministic shortcuts or should
+/// force a model-backed audit pass for benchmark/demo runs.
+enum LLMReviewMode: String, CaseIterable, Identifiable {
+    case always = "always"
+    case auto = "auto"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .always: return "Always audit"
+        case .auto: return "Auto shortcuts"
+        }
+    }
+
+    static let appStorageKey = "ClinIQ.LLMReviewMode"
+    static let `default`: LLMReviewMode = .always
+}
+
 @MainActor
 final class ExtractionViewModel: ObservableObject {
     @Published var inputEicr: String = TestCase.bundled.first(where: { $0.caseId == "bench_typical_covid" })?.user ?? ""

@@ -530,9 +530,9 @@ def _bench_from_agent_results(
         scores = backend.validate_extractions_batch(
             [(r["case_id"], r["extraction"]) for r in eligible]
         )
-        score_by_case = {s.case_id: s for s in scores}
+        score_iter = iter(scores)
     else:
-        score_by_case = None  # type: ignore[assignment]
+        score_iter = None  # type: ignore[assignment]
 
     for idx, row in enumerate(rows, 1):
         cid = row["case_id"]
@@ -540,8 +540,9 @@ def _bench_from_agent_results(
             print(f"  SKIP {idx:3d}/{len(rows)} {cid} (no extraction — error row)")
             continue
         n_validated += 1
-        if score_by_case is not None:
-            score = score_by_case[cid]
+        if score_iter is not None:
+            score = next(score_iter)
+            score.case_id = cid
         else:
             score = backend.validate_extraction(row["extraction"])
             score.case_id = cid

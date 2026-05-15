@@ -11,6 +11,8 @@ import argparse
 import json
 import sys
 import time
+import urllib.request
+from urllib.parse import unquote, urlparse
 from pathlib import Path
 
 # Add the convert/ package to sys.path so the import line below works
@@ -21,6 +23,70 @@ CONVERT = ROOT / "apps" / "mobile" / "convert"
 sys.path.insert(0, str(CONVERT))
 
 from regex_preparser import extract as deterministic_extract  # type: ignore[import-not-found]
+
+
+OFFICIAL_SAMPLE_DIRS = {
+    "stu1_1": (
+        "https://api.github.com/repos/HL7/CDA-phcaserpt-1.1.1/"
+        "contents/examples/samples"
+    ),
+    "stu1_3": (
+        "https://api.github.com/repos/HL7/CDA-phcaserpt-1.3.0/"
+        "contents/examples/samples"
+    ),
+    "stu3_1": (
+        "https://api.github.com/repos/HL7/CDA-phcaserpt/"
+        "contents/CDA-phcaserpt-3.1.1/examples/samples"
+    ),
+}
+
+
+def load_cases(paths: list[str]) -> list[dict]:
+    cases: list[dict] = []
+    for path in paths:
+        for ln in Path(path).read_text().splitlines():
+            ln = ln.strip()
+            if ln:
+                cases.append(json.loads(ln))
+    return cases
+
+
+def audit_official_coverage(case_paths: list[str]) -> int:
+    """Compare local external metadata with the official HL7 eICR XML set."""
+    cases = load_cases(case_paths)
+    covered_names = {
+        Path(unquote(urlparse(str(case.get("source_url") or "")).path)).name
+        for case in cases
+    }
+    missing: list[tuple[str, str, str]] = []
+    covered = 0
+
+    print(f"Local external cases: {len(cases)}")
+    for label, api_url in OFFICIAL_SAMPLE_DIRS.items():
+        with urllib.request.urlopen(api_url, timeout=30) as resp:
+            items = json.load(resp)
+        for item in items:
+            name = item.get("name", "")
+            if not name.lower().endswith(".xml"):
+                continue
+            raw_url = str(item.get("download_url") or "")
+            present = name in covered_names
+            marker = "OK     " if present else "MISSING"
+            print(f"  {marker} {label:6s} {name}")
+            if present:
+                covered += 1
+            else:
+                missing.append((label, name, raw_url))
+
+    total = covered + len(missing)
+    print(f"\nOfficial HL7 eICR XML coverage: {covered}/{total}")
+    if missing:
+        print("\nNext external vectors to add:")
+        for label, name, raw_url in missing:
+            print(f"  - {label}: {name}")
+            print(f"    {raw_url}")
+        return 2
+    return 0
 
 
 def score_extraction(extraction: dict, expected: dict) -> dict:
@@ -48,17 +114,32 @@ def score_extraction(extraction: dict, expected: dict) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cases", nargs="+", required=True)
-    ap.add_argument("--out-json", required=True)
+    ap.add_argument("--out-json")
+    ap.add_argument(
+        "--audit-official-coverage",
+        action="store_true",
+        help=(
+            "List official HL7 CDA eICR XML samples from GitHub and report "
+            "which are not represented by the local --cases metadata."
+        ),
+    )
+    ap.add_argument(
+        "--fail-on-imperfect",
+        action="store_true",
+        help=(
+            "Exit non-zero when any case is not perfect or aggregate F1 is "
+            "below 1.0. Useful for CI gates and hardening runs."
+        ),
+    )
     args = ap.parse_args()
 
-    rows: list[dict] = []
-    cases: list[dict] = []
-    for path in args.cases:
-        for ln in Path(path).read_text().splitlines():
-            ln = ln.strip()
-            if ln:
-                cases.append(json.loads(ln))
+    if args.audit_official_coverage:
+        return audit_official_coverage(args.cases)
+    if not args.out_json:
+        ap.error("--out-json is required unless --audit-official-coverage is set")
 
+    rows: list[dict] = []
+    cases = load_cases(args.cases)
     print(f"Deterministic-only bench on {len(cases)} cases")
     total_matched = 0
     total_expected = 0
@@ -131,6 +212,8 @@ def main() -> int:
     Path(args.out_json).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out_json).write_text(json.dumps(rows, indent=2))
     print(f"Wrote {args.out_json}")
+    if args.fail_on_imperfect and (perfect != n or f1 < 1.0):
+        return 2
     return 0
 
 

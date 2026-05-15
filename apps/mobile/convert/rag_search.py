@@ -344,16 +344,16 @@ def fast_path_hit(
 
     Mirrors RagSearch.fastPathHit in Swift.
     """
-    hits = search(narrative, top_k=1, min_score=threshold)
+    hits = search(narrative, top_k=3, min_score=threshold)
     if not hits:
         return None
-    top = hits[0]
-    if top.score < threshold:
-        return None
-    span = first_asserted_span(narrative, top, is_negated=is_negated)
-    if span is None:
-        return None
-    return FastPathHit(hit=top, span=span)
+    for hit in hits:
+        if hit.score < threshold:
+            continue
+        span = first_asserted_span(narrative, hit, is_negated=is_negated)
+        if span is not None:
+            return FastPathHit(hit=hit, span=span)
+    return None
 
 
 def main() -> None:

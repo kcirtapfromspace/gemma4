@@ -4,10 +4,12 @@
 <dict>
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
-  <key>CFBundleDisplayName</key>
-  <string>ClinIQ</string>
-  <key>CFBundleExecutable</key>
-  <string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleDisplayName</key>
+	<string>ClinIQ</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
   <key>CFBundleIdentifier</key>
   <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
   <key>CFBundleInfoDictionaryVersion</key>
@@ -17,13 +19,13 @@
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.0</string>
+  <string>$(MARKETING_VERSION)</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>ClinIQ uses the microphone to capture clinician dictation locally on this device. Audio is transcribed on-device and never leaves the phone.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Speech recognition runs entirely on-device so dictated patient narratives stay private. ClinIQ uses it to convert your voice into the encounter narrative for FHIR extraction.</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>$(CURRENT_PROJECT_VERSION)</string>
   <key>LSRequiresIPhoneOS</key>
   <true/>
   <key>UILaunchScreen</key>

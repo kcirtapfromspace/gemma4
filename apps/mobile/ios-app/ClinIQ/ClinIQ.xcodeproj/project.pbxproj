@@ -54,11 +54,13 @@
 		D13C131800000101D13C1318 /* OutboxTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131800000102D13C1318 /* OutboxTab.swift */; };
 		D13C131900000101D13C1319 /* HistoryTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C131900000102D13C1319 /* HistoryTab.swift */; };
 		D13C132000000101D13C1320 /* SettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C132000000102D13C1320 /* SettingsTab.swift */; };
+		D13C160200000101D13C1602 /* PerformanceExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C160200000102D13C1602 /* PerformanceExport.swift */; };
 		D13C150100000101D13C1501 /* LocalPatient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C150100000102D13C1501 /* LocalPatient.swift */; };
 		D13C150200000101D13C1502 /* LongitudinalSeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C150200000102D13C1502 /* LongitudinalSeedData.swift */; };
 		D13C150300000101D13C1503 /* CaseDiff.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C150300000102D13C1503 /* CaseDiff.swift */; };
 		D13C150400000101D13C1504 /* PatientTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C150400000102D13C1504 /* PatientTimelineView.swift */; };
 		D13C150500000101D13C1505 /* WhatsNewBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13C150500000102D13C1505 /* WhatsNewBanner.swift */; };
+		D13C160100000101D13C1601 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D13C160100000102D13C1601 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -110,11 +112,13 @@
 		D13C131800000102D13C1318 /* OutboxTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutboxTab.swift; sourceTree = "<group>"; };
 		D13C131900000102D13C1319 /* HistoryTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryTab.swift; sourceTree = "<group>"; };
 		D13C132000000102D13C1320 /* SettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTab.swift; sourceTree = "<group>"; };
+		D13C160200000102D13C1602 /* PerformanceExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceExport.swift; sourceTree = "<group>"; };
 		D13C150100000102D13C1501 /* LocalPatient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPatient.swift; sourceTree = "<group>"; };
 		D13C150200000102D13C1502 /* LongitudinalSeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LongitudinalSeedData.swift; sourceTree = "<group>"; };
 		D13C150300000102D13C1503 /* CaseDiff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaseDiff.swift; sourceTree = "<group>"; };
 		D13C150400000102D13C1504 /* PatientTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatientTimelineView.swift; sourceTree = "<group>"; };
 		D13C150500000102D13C1505 /* WhatsNewBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewBanner.swift; sourceTree = "<group>"; };
+		D13C160100000102D13C1601 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -248,6 +252,7 @@
 			isa = PBXGroup;
 			children = (
 				D13C132000000102D13C1320 /* SettingsTab.swift */,
+				D13C160200000102D13C1602 /* PerformanceExport.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -317,6 +322,7 @@
 		495B853A87404AB69331FFAD /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				D13C160100000102D13C1601 /* Assets.xcassets */,
 				1E5D3AF2D1A64C08A99879D7 /* Info.plist */,
 			);
 			path = Resources;
@@ -348,6 +354,7 @@
 				0B0C61DD85974C74BBF529F8 /* Sources */,
 				89B9BFAD8EE14C5393A30E39 /* Frameworks */,
 				2756ECEDB44142BB8D10FF1F /* Resources */,
+				C30C30C130C30C0030C30C01 /* Copy GGUF Model */,
 				C12C12C112C12C0012C12C06 /* Embed Frameworks */,
 			);
 			buildRules = (
@@ -401,10 +408,35 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D13C160100000101D13C1601 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		C30C30C130C30C0030C30C01 /* Copy GGUF Model */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				/Users/thinkstudio/gemma4/models/gemma-4-E2B-it-Q3_K_M.gguf,
+			);
+			name = "Copy GGUF Model";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/gemma-4-E2B-it-Q3_K_M.gguf",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nMODEL=\"/Users/thinkstudio/gemma4/models/gemma-4-E2B-it-Q3_K_M.gguf\"\nDEST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/gemma-4-E2B-it-Q3_K_M.gguf\"\nif [ -f \"$MODEL\" ]; then\n  mkdir -p \"$(dirname \"$DEST\")\"\n  /bin/cp -f \"$MODEL\" \"$DEST\"\nelse\n  echo \"warning: GGUF model not found at $MODEL; TestFlight build will fall back to rule-based stub\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		0B0C61DD85974C74BBF529F8 /* Sources */ = {
@@ -456,6 +488,7 @@
 				D13C131800000101D13C1318 /* OutboxTab.swift in Sources */,
 				D13C131900000101D13C1319 /* HistoryTab.swift in Sources */,
 				D13C132000000101D13C1320 /* SettingsTab.swift in Sources */,
+				D13C160200000101D13C1602 /* PerformanceExport.swift in Sources */,
 				D13C150100000101D13C1501 /* LocalPatient.swift in Sources */,
 				D13C150200000101D13C1502 /* LongitudinalSeedData.swift in Sources */,
 				D13C150300000101D13C1503 /* CaseDiff.swift in Sources */,
@@ -590,7 +623,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -629,7 +662,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = (

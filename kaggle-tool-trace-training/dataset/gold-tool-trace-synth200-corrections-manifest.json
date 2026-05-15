@@ -1,0 +1,2341 @@
+{
+  "admitted": [
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_0414d0fcf1bb",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "lyme_borreliosis",
+      "split": "train"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_08d5b76ea037",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 1
+      },
+      "profile": "pertussis_infant_pt",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_0ad108687635",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "lyme_borreliosis",
+      "split": "train"
+    },
+    {
+      "axis": "lab_synonym_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_0d75b0c0489d",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 3,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 2,
+        "rxnorms": 0
+      },
+      "profile": "hiv_seroconversion",
+      "split": "val"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_0e8cfde2faa8",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 1
+      },
+      "profile": "pertussis_infant_pt",
+      "split": "train"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_1abb16f6838b",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 1
+      },
+      "profile": "pertussis_infant_pt",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_1e4d33f88e94",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "lyme_borreliosis",
+      "split": "train"
+    },
+    {
+      "axis": "renamed_condition_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_271d96acf3eb",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "mpox_lesion",
+      "split": "train"
+    },
+    {
+      "axis": "rare_reportable_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_296ee0ef65e3",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "h5n1_avian_flu",
+      "split": "train"
+    },
+    {
+      "axis": "rare_reportable_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_29ac108eda7c",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "h5n1_avian_flu",
+      "split": "train"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_324bddf3e360",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "pulmonary_tb_vi",
+      "split": "train"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_36aba9260b41",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 1
+      },
+      "profile": "pertussis_infant_pt",
+      "split": "train"
+    },
+    {
+      "axis": "lab_synonym_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_3a8a3355429e",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 2,
+        "rxnorms": 0
+      },
+      "profile": "hiv_seroconversion",
+      "split": "val"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_430b82d45887",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "syphilis_chancre",
+      "split": "train"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_43740b36b023",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 1
+      },
+      "profile": "pertussis_infant_pt",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_470d42f5d99b",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "lyme_borreliosis",
+      "split": "train"
+    },
+    {
+      "axis": "rare_reportable_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_4c602dbaa490",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "h5n1_avian_flu",
+      "split": "train"
+    },
+    {
+      "axis": "standard_positive_no_codes",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_4d73cc34e77f",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "covid_paxlovid",
+      "split": "val"
+    },
+    {
+      "axis": "syndrome_synonym",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_50f88e555787",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "dengue_breakbone",
+      "split": "val"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_5898a72ad172",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "lyme_borreliosis",
+      "split": "train"
+    },
+    {
+      "axis": "lab_synonym_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_5c3daaeabf67",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 2,
+        "rxnorms": 0
+      },
+      "profile": "hiv_seroconversion",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_5e19ebe38b76",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "syphilis_chancre",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_5e2d9df8fd79",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "syphilis_chancre",
+      "split": "train"
+    },
+    {
+      "axis": "lab_synonym_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_60e85fbe81a5",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 3,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 2,
+        "rxnorms": 0
+      },
+      "profile": "hiv_seroconversion",
+      "split": "val"
+    },
+    {
+      "axis": "lab_synonym_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_6588239538d0",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 2,
+        "rxnorms": 0
+      },
+      "profile": "hiv_seroconversion",
+      "split": "val"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_68d4fb0e2259",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "syphilis_chancre",
+      "split": "val"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_6b15fb108742",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "pulmonary_tb_vi",
+      "split": "train"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_6ece496b94d2",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "pulmonary_tb_vi",
+      "split": "train"
+    },
+    {
+      "axis": "lab_synonym_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_6f2bbc6a89b3",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 2,
+        "rxnorms": 0
+      },
+      "profile": "hiv_seroconversion",
+      "split": "train"
+    },
+    {
+      "axis": "standard_positive_no_codes",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_794f78ce3891",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "covid_paxlovid",
+      "split": "train"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_7a4d8aa6368a",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 1
+      },
+      "profile": "pertussis_infant_pt",
+      "split": "train"
+    },
+    {
+      "axis": "syndrome_synonym",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_7ae9c503145d",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "dengue_breakbone",
+      "split": "train"
+    },
+    {
+      "axis": "rare_reportable_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_7c9c74790f1c",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "h5n1_avian_flu",
+      "split": "train"
+    },
+    {
+      "axis": "rare_reportable_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_7dac48563070",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "h5n1_avian_flu",
+      "split": "train"
+    },
+    {
+      "axis": "rare_reportable_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_7e545080854e",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "h5n1_avian_flu",
+      "split": "val"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_862f6eddb7e2",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 1
+      },
+      "profile": "pertussis_infant_pt",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_87b42b783a34",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "syphilis_chancre",
+      "split": "train"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_8920eb9b5a1f",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "pulmonary_tb_vi",
+      "split": "train"
+    },
+    {
+      "axis": "syndrome_synonym",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_8a657b6deba3",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "dengue_breakbone",
+      "split": "train"
+    },
+    {
+      "axis": "lab_synonym_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_8a8904833028",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 2,
+        "rxnorms": 0
+      },
+      "profile": "hiv_seroconversion",
+      "split": "train"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_8be38c51fc39",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 1
+      },
+      "profile": "pertussis_infant_pt",
+      "split": "train"
+    },
+    {
+      "axis": "rare_reportable_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_8cdccb7584b4",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "h5n1_avian_flu",
+      "split": "train"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_8e8d26e76cee",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 1
+      },
+      "profile": "pertussis_infant_pt",
+      "split": "train"
+    },
+    {
+      "axis": "rare_reportable_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_92f7bf96ce66",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "h5n1_avian_flu",
+      "split": "train"
+    },
+    {
+      "axis": "rare_reportable_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_94bbfb55193a",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "h5n1_avian_flu",
+      "split": "train"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_9663dba88bb7",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 1
+      },
+      "profile": "pertussis_infant_pt",
+      "split": "train"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_9ab0b904f9b6",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 1
+      },
+      "profile": "pertussis_infant_pt",
+      "split": "train"
+    },
+    {
+      "axis": "lab_synonym_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_9b071b5f8669",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 2,
+        "rxnorms": 0
+      },
+      "profile": "hiv_seroconversion",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_9c69e8c42734",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "syphilis_chancre",
+      "split": "train"
+    },
+    {
+      "axis": "rare_reportable_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_9fb85e365f2b",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "h5n1_avian_flu",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_a0aaa2cc8282",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "syphilis_chancre",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_a68228b611c4",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "lyme_borreliosis",
+      "split": "train"
+    },
+    {
+      "axis": "standard_positive_no_codes",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_b16f941b4556",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "covid_paxlovid",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_b22f41721f64",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "lyme_borreliosis",
+      "split": "train"
+    },
+    {
+      "axis": "standard_positive_no_codes",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_b8e3e4e21909",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "covid_paxlovid",
+      "split": "train"
+    },
+    {
+      "axis": "renamed_condition_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_b956f7046950",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "mpox_lesion",
+      "split": "train"
+    },
+    {
+      "axis": "syndrome_synonym",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_bee730609916",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "dengue_breakbone",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_c4f8c3220dfd",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "syphilis_chancre",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_c9f549dbea6d",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "lyme_borreliosis",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_cb88c7d34e81",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "lyme_borreliosis",
+      "split": "train"
+    },
+    {
+      "axis": "lab_synonym_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_ccd07d39bd27",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 3,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 2,
+        "rxnorms": 0
+      },
+      "profile": "hiv_seroconversion",
+      "split": "train"
+    },
+    {
+      "axis": "clinical_pattern_multilingual",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_d4d5a1592584",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 1
+      },
+      "profile": "pertussis_infant_pt",
+      "split": "val"
+    },
+    {
+      "axis": "lab_synonym_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_d50aa0c270dc",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 2,
+        "rxnorms": 0
+      },
+      "profile": "hiv_seroconversion",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_e0f6391635fd",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "lyme_borreliosis",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_ea71bc21f2fa",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "syphilis_chancre",
+      "split": "train"
+    },
+    {
+      "axis": "rare_reportable_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_eaba83613e93",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "h5n1_avian_flu",
+      "split": "train"
+    },
+    {
+      "axis": "lab_synonym_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_eae2534743d2",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 2,
+        "rxnorms": 0
+      },
+      "profile": "hiv_seroconversion",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_f2aa7e4adf8d",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "lyme_borreliosis",
+      "split": "train"
+    },
+    {
+      "axis": "rare_reportable_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_f39ef2d208b2",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "h5n1_avian_flu",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_f446c3e83f32",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 2,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "lyme_borreliosis",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_f44fc47f69cd",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "syphilis_chancre",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_f7f86bd157eb",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "syphilis_chancre",
+      "split": "train"
+    },
+    {
+      "axis": "synonym_plus_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_f9f85fa22247",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "syphilis_chancre",
+      "split": "train"
+    },
+    {
+      "axis": "lab_synonym_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_fc7766a596e7",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 3,
+      "missing_from_candidate": {
+        "conditions": 1,
+        "loincs": 2,
+        "rxnorms": 0
+      },
+      "profile": "hiv_seroconversion",
+      "split": "val"
+    },
+    {
+      "axis": "renamed_condition_lookup",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_ffa2725907e2",
+      "false_positive_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 1,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 1,
+        "rxnorms": 0
+      },
+      "profile": "mpox_lesion",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_vaccine_target",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_08363d76f5a0",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "vaccine_target_only",
+      "split": "val"
+    },
+    {
+      "axis": "hard_negative_quoted_text",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_0948e778b506",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "quoted_rumor_only",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_vaccine_target",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_0bbe1be1d1d7",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "vaccine_target_only",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_contraindicated_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_0ea222e91221",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 1
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "contraindicated_med",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_quoted_text",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_1c53def645c2",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "quoted_rumor_only",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_contraindicated_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_271bb786cd1f",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 1
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "contraindicated_med",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_contraindicated_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_2abaf1b34a24",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 1
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "contraindicated_med",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_contraindicated_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_2f2d22a31ab4",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 1
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "contraindicated_med",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_contraindicated_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_3a350049aee8",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 1
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "contraindicated_med",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_vaccine_target",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_3a90c637ad1f",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "vaccine_target_only",
+      "split": "val"
+    },
+    {
+      "axis": "hard_negative_quoted_text",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_3e3b3dd6b47d",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "quoted_rumor_only",
+      "split": "val"
+    },
+    {
+      "axis": "hard_negative_contraindicated_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_4e20c4428b16",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 1
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "contraindicated_med",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_quoted_text",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_526177b47925",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "quoted_rumor_only",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_quoted_text",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_69cf20e779dc",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "quoted_rumor_only",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_quoted_text",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_78e10e2903ef",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "quoted_rumor_only",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_vaccine_target",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_8b4d45aa7053",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "vaccine_target_only",
+      "split": "val"
+    },
+    {
+      "axis": "hard_negative_quoted_text",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_8d6203fd45b2",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "quoted_rumor_only",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_contraindicated_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_9076d1d10a1d",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 1
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "contraindicated_med",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_quoted_text",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_90fad922879e",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "quoted_rumor_only",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_quoted_text",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_93200911a466",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "quoted_rumor_only",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_vaccine_target",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_a671a2d7f29b",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "vaccine_target_only",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_quoted_text",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_a69ee3c70f33",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "quoted_rumor_only",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_vaccine_target",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_aa379f501f51",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "vaccine_target_only",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_vaccine_target",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_ae91cd79aa72",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "vaccine_target_only",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_contraindicated_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_b6df65ff219a",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 1
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "contraindicated_med",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_contraindicated_med",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_b79085e21db3",
+      "false_positive_candidate": {
+        "conditions": 1,
+        "loincs": 0,
+        "rxnorms": 1
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "contraindicated_med",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_vaccine_target",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_bc87be343b4c",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "vaccine_target_only",
+      "split": "train"
+    },
+    {
+      "axis": "hard_negative_vaccine_target",
+      "candidate_source": "agent_trace",
+      "case_id": "llmreq_synth_neg_c311a1fd4903",
+      "false_positive_candidate": {
+        "conditions": 2,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "lookup_calls": 0,
+      "missing_from_candidate": {
+        "conditions": 0,
+        "loincs": 0,
+        "rxnorms": 0
+      },
+      "profile": "vaccine_target_only",
+      "split": "train"
+    }
+  ],
+  "allow_eval_cases": false,
+  "axis_counts": {
+    "clinical_pattern_multilingual": 16,
+    "hard_negative_contraindicated_med": 9,
+    "hard_negative_quoted_text": 10,
+    "hard_negative_vaccine_target": 9,
+    "lab_synonym_lookup": 12,
+    "rare_reportable_lookup": 12,
+    "renamed_condition_lookup": 3,
+    "standard_positive_no_codes": 4,
+    "syndrome_synonym": 4,
+    "synonym_plus_med": 24
+  },
+  "candidate_agent_json": "build/llm_required/generated/llm_required_synth200_agent_8091.json",
+  "candidate_false_positive_counts": {
+    "conditions": 62,
+    "rxnorms": 9
+  },
+  "candidate_missing_counts": {
+    "conditions": 38,
+    "loincs": 71,
+    "rxnorms": 12
+  },
+  "candidate_source_counts": {
+    "agent_trace": 103
+  },
+  "case_files": [
+    "build/llm_required/generated/llm_required_synth200.jsonl"
+  ],
+  "created_at": "2026-05-03T01:51:28.642836+00:00",
+  "eval_case_files": [],
+  "excluded": [
+    {
+      "case_id": "llmreq_synth_0253d1289934",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_1718f30d5632",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_17d71d3e9d4f",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_1ac97a6577a9",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_1bec2a349ee5",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_1e8439011dc7",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_23bce386abec",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_284d2a3994d5",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_2a7e53b44e81",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_2d26b0f7e53f",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_2f5f27668590",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_31afc9315772",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_3b34f70ca0fc",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_44a9f86eb3f4",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_44bc255fe8cd",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_4ab87eadc559",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_546416fc94e5",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_5876598fab26",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_594aaf0046a4",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_5fdc0757b52a",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_5fec0a7261d0",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_606b308cda0c",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_68cc322b910a",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_6b4c16ecc4d0",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_6c2430263a0b",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_6f3b76d400e3",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_723b25481b02",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_7883ecc53e38",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_792ec396cad1",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_7b7959d86b47",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_7c0e12f9fca7",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_7f01cc4737e5",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_7f4704281534",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_7f88a919b4f3",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_8437c603ba93",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_8a6ca55b7417",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_8ba319d4d2c2",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_91a70c8fec88",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_91a9fd782fc4",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_91e8eeca4c80",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_965a19f1914a",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_9da9db594d42",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_a4510bd236fb",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_a649a2842834",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_a72bb482dabc",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_aa4379278b48",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_aaf3246ad49b",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_abb9499d5464",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_b427021c40f1",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_b6bfcf743dad",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_b7efe0b8f04c",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_bd6d586553c2",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_bf6ab57f2c52",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_c22755a61fca",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_c3af9f0f7e85",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_c590a04030d2",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_c894f7381cd1",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_d8fdbdb91404",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_da5a89360aef",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_ddb735876723",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_e81f3074b52f",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_e9ce21dff268",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_f1e4b7dbfa16",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_f3f1b8af733a",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_f6a9c1b28226",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_fa26676924d0",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_fa4e1fb5ee76",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_fa90d31c4876",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_fed2bfa79c2f",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_054665501aa5",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_0f5f9fc9467a",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_18d69ab95b88",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_37447b2bd38f",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_3a3e8b9fc600",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_3cb22f7524af",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_49caa884c381",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_5955da51577d",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_59a13384660d",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_5dd223266f13",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_633057df2d07",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_6527edf88a84",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_7d00f668ef21",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_9b4a3f8571e5",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_9e90f277f796",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_a47341302d30",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_a983cc4ec3f7",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_adca43995ee5",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_b3c61a7cc413",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_b8be52584e5e",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_bbebe16c0b33",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_c5fcced86a37",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_cba764bceaf6",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_ced57f4c8e89",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_dbe9b5240506",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_dc31b3a6768c",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_dc4433a4d0b0",
+      "reason": "mode_corrections_filtered"
+    },
+    {
+      "case_id": "llmreq_synth_neg_e2c43bebd2ba",
+      "reason": "mode_corrections_filtered"
+    }
+  ],
+  "missing_lookup_query_counts": {},
+  "mode": "corrections",
+  "n_admitted": 103,
+  "n_excluded": 97,
+  "n_train": 89,
+  "n_val": 14,
+  "preserve_case_system": false,
+  "profile_counts": {
+    "contraindicated_med": 9,
+    "covid_paxlovid": 4,
+    "dengue_breakbone": 4,
+    "h5n1_avian_flu": 12,
+    "hiv_seroconversion": 12,
+    "lyme_borreliosis": 12,
+    "mpox_lesion": 3,
+    "pertussis_infant_pt": 12,
+    "pulmonary_tb_vi": 4,
+    "quoted_rumor_only": 10,
+    "syphilis_chancre": 12,
+    "vaccine_target_only": 9
+  },
+  "protected_eval_ids_seen": 0,
+  "protected_eval_narratives_seen": 0,
+  "split_seed": "gold-tool-trace-2026-05-02",
+  "target_code_counts": {
+    "conditions": {
+      "22253000": 3,
+      "23502006": 12,
+      "27836007": 12,
+      "38362002": 4,
+      "442695009": 12,
+      "56717001": 4,
+      "76272004": 12,
+      "840539006": 4,
+      "86406008": 12
+    },
+    "loincs": {
+      "100343-3": 12,
+      "20507-0": 12,
+      "24467-3": 12,
+      "38379-4": 4,
+      "5061-1": 12,
+      "6386-1": 4,
+      "71773-2": 12,
+      "75622-1": 12,
+      "94500-6": 4,
+      "96741-4": 3
+    },
+    "rxnorms": {
+      "105220": 12,
+      "1923432": 3,
+      "197622": 4,
+      "197650": 12,
+      "197984": 12,
+      "199279": 4,
+      "1999563": 12,
+      "2599543": 4,
+      "261244": 12
+    }
+  },
+  "tool": "scripts/build_gold_tool_trace_sft.py",
+  "val_fraction": 0.15
+}

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re as _re
 import sys
 import time
 from pathlib import Path
@@ -40,7 +41,7 @@ from rag_search import (  # noqa: E402
     fast_path_hit,
     search as rag_search,
 )
-from fhir_bundle import to_bundle  # noqa: E402
+from fhir_bundle import normalize_code_value, normalize_extraction, to_bundle  # noqa: E402
 from case_diff import (  # noqa: E402
     compute_diff,
     patient_hash as compute_patient_hash,
@@ -51,18 +52,35 @@ DEFAULT_SYSTEM = (
     "You are a clinical NLP agent. Given an eICR narrative, produce a JSON "
     "object with three keys: 'conditions' (SNOMED), 'loincs' (LOINC), and "
     "'rxnorms' (RxNorm).\n\n"
+    "RAW CODE CONTRACT — every array value must be the raw code string only. "
+    "Use [\"27836007\"], never [\"Pertussis (SNOMED 27836007)\"]. Use "
+    "[\"6386-1\"], never [\"Dengue virus IgM Ab (LOINC 6386-1)\"]. "
+    "Never invent codes; if lookup cannot ground a code, leave it out.\n\n"
     "MANDATORY workflow — execute steps in order:\n"
     "1. Call extract_codes_from_text(text) ONCE on the full narrative.\n"
-    "2. If 'conditions' is EMPTY in the result AND the narrative mentions "
-    "ANY disease name (in any phrasing — formal, colloquial, abbreviation), "
+    "Treat that tool output as candidate evidence, not an answer. Reject any "
+    "candidate whose source context is quoted, hypothetical, historical-only, "
+    "vaccine-target-only, contraindicated/not-prescribed, exposure-only, "
+    "family-history-only, ruled out, or negative for this patient.\n"
+    "2. If 'conditions' is EMPTY in the result AND the narrative contains a "
+    "diagnosed disease, a strong disease synonym, or a classic clinical "
+    "syndrome, "
     "you MUST call lookup_reportable_conditions(query=<disease name>). "
     "Examples: 'valley fever', 'C diff colitis', 'Legionnaires disease', "
-    "'Marburg hemorrhagic fever'. Take the top result if score >= 0.4 and "
-    "add its code to conditions.\n"
+    "'Marburg hemorrhagic fever', 'measles', 'cholera', 'pulmonary "
+    "tuberculosis', 'dengue', 'respiratory syncytial virus infection'. Take "
+    "the top result if score >= 0.4 and add its raw code to conditions.\n"
     "3. Same for 'loincs' (call lookup_displayname for the lab name) and "
-    "'rxnorms' (drug name).\n"
+    "'rxnorms' (drug name). For condition-linked labs, query canonical lab "
+    "names such as 'Dengue virus IgM Ab', 'RSV antigen', or "
+    "'Mycobacterium tuberculosis complex DNA'.\n"
     "4. Call validate_fhir_extraction once on your final JSON.\n"
     "5. Reply with ONLY the validated JSON object — no extra prose.\n\n"
+    "Do not extract conditions that appear only in family history, source "
+    "patient history, exposure concern, negative testing, ruled-out diagnoses, "
+    "vaccine targets, or quoted misinformation. Those contexts require an "
+    "empty array unless the patient has an active diagnosis or positive "
+    "patient-specific lab result.\n\n"
     "Do NOT call extract_codes_from_text more than once. Do NOT skip step 2 "
     "when 'conditions' is empty and the narrative names a disease. After "
     "validation passes, the next assistant message must be the JSON object."
@@ -113,9 +131,22 @@ def tool_validate_fhir_extraction(args: dict) -> dict:
     for key in ("conditions", "loincs", "rxnorms"):
         if key not in extraction:
             issues.append(f"missing key '{key}'")
-        elif not isinstance(extraction.get(key), list):
+            continue
+        values = extraction.get(key)
+        if not isinstance(values, list):
             issues.append(f"'{key}' must be an array")
-    return {"valid": not issues, "issues": issues}
+            continue
+        for raw in values:
+            code = normalize_code_value(key, raw)
+            if not code:
+                issues.append(f"{key} value {raw!r} is not a raw code string")
+            elif str(raw).strip() != code:
+                issues.append(f"{key} value {raw!r} must be emitted as {code!r}")
+    return {
+        "valid": not issues,
+        "issues": issues,
+        "normalized_extraction": normalize_extraction(extraction),
+    }
 
 
 def tool_lookup_displayname(args: dict) -> dict:
@@ -309,6 +340,53 @@ def chat(endpoint: str, payload: dict, timeout: float = 900.0) -> dict:
         return json.loads(resp.read())
 
 
+def _query_is_negated_in_narrative(narrative: str, query: str) -> bool:
+    """True when all literal query mentions are context-suppressed."""
+    candidates = [query]
+    candidates.extend(_re.findall(r"[A-Za-z][A-Za-z-]{2,}", query))
+    seen_any = False
+    for candidate in candidates:
+        if not candidate:
+            continue
+        for match in _re.finditer(_re.escape(candidate), narrative, _re.IGNORECASE):
+            seen_any = True
+            if not _is_negated(narrative, match.start(), match.end()):
+                return False
+    return seen_any
+
+
+def _grounded_from_lookup_result(narrative: str, args: dict, result: dict) -> dict:
+    """Convert trusted lookup hits into the extraction shape."""
+    query = str(args.get("query") or "")
+    if query and _query_is_negated_in_narrative(narrative, query):
+        return {"conditions": [], "loincs": [], "rxnorms": []}
+    for hit in result.get("results") or []:
+        if float(hit.get("score") or 0.0) < 0.4:
+            continue
+        if str(hit.get("system") or "").upper() != "SNOMED":
+            continue
+        code = normalize_code_value("conditions", hit.get("code"))
+        if code:
+            return {"conditions": [code], "loincs": [], "rxnorms": []}
+    return {"conditions": [], "loincs": [], "rxnorms": []}
+
+
+def _grounded_from_display_lookup(args: dict, result: dict) -> dict:
+    codeset = str(args.get("codeset") or "").lower()
+    bucket = {
+        "snomed": "conditions",
+        "loinc": "loincs",
+        "rxnorm": "rxnorms",
+    }.get(codeset)
+    if not bucket:
+        return {"conditions": [], "loincs": [], "rxnorms": []}
+    code = normalize_code_value(bucket, result.get("code"))
+    out = {"conditions": [], "loincs": [], "rxnorms": []}
+    if code:
+        out[bucket].append(code)
+    return out
+
+
 def run_agent(
     narrative: str,
     *,
@@ -347,6 +425,57 @@ def run_agent(
     trace: list[dict] = []
 
     active_tools = tools_override if tools_override is not None else TOOL_SCHEMAS
+    active_tool_names = {
+        schema.get("function", {}).get("name") for schema in active_tools
+    }
+    required_extract_tool = (
+        "extract_codes_from_current_chunk"
+        if "extract_codes_from_current_chunk" in active_tool_names
+        else "extract_codes_from_text"
+    )
+    saw_extract_tool = False
+    saw_validation_tool = False
+    grounded_extractions: list[dict] = []
+
+    # Some llama.cpp/Gemma builds ignore `tool_choice` and may answer with a
+    # textual pseudo-call. The extractor tool is mandatory and deterministic, so
+    # seed the conversation with its actual tool result instead of spending turns
+    # asking the model to comply.
+    forced_extract_args = (
+        {}
+        if required_extract_tool == "extract_codes_from_current_chunk"
+        else {"text": narrative}
+    )
+    impl_args = {"text": inject_text_into_extract or narrative}
+    forced_extract_result = TOOLS[required_extract_tool](impl_args)
+    saw_extract_tool = True
+    grounded_extractions.append(normalize_extraction(forced_extract_result))
+    forced_tool_call_id = "forced_extract_0"
+    messages.append({
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [{
+            "id": forced_tool_call_id,
+            "type": "function",
+            "function": {
+                "name": required_extract_tool,
+                "arguments": json.dumps(forced_extract_args),
+            },
+        }],
+    })
+    messages.append({
+        "role": "tool",
+        "tool_call_id": forced_tool_call_id,
+        "name": required_extract_tool,
+        "content": json.dumps(forced_extract_result),
+    })
+    trace.append({
+        "turn": -1,
+        "tool_result": required_extract_tool,
+        "args": forced_extract_args,
+        "result": forced_extract_result,
+        "forced": True,
+    })
     for turn in range(max_turns):
         payload = {
             "messages": messages,
@@ -389,8 +518,10 @@ def run_agent(
             for call in msg["tool_calls"]:
                 fn = call["function"]["name"]
                 raw_args = call["function"].get("arguments", "{}")
+                args_for_trace = raw_args
                 try:
                     args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                    args_for_trace = args
                 except json.JSONDecodeError as exc:
                     result = {"error": f"argument JSON decode failed: {exc}"}
                 else:
@@ -409,6 +540,7 @@ def run_agent(
                     ):
                         args = dict(args) if isinstance(args, dict) else {}
                         args["text"] = inject_text_into_extract
+                        args_for_trace = args
                     impl = TOOLS.get(fn)
                     if impl is None:
                         result = {"error": f"unknown tool '{fn}'"}
@@ -417,7 +549,23 @@ def run_agent(
                             result = impl(args)
                         except Exception as exc:  # noqa: BLE001
                             result = {"error": f"tool raised: {exc!r}"}
-                trace.append({"turn": turn, "tool_result": fn, "args": args if 'args' in dir() else raw_args, "result": result})
+                    if fn in ("extract_codes_from_text", "extract_codes_from_current_chunk"):
+                        saw_extract_tool = True
+                        grounded_extractions.append(normalize_extraction(result))
+                    elif fn == "lookup_displayname":
+                        grounded_extractions.append(_grounded_from_display_lookup(args, result))
+                    elif fn == "lookup_reportable_conditions":
+                        grounded_extractions.append(
+                            _grounded_from_lookup_result(narrative, args, result)
+                        )
+                    elif fn == "validate_fhir_extraction":
+                        saw_validation_tool = True
+                trace.append({
+                    "turn": turn,
+                    "tool_result": fn,
+                    "args": args_for_trace,
+                    "result": result,
+                })
                 if verbose:
                     print(f"    tool {fn}({json.dumps(args, default=str)[:80]}) → "
                           f"{json.dumps(result)[:120]}")
@@ -432,6 +580,40 @@ def run_agent(
         # Final assistant message — try to parse JSON from content.
         content = msg.get("content") or ""
         extraction = _parse_extraction(content)
+        if grounded_extractions:
+            grounded = _merge_extractions(grounded_extractions)
+            grounded_sets = {
+                key: set(grounded.get(key) or [])
+                for key in ("conditions", "loincs", "rxnorms")
+            }
+            filtered = {
+                key: [
+                    code for code in (extraction.get(key) or [])
+                    if code in grounded_sets[key]
+                ]
+                for key in ("conditions", "loincs", "rxnorms")
+            }
+            extraction = _merge_extractions([grounded, filtered])
+        if not saw_extract_tool:
+            messages.append({
+                "role": "user",
+                "content": (
+                    "You skipped the mandatory first tool call. Call "
+                    f"{required_extract_tool} now, then continue the workflow. "
+                    "Do not answer with final JSON yet."
+                ),
+            })
+            continue
+        if not saw_validation_tool:
+            messages.append({
+                "role": "user",
+                "content": (
+                    "Before final JSON, call validate_fhir_extraction with this "
+                    "candidate extraction using raw code strings only: "
+                    f"{json.dumps(extraction, separators=(',', ':'))}"
+                ),
+            })
+            continue
         return extraction, trace
 
     # Hit max_turns without a final answer; salvage by parsing whatever the
@@ -449,8 +631,6 @@ def run_agent(
 # Mirror of `ExtractionService.run(narrative:)` in
 # apps/mobile/ios-app/ClinIQ/ClinIQ/Extraction/ExtractionService.swift, the
 # inserted block between Tier 1 (deterministic) and Tier 2 (agent loop).
-
-import re as _re
 
 _HISTORY_HEADER_RE = _re.compile(
     r"\b(?:"
@@ -556,6 +736,8 @@ def try_fast_path(
     # EicrPreparser.swift (c20 Candidate D).
     if any(m.tier in ("inline", "cda") for m in det.matches):
         return None  # Tier 1 has explicit-assertion answers — fast-path skipped.
+    if det_dict.get("conditions"):
+        return None  # A lookup-tier condition is already asserted; RAG should only fill missing conditions.
 
     is_negated = _is_negated if use_negex else (lambda *_args: False)
     fp = fast_path_hit(narrative, threshold=threshold, is_negated=is_negated)
@@ -787,8 +969,8 @@ def _merge_extractions(extractions: list[dict]) -> dict:
     for ext in extractions:
         for k in out:
             for v in (ext.get(k) or []):
-                vs = str(v)
-                if not _bucket_filter(k, vs):
+                vs = normalize_code_value(k, v)
+                if not _bucket_filter(k, vs or ""):
                     continue
                 if vs not in seen[k]:
                     seen[k].add(vs)
@@ -963,16 +1145,10 @@ def _parse_extraction(content: str) -> dict:
         try:
             obj = json.loads(text[start : end + 1])
             if isinstance(obj, dict):
-                # Strip None / null-like sentinels so downstream scoring
-                # doesn't treat a literal "null" string as a spurious code.
-                def _clean(arr):
-                    return [str(x) for x in (arr or [])
-                            if x is not None and str(x).lower() != "null" and str(x).strip()]
-                return {
-                    "conditions": _clean(obj.get("conditions")),
-                    "loincs": _clean(obj.get("loincs")),
-                    "rxnorms": _clean(obj.get("rxnorms")),
-                }
+                # Strip display text / code-system wrappers before scoring or
+                # Bundle generation. Invalid bucket values are dropped rather
+                # than allowed to become FHIR ids or Coding.code values.
+                return normalize_extraction(obj)
         except json.JSONDecodeError:
             pass
     return {"conditions": [], "loincs": [], "rxnorms": []}
@@ -983,16 +1159,18 @@ def _parse_extraction(content: str) -> dict:
 
 
 def score(extraction: dict, case: dict) -> tuple[int, int, int]:
+    expected_ext = normalize_extraction({
+        "conditions": list(case.get("expected_conditions") or []),
+        "loincs": list(case.get("expected_loincs") or []),
+        "rxnorms": list(case.get("expected_rxnorms") or []),
+    })
+    got_ext = normalize_extraction(extraction)
     expected = (
-        list(case.get("expected_conditions") or [])
-        + list(case.get("expected_loincs") or [])
-        + list(case.get("expected_rxnorms") or [])
+        expected_ext["conditions"]
+        + expected_ext["loincs"]
+        + expected_ext["rxnorms"]
     )
-    got = (
-        list(extraction.get("conditions") or [])
-        + list(extraction.get("loincs") or [])
-        + list(extraction.get("rxnorms") or [])
-    )
+    got = got_ext["conditions"] + got_ext["loincs"] + got_ext["rxnorms"]
     matched = sum(1 for c in expected if c in got)
     fp = sum(1 for c in got if c not in expected)
     return matched, len(expected), fp
@@ -1038,6 +1216,15 @@ def main() -> None:
         "--no-fast-path",
         action="store_true",
         help="Disable the c19 single-turn fast-path; always run the agent loop.",
+    )
+    ap.add_argument(
+        "--force-agent",
+        action="store_true",
+        help=(
+            "Bypass deterministic and fast-path short-circuits and route every "
+            "case through the model/tool loop. Use for LLM-required eval suites; "
+            "do not use for latency claims against the production pipeline."
+        ),
     )
     ap.add_argument(
         "--max-tokens",
@@ -1117,6 +1304,7 @@ def main() -> None:
     # emit the ClinIQ flat CSV across the whole series.
     prior_bundle_for_diff: dict | None = None
     prior_case_id_for_diff: str | None = None
+    prior_patient_hash_for_diff: str | None = None
     longitudinal_manifest: list[dict] = []
     longitudinal_mode = args.prior_bundle is not None
     bundle_dir: Path | None = None
@@ -1136,7 +1324,7 @@ def main() -> None:
             # agent loop on a slow edge endpoint.
             det = deterministic_extract(case["user"])
             det_dict = det.to_provenance_dict()
-            if not args.no_fast_path and any(
+            if not args.force_agent and not args.no_fast_path and any(
                 m.tier in ("inline", "cda") for m in det.matches
             ):
                 extraction = {
@@ -1158,7 +1346,7 @@ def main() -> None:
                 # to the agent loop with the optional tool-call grammar.
                 fp_result = (
                     None
-                    if args.no_fast_path
+                    if args.no_fast_path or args.force_agent
                     else try_fast_path(
                         case["user"], threshold=args.fast_path_rag_threshold
                     )
@@ -1169,6 +1357,23 @@ def main() -> None:
                 extraction, trace = fp_result
                 path_label = "fast"
                 n_fast_path_hits += 1
+            elif (
+                not args.force_agent
+                and any(det_dict.get(k) for k in ("conditions", "loincs", "rxnorms"))
+            ):
+                extraction = {
+                    "conditions": list(det_dict.get("conditions") or []),
+                    "loincs": list(det_dict.get("loincs") or []),
+                    "rxnorms": list(det_dict.get("rxnorms") or []),
+                }
+                trace = [{
+                    "turn": 0,
+                    "deterministic": True,
+                    "elapsed_s": 0.0,
+                    "extraction": extraction,
+                }]
+                path_label = "deterministic"
+                n_det_hits += 1
             else:
                 # Auto-detect oversized input. Inputs estimated to exceed the
                 # chunker's per-chunk budget (~6000 tok) route through
@@ -1204,18 +1409,44 @@ def main() -> None:
                         max_turns=args.max_turns,
                     )
         except (URLError, TimeoutError, OSError) as exc:
-            # Don't kill the whole bench on a single slow Jetson case; record
-            # the error and move on. Mac runs almost never hit this; the
-            # Jetson at ~1 tok/s decode can blow the 900 s/turn budget.
-            print(f"  ERR {cid}: {exc}", flush=True)
-            rows.append({"case_id": cid, "error": str(exc)})
-            continue
+            # Don't kill the whole bench on a single slow/offline endpoint.
+            # In normal production-parity benches, fall back to deterministic
+            # extraction so hard-negative cases still score honestly instead of
+            # disappearing from the aggregate. In --force-agent mode, preserve
+            # the model outage as an agent miss; otherwise the LLM-required
+            # suite would silently become a deterministic suite.
+            if args.force_agent:
+                extraction = {"conditions": [], "loincs": [], "rxnorms": []}
+                trace = [{
+                    "turn": 0,
+                    "agent_error": str(exc),
+                    "force_agent": True,
+                    "elapsed_s": 0.0,
+                    "extraction": extraction,
+                }]
+                path_label = "agent-error"
+            else:
+                det = deterministic_extract(case["user"])
+                det_dict = det.to_provenance_dict()
+                extraction = {
+                    "conditions": list(det_dict.get("conditions") or []),
+                    "loincs": list(det_dict.get("loincs") or []),
+                    "rxnorms": list(det_dict.get("rxnorms") or []),
+                }
+                trace = [{
+                    "turn": 0,
+                    "agent_error": str(exc),
+                    "deterministic_fallback": True,
+                    "elapsed_s": 0.0,
+                    "extraction": extraction,
+                }]
+                path_label = "deterministic-fallback"
 
         m, e, fpc = score(extraction, case)
         total_m += m
         total_e += e
         total_fp += fpc
-        if e and m == e and fpc == 0:
+        if m == e and fpc == 0:
             perfect += 1
 
         n_calls = sum(1 for t in trace if t.get("tool_result"))
@@ -1255,7 +1486,12 @@ def main() -> None:
             row["patient_hash"] = phash
             row["case_dt"] = case_dt
             row["bundle_path"] = str(bundle_path)
-            if prior_bundle_for_diff is not None and prior_case_id_for_diff is not None:
+            same_patient_as_prior = phash == prior_patient_hash_for_diff
+            if (
+                same_patient_as_prior
+                and prior_bundle_for_diff is not None
+                and prior_case_id_for_diff is not None
+            ):
                 cd = compute_diff(
                     prior_bundle_for_diff,
                     current_bundle,
@@ -1272,6 +1508,7 @@ def main() -> None:
             })
             prior_bundle_for_diff = current_bundle
             prior_case_id_for_diff = cid
+            prior_patient_hash_for_diff = phash
         rows.append(row)
 
     Path(args.out_json).parent.mkdir(parents=True, exist_ok=True)

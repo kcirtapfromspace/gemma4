@@ -133,11 +133,17 @@ enum BundleBuilder {
 
     private static func patientEntry(patientId: String) -> [String: Any] {
         return [
+            "fullUrl": "urn:cliniq:patient-\(patientId)",
             "resource": [
                 "resourceType": "Patient",
                 "id": patientId,
             ] as [String: Any],
         ]
+    }
+
+    private static func entryIdAndFullURL(prefix: String, code: String) -> (String, String) {
+        let id = "\(prefix)-\(code)"
+        return (id, "urn:cliniq:\(id)")
     }
 
     private static func conditionEntry(
@@ -146,9 +152,11 @@ enum BundleBuilder {
         patientRef: String,
         sourceURL: String?
     ) -> [String: Any] {
+        let (resourceId, fullURL) = entryIdAndFullURL(prefix: "condition", code: code)
         var resource: [String: Any] = [
             "resourceType": "Condition",
-            "subject": ["reference": "Patient/\(patientRef)"],
+            "id": resourceId,
+            "subject": ["reference": "urn:cliniq:patient-\(patientRef)"],
             "code": ["coding": [coding(system: "SNOMED", code: code, display: display)]],
             "clinicalStatus": [
                 "coding": [[
@@ -160,8 +168,13 @@ enum BundleBuilder {
         if let url = sourceURL {
             resource["meta"] = ["source": url]
         }
-        return ["resource": resource]
+        return ["fullUrl": fullURL, "resource": resource]
     }
+
+    private static let bpComponentLoincs: Set<String> = [
+        "8480-6",   // Systolic blood pressure
+        "8462-4",   // Diastolic blood pressure
+    ]
 
     /// Vital-sign LOINC codes that auto-bind to the FHIR R4 base
     /// `vitalsigns` profile. The HL7 reference validator rejects any
@@ -169,17 +182,30 @@ enum BundleBuilder {
     /// doesn't include the `vital-signs` slice. Mirror of
     /// `_VITAL_SIGN_LOINCS` in apps/mobile/convert/fhir_bundle.py.
     private static let vitalSignLoincs: Set<String> = [
-        "8480-6",   // Systolic blood pressure
-        "8462-4",   // Diastolic blood pressure
+        "8480-6",   // Systolic blood pressure component
+        "8462-4",   // Diastolic blood pressure component
         "8867-4",   // Heart rate
         "8310-5",   // Body temperature
         "9279-1",   // Respiratory rate
         "8302-2",   // Body height
-        "29463-7",  // Body weight
+        "29463-7",  // Body weight canonical
+        "3141-9",   // Body weight measured
         "39156-5",  // BMI
         "59408-5",  // SpO2
+        "2708-6",   // Oxygen saturation canonical
+        "2710-2",   // Oxygen saturation capillary
         "85354-9",  // Blood pressure panel
         "85353-3",  // Vital signs panel
+    ]
+
+    private static let vitalSignMagicCode: [String: String] = [
+        "2710-2": "2708-6",
+        "3141-9": "29463-7",
+    ]
+
+    private static let valueRequiredVitalComponentLoincs: Set<String> = [
+        "39156-5",  // BMI
+        "8287-5",   // Head circumference
     ]
 
     private static let vitalSignsCategory: [String: Any] = [
@@ -190,17 +216,53 @@ enum BundleBuilder {
         ]],
     ]
 
+    private static func dataAbsentReasonUnknown() -> [String: Any] {
+        return [
+            "coding": [[
+                "system": "http://terminology.hl7.org/CodeSystem/data-absent-reason",
+                "code": "unknown",
+            ]],
+        ]
+    }
+
+    private static func loincCodeableConcept(_ codes: [String]) -> [String: Any] {
+        return [
+            "coding": codes.map { coding(system: "LOINC", code: $0, display: nil) },
+        ]
+    }
+
     private static func observationEntry(
         code: String,
         display: String?,
         patientRef: String,
         sourceURL: String?
     ) -> [String: Any] {
+        if bpComponentLoincs.contains(code) {
+            return bloodPressureObservationEntry(
+                code: code,
+                patientRef: patientRef,
+                sourceURL: sourceURL
+            )
+        }
+        if valueRequiredVitalComponentLoincs.contains(code) {
+            return vitalComponentObservationEntry(
+                code: code,
+                patientRef: patientRef,
+                sourceURL: sourceURL
+            )
+        }
+
+        let (resourceId, fullURL) = entryIdAndFullURL(prefix: "observation", code: code)
+        var loincCodes = [code]
+        if let magic = vitalSignMagicCode[code], !loincCodes.contains(magic) {
+            loincCodes.append(magic)
+        }
         var resource: [String: Any] = [
             "resourceType": "Observation",
+            "id": resourceId,
             "status": "final",
-            "code": ["coding": [coding(system: "LOINC", code: code, display: display)]],
-            "subject": ["reference": "Patient/\(patientRef)"],
+            "code": loincCodeableConcept(loincCodes),
+            "subject": ["reference": "urn:cliniq:patient-\(patientRef)"],
         ]
         // c20 final pass: stamp `category=[vital-signs]` for vital-sign
         // LOINCs so the FHIR R4 base profile auto-binding passes the
@@ -208,11 +270,69 @@ enum BundleBuilder {
         // apps/mobile/convert/fhir_bundle.py.
         if vitalSignLoincs.contains(code) {
             resource["category"] = [vitalSignsCategory]
+            resource["effectiveDateTime"] = "2026-01-01"
+            resource["dataAbsentReason"] = dataAbsentReasonUnknown()
         }
         if let url = sourceURL {
             resource["meta"] = ["source": url]
         }
-        return ["resource": resource]
+        return ["fullUrl": fullURL, "resource": resource]
+    }
+
+    private static func vitalComponentObservationEntry(
+        code: String,
+        patientRef: String,
+        sourceURL: String?
+    ) -> [String: Any] {
+        let (resourceId, fullURL) = entryIdAndFullURL(prefix: "observation", code: code)
+        var resource: [String: Any] = [
+            "resourceType": "Observation",
+            "id": resourceId,
+            "status": "final",
+            "category": [vitalSignsCategory],
+            "code": loincCodeableConcept(["85353-3"]),
+            "subject": ["reference": "urn:cliniq:patient-\(patientRef)"],
+            "effectiveDateTime": "2026-01-01",
+            "component": [[
+                "code": loincCodeableConcept([code]),
+                "dataAbsentReason": dataAbsentReasonUnknown(),
+            ]],
+        ]
+        if let url = sourceURL {
+            resource["meta"] = ["source": url]
+        }
+        return ["fullUrl": fullURL, "resource": resource]
+    }
+
+    private static func bloodPressureObservationEntry(
+        code: String,
+        patientRef: String,
+        sourceURL: String?
+    ) -> [String: Any] {
+        let (resourceId, fullURL) = entryIdAndFullURL(prefix: "observation", code: code)
+        var resource: [String: Any] = [
+            "resourceType": "Observation",
+            "id": resourceId,
+            "status": "final",
+            "category": [vitalSignsCategory],
+            "code": loincCodeableConcept(["85354-9"]),
+            "subject": ["reference": "urn:cliniq:patient-\(patientRef)"],
+            "effectiveDateTime": "2026-01-01",
+            "component": [
+                [
+                    "code": loincCodeableConcept(["8480-6"]),
+                    "dataAbsentReason": dataAbsentReasonUnknown(),
+                ],
+                [
+                    "code": loincCodeableConcept(["8462-4"]),
+                    "dataAbsentReason": dataAbsentReasonUnknown(),
+                ],
+            ],
+        ]
+        if let url = sourceURL {
+            resource["meta"] = ["source": url]
+        }
+        return ["fullUrl": fullURL, "resource": resource]
     }
 
     private static func medicationStatementEntry(
@@ -221,32 +341,30 @@ enum BundleBuilder {
         patientRef: String,
         sourceURL: String?
     ) -> [String: Any] {
+        let (resourceId, fullURL) = entryIdAndFullURL(prefix: "medication-statement", code: code)
         var resource: [String: Any] = [
             "resourceType": "MedicationStatement",
-            "status": "recorded",
+            "id": resourceId,
+            "status": "unknown",
             "medicationCodeableConcept": [
                 "coding": [coding(system: "RXNORM", code: code, display: display)],
             ],
-            "subject": ["reference": "Patient/\(patientRef)"],
+            "subject": ["reference": "urn:cliniq:patient-\(patientRef)"],
         ]
         if let url = sourceURL {
             resource["meta"] = ["source": url]
         }
-        return ["resource": resource]
+        return ["fullUrl": fullURL, "resource": resource]
     }
 
     private static func coding(
         system: String,
         code: String,
-        display: String?
+        display _: String?
     ) -> [String: Any] {
-        var c: [String: Any] = [
+        return [
             "system": systemURI[system.uppercased()] ?? "",
             "code": code,
         ]
-        if let d = display, !d.isEmpty {
-            c["display"] = d
-        }
-        return c
     }
 }
