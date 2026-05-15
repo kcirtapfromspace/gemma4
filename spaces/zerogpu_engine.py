@@ -1,7 +1,7 @@
 """Gemma 4 ZeroGPU inference engine for HF Spaces.
 
 Replaces the HTTP llama-server backend with in-process transformers inference
-on ZeroGPU's H200, exposing an OpenAI-compatible `chat_completion` so the
+on the configured Hugging Face Space backend, exposing an OpenAI-compatible `chat_completion` so the
 existing `agent_pipeline.run_agent` works unchanged via a small monkey-patch
 in `app.py`.
 
@@ -33,6 +33,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 MODEL_ID = os.environ.get("CLINIQ_GEMMA_MODEL_ID", "unsloth/gemma-4-E2B-it")
+_DISABLE_MODEL = os.environ.get("CLINIQ_DISABLE_AGENT_MODEL", "").lower() in {"1", "true", "yes"}
 
 # Hardware detection. SPACES_ZERO_GPU=true is set inside ZeroGPU runtimes;
 # torch.cuda.is_available() is True on standard GPU hardware. Outside both,
@@ -44,7 +45,7 @@ _HAS_CUDA = torch.cuda.is_available()
 if _IS_ZEROGPU or _HAS_CUDA:
     _DEVICE = "cuda"
     _DTYPE = torch.bfloat16
-    _BACKEND = "ZeroGPU H200" if _IS_ZEROGPU else "CUDA GPU"
+    _BACKEND = "ZeroGPU" if _IS_ZEROGPU else "CUDA GPU"
 else:
     _DEVICE = "cpu"
     _DTYPE = torch.float32
@@ -55,19 +56,24 @@ _LOAD_ERROR: str | None = None
 _tokenizer = None  # type: ignore[assignment]
 _model = None  # type: ignore[assignment]
 try:
-    _t0 = time.time()
-    _tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
-    _model = AutoModelForCausalLM.from_pretrained(
-        MODEL_ID,
-        torch_dtype=_DTYPE,
-        device_map=_DEVICE,
-    )
-    _N_PARAMS_B = sum(p.numel() for p in _model.parameters()) / 1e9
-    print(
-        f"[zerogpu_engine] loaded {MODEL_ID} in {time.time() - _t0:.1f}s "
-        f"({_N_PARAMS_B:.2f} B params, {_DTYPE}, device={_model.device})",
-        flush=True,
-    )
+    if _DISABLE_MODEL:
+        _LOAD_ERROR = "disabled by CLINIQ_DISABLE_AGENT_MODEL=1"
+        _N_PARAMS_B = 0.0
+        print("[zerogpu_engine] model load disabled for local deterministic/RAG demo", flush=True)
+    else:
+        _t0 = time.time()
+        _tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+        _model = AutoModelForCausalLM.from_pretrained(
+            MODEL_ID,
+            torch_dtype=_DTYPE,
+            device_map=_DEVICE,
+        )
+        _N_PARAMS_B = sum(p.numel() for p in _model.parameters()) / 1e9
+        print(
+            f"[zerogpu_engine] loaded {MODEL_ID} in {time.time() - _t0:.1f}s "
+            f"({_N_PARAMS_B:.2f} B params, {_DTYPE}, device={_model.device})",
+            flush=True,
+        )
 except Exception as exc:  # noqa: BLE001 — surface to the UI, don't crash boot
     _LOAD_ERROR = f"{type(exc).__name__}: {exc}"[:400]
     _N_PARAMS_B = 0.0
@@ -169,7 +175,7 @@ def parse_gemma_tool_calls(text: str) -> tuple[str | None, list[dict] | None]:
 #
 # Drop-in replacement for `apps/mobile/convert/agent_pipeline.chat()`. Same
 # request/response shape, just no HTTP — the model is in-process on the
-# ZeroGPU H200 allocated for the duration of this call.
+# configured Space backend for the duration of this call.
 
 @spaces.GPU(duration=120)
 def chat_completion(

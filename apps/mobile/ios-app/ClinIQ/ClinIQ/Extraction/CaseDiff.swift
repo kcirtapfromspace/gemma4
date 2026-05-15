@@ -3,9 +3,8 @@
 // edge agent's diff. The two implementations MUST stay aligned so cases
 // produced by either pipeline align in the timeline.
 //
-// Mirrors CDC EZeCR's MVP "flat CSV with what's new vs prior" vision —
-// see hackathon-submission-2026-04-27.md and the CDC D2E Workshop
-// readout (page 10–11). On-device, no Verato, exact-match identity only.
+// Mirrors ClinIQ's flat "what's new vs prior" export. On-device, no
+// Verato, exact-match identity only.
 //
 // Algorithm (per axis):
 //   priorKeys    = { "<system>|<code>" for each entry in prior }
@@ -35,13 +34,20 @@ struct DiffEntry: Identifiable, Hashable {
     let codeSystem: String   // "http://snomed.info/sct", "http://loinc.org", "http://www.nlm.nih.gov/research/umls/rxnorm"
     let code: String
     let display: String
+    let reviewStateRaw: String?
 
-    init(id: UUID = UUID(), axis: ExtractionAxis, codeSystem: String, code: String, display: String) {
+    init(id: UUID = UUID(),
+         axis: ExtractionAxis,
+         codeSystem: String,
+         code: String,
+         display: String,
+         reviewStateRaw: String? = nil) {
         self.id = id
         self.axis = axis
         self.codeSystem = codeSystem
         self.code = code
         self.display = display
+        self.reviewStateRaw = reviewStateRaw
     }
 
     /// Diff key — must be identical between Swift and Python.
@@ -52,6 +58,7 @@ struct DiffEntry: Identifiable, Hashable {
 /// The view layer renders three sections (added / removed / unchanged) and
 /// optionally a one-line summary banner.
 struct CaseDiff: Hashable {
+    let patientIdentityHash: String
     let priorCaseId: UUID
     let currentCaseId: UUID
     let priorDate: Date
@@ -115,6 +122,7 @@ enum CaseDiffBuilder {
         let currentEntries = entries(from: current)
         return diff(prior: priorEntries,
                     current: currentEntries,
+                    patientIdentityHash: current.patientIdentityHash,
                     priorCaseId: prior.id,
                     currentCaseId: current.id,
                     priorDate: prior.createdAt,
@@ -125,6 +133,7 @@ enum CaseDiffBuilder {
     /// unit tests and previews.
     static func diff(prior: [DiffEntry],
                      current: [DiffEntry],
+                     patientIdentityHash: String = "",
                      priorCaseId: UUID,
                      currentCaseId: UUID,
                      priorDate: Date,
@@ -136,7 +145,8 @@ enum CaseDiffBuilder {
         let removed = prior.filter { !currentKeys.contains($0.diffKey) }
         let unchanged = current.filter { priorKeys.contains($0.diffKey) }
 
-        return CaseDiff(priorCaseId: priorCaseId,
+        return CaseDiff(patientIdentityHash: patientIdentityHash,
+                        priorCaseId: priorCaseId,
                         currentCaseId: currentCaseId,
                         priorDate: priorDate,
                         currentDate: currentDate,
@@ -153,43 +163,105 @@ enum CaseDiffBuilder {
             out.append(DiffEntry(axis: .condition,
                                  codeSystem: snomedSystem,
                                  code: cond.code,
-                                 display: cond.displayName))
+                                 display: cond.displayName,
+                                 reviewStateRaw: cond.reviewStateRaw))
         }
         for lab in c.labs where lab.reviewState != .rejected {
             out.append(DiffEntry(axis: .lab,
                                  codeSystem: loincSystem,
                                  code: lab.code,
-                                 display: lab.displayName))
+                                 display: lab.displayName,
+                                 reviewStateRaw: lab.reviewStateRaw))
         }
         for med in c.medications where med.reviewState != .rejected {
             out.append(DiffEntry(axis: .medication,
                                  codeSystem: rxnormSystem,
                                  code: med.code,
-                                 display: med.displayName))
+                                 display: med.displayName,
+                                 reviewStateRaw: med.reviewStateRaw))
         }
         if let v = c.vitals, !v.isEmpty {
             // Canonical LOINC codes for the five vitals we capture.
             if v.tempC != nil {
                 out.append(DiffEntry(axis: .vital, codeSystem: vitalsSystem,
-                                     code: "8310-5", display: "Body temperature"))
+                                     code: "8310-5", display: "Body temperature",
+                                     reviewStateRaw: ReviewState.confirmed.rawValue))
             }
             if v.heartRate != nil {
                 out.append(DiffEntry(axis: .vital, codeSystem: vitalsSystem,
-                                     code: "8867-4", display: "Heart rate"))
+                                     code: "8867-4", display: "Heart rate",
+                                     reviewStateRaw: ReviewState.confirmed.rawValue))
             }
             if v.respRate != nil {
                 out.append(DiffEntry(axis: .vital, codeSystem: vitalsSystem,
-                                     code: "9279-1", display: "Respiratory rate"))
+                                     code: "9279-1", display: "Respiratory rate",
+                                     reviewStateRaw: ReviewState.confirmed.rawValue))
             }
             if v.spo2 != nil {
                 out.append(DiffEntry(axis: .vital, codeSystem: vitalsSystem,
-                                     code: "59408-5", display: "SpO2"))
+                                     code: "59408-5", display: "SpO2",
+                                     reviewStateRaw: ReviewState.confirmed.rawValue))
             }
             if v.bpSystolic != nil {
                 out.append(DiffEntry(axis: .vital, codeSystem: vitalsSystem,
-                                     code: "8480-6", display: "Systolic blood pressure"))
+                                     code: "8480-6", display: "Systolic blood pressure",
+                                     reviewStateRaw: ReviewState.confirmed.rawValue))
             }
         }
         return out
+    }
+}
+
+// MARK: - ClinIQ flat export
+
+enum CaseDiffExport {
+    static func dictionary(from diff: CaseDiff) -> [String: Any] {
+        let includeOnlyAdded = JurisdictionProfile.includeOnlyAddedFindings
+        var rows: [[String: Any]] = []
+        rows.append(contentsOf: exportRows(diff.added, change: "added"))
+        if !includeOnlyAdded {
+            rows.append(contentsOf: exportRows(diff.removed, change: "removed"))
+            rows.append(contentsOf: exportRows(diff.unchanged, change: "unchanged"))
+        }
+        return [
+            "schema": "cliniq.flat_diff.v1",
+            "jurisdiction": JurisdictionProfile.currentName,
+            "patientIdentityHash": diff.patientIdentityHash,
+            "priorCaseId": diff.priorCaseId.uuidString,
+            "currentCaseId": diff.currentCaseId.uuidString,
+            "priorDate": ISO8601DateFormatter().string(from: diff.priorDate),
+            "currentDate": ISO8601DateFormatter().string(from: diff.currentDate),
+            "includeOnlyAddedFindings": includeOnlyAdded,
+            "rows": rows,
+        ]
+    }
+
+    static func jsonString(from diff: CaseDiff) -> String {
+        let payload = dictionary(from: diff)
+        guard JSONSerialization.isValidJSONObject(payload),
+              let data = try? JSONSerialization.data(withJSONObject: payload,
+                                                      options: [.prettyPrinted, .sortedKeys]),
+              let text = String(data: data, encoding: .utf8) else {
+            return #"{"error":"flat diff export serialization failed"}"#
+        }
+        return text
+    }
+
+    private static func exportRows(_ entries: [DiffEntry], change: String) -> [[String: Any]] {
+        entries.map { entry in
+            let state = ReviewState(rawValue: entry.reviewStateRaw ?? "")
+            let decision = JurisdictionProfile.decision(axis: entry.axis,
+                                                        code: entry.code,
+                                                        reviewState: state)
+            return [
+                "change": change,
+                "axis": entry.axis.rawValue,
+                "system": entry.codeSystem,
+                "code": entry.code,
+                "display": entry.display,
+                "reviewState": entry.reviewStateRaw ?? "unknown",
+                "ruleDecision": decision.rawValue,
+            ]
+        }
     }
 }

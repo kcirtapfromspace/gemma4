@@ -1,5 +1,5 @@
 //! Compute field-level diffs between successive Extraction outputs.
-//! Implements eCRims-005: determine what information was updated between eCRs.
+//! Determines what information was updated between ClinIQ case reports.
 
 use std::collections::HashSet;
 

@@ -10,6 +10,10 @@ struct SettingsTab: View {
     @EnvironmentObject private var sync: SyncService
     @AppStorage("ClinIQ.MockSyncSucceeds") private var mockSucceeds: Bool = true
     @AppStorage("ClinIQ.UseLocalEndpoint") private var useLocal: Bool = false
+    @AppStorage(JurisdictionProfile.nameKey) private var jurisdictionName: String = JurisdictionProfile.defaultName
+    @AppStorage(JurisdictionProfile.enabledCategoriesKey) private var enabledCategoriesRaw: String = JurisdictionProfile.defaultEnabledCategoriesCSV
+    @AppStorage(JurisdictionProfile.requireReviewKey) private var requireReview: Bool = true
+    @AppStorage(JurisdictionProfile.includeOnlyAddedKey) private var includeOnlyAddedFindings: Bool = false
     @AppStorage(InferenceBackend.appStorageKey) private var backendRaw: String = InferenceBackend.default.rawValue
     // Bridge to the shared ExtractionService so flipping the backend
     // picker invalidates the cached engine on the next extract call.
@@ -86,6 +90,24 @@ struct SettingsTab: View {
                     Text("In demo mode sync is fully simulated — useful when there's no backend running. Toggle the real POST only if you've started the mock endpoint locally.")
                 }
 
+                Section {
+                    TextField("Jurisdiction name", text: $jurisdictionName)
+                    Toggle("Require clinician review before outbox", isOn: $requireReview)
+                        .tint(ClinIQTheme.accent)
+                    Toggle("Export added findings only", isOn: $includeOnlyAddedFindings)
+                        .tint(ClinIQTheme.accent)
+                    DisclosureGroup("Enabled reportable categories") {
+                        ForEach(JurisdictionProfile.categoryOptions, id: \.id) { option in
+                            Toggle(option.label, isOn: categoryBinding(option.id))
+                                .tint(ClinIQTheme.accent)
+                        }
+                    }
+                } header: {
+                    Text("Jurisdiction rules")
+                } footer: {
+                    Text("Arizona Demo PHA rules tag reviewed entities as reportable, needs review, or not included. The patient timeline can copy a flat ClinIQ diff JSON using these settings.")
+                }
+
                 Section("Endpoint") {
                     LabeledContent("Reports URL") {
                         Text(SyncConfig.currentEndpoint.absoluteString)
@@ -106,6 +128,22 @@ struct SettingsTab: View {
                     }
                     LabeledContent("Inference") {
                         Text(inferenceLabel)
+                            .foregroundStyle(.secondary)
+                    }
+                    LabeledContent("Backend") {
+                        Text(extractionService.activeBackendLabel)
+                            .foregroundStyle(.secondary)
+                    }
+                    LabeledContent("Fallback") {
+                        Text(extractionService.isStubEngine ? "Rule fallback active" : "Real model path")
+                            .foregroundStyle(extractionService.isStubEngine ? Color(red: 0.66, green: 0.15, blue: 0.12) : .secondary)
+                    }
+                    LabeledContent("Last speed") {
+                        Text(lastSpeedLabel)
+                            .foregroundStyle(.secondary)
+                    }
+                    LabeledContent("Physical iPhone") {
+                        Text("Required; record in evidence ledger")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -134,5 +172,35 @@ struct SettingsTab: View {
         case (false, true): return ".litertlm only (LiteRT-LM path)"
         case (false, false): return "Rule-based fallback (no model)"
         }
+    }
+
+    private var lastSpeedLabel: String {
+        let speed = InferenceMetrics.shared.instantTokensPerSecond
+        if speed > 0 {
+            return String(format: "%.1f tok/s", speed)
+        }
+        if extractionService.tokensPerSecond > 0 {
+            return String(format: "%.1f tok/s", extractionService.tokensPerSecond)
+        }
+        return "No extraction recorded"
+    }
+
+    private func categoryBinding(_ id: String) -> Binding<Bool> {
+        Binding(
+            get: {
+                Set(enabledCategoriesRaw.split(separator: ",").map(String.init)).contains(id)
+            },
+            set: { enabled in
+                var values = Set(enabledCategoriesRaw.split(separator: ",").map(String.init))
+                if enabled {
+                    values.insert(id)
+                } else {
+                    values.remove(id)
+                }
+                enabledCategoriesRaw = values.isEmpty
+                    ? JurisdictionProfile.defaultEnabledCategoriesCSV
+                    : values.sorted().joined(separator: ",")
+            }
+        )
     }
 }

@@ -271,14 +271,14 @@ struct ReviewFlowView: View {
     private func etaCopy(elapsed: Double, phase: InferenceMetrics.Phase) -> String {
         switch phase {
         case .loading:
-            return "First-time model load takes ~15 s on simulator (mmap + KV setup); a few seconds on a real iPhone."
+            return "First-time model load is slow on simulator. Physical iPhone timing is a required final measurement gate."
         case .prefilling:
-            return "Prefilling the narrative. Typically 15–60 s on simulator CPU; under 1 s on iPhone with Metal."
+            return "Prefilling the narrative. Simulator CPU can take 15–60 s; iPhone Metal timing is not claimed until measured."
         case .decoding:
             if elapsed > 60 {
-                return "Still decoding — simulator CPU is ~10× slower than iPhone Metal. The stream above shows live tokens."
+                return "Still decoding on simulator CPU. The stream above shows live tokens; check Settings for the active backend."
             }
-            return "Streaming tokens. On simulator CPU expect 15–90 s total; on iPhone with Metal, 5–15 s."
+            return "Streaming tokens. Simulator CPU can take 15–90 s total; physical-device speed must be recorded in the evidence ledger."
         case .finalizing:
             return "Closing the JSON envelope and validating extracted entities."
         case .idle, .error:
@@ -307,6 +307,7 @@ struct ReviewFlowView: View {
                     WhatsNewBanner(diff: diff)
                 }
                 metaBanner
+                jurisdictionRulesBanner
 
                 // Show the tier legend whenever at least one entity has
                 // provenance attached. Without this a judge sees colored
@@ -323,6 +324,10 @@ struct ReviewFlowView: View {
                                 title: draft.conditions[idx].display,
                                 subtitle: "SNOMED · \(draft.conditions[idx].code)",
                                 reviewState: draft.conditions[idx].reviewState,
+                                ruleDecision: JurisdictionProfile.decision(
+                                    axis: .condition,
+                                    code: draft.conditions[idx].code,
+                                    reviewState: draft.conditions[idx].reviewState),
                                 onAccept: { draft.conditions[idx].reviewState = .confirmed },
                                 onReject: { draft.conditions[idx].reviewState = .rejected },
                                 onEdit: {
@@ -340,7 +345,13 @@ struct ReviewFlowView: View {
                 if !draft.labs.isEmpty {
                     card(title: "Proposed labs") {
                         ForEach(draft.labs.indices, id: \.self) { idx in
-                            LabReviewRow(lab: $draft.labs[idx])
+                            LabReviewRow(
+                                lab: $draft.labs[idx],
+                                ruleDecision: JurisdictionProfile.decision(
+                                    axis: .lab,
+                                    code: draft.labs[idx].code,
+                                    reviewState: draft.labs[idx].reviewState)
+                            )
                             if idx != draft.labs.count - 1 {
                                 Divider().padding(.vertical, 2)
                             }
@@ -355,6 +366,10 @@ struct ReviewFlowView: View {
                                 title: draft.medications[idx].display,
                                 subtitle: "RxNorm · \(draft.medications[idx].code)",
                                 reviewState: draft.medications[idx].reviewState,
+                                ruleDecision: JurisdictionProfile.decision(
+                                    axis: .medication,
+                                    code: draft.medications[idx].code,
+                                    reviewState: draft.medications[idx].reviewState),
                                 onAccept: { draft.medications[idx].reviewState = .confirmed },
                                 onReject: { draft.medications[idx].reviewState = .rejected },
                                 onEdit: { draft.medications[idx].reviewState = .edited },
@@ -408,9 +423,14 @@ struct ReviewFlowView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(draft.isEmpty)
+                    .disabled(!canQueueDraft)
                 }
                 .padding(.top, 4)
+                if !canQueueDraft && !draft.isEmpty {
+                    Text("\(JurisdictionProfile.currentName) rules require clinician review before queueing. Confirm or reject every pending row first.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(16)
         }
@@ -438,6 +458,36 @@ struct ReviewFlowView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(ClinIQTheme.cardBackground, in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var jurisdictionRulesBanner: some View {
+        let counts = draft.ruleDecisionCounts
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "building.2.crop.circle")
+                    .foregroundStyle(ClinIQTheme.accent)
+                Text(JurisdictionProfile.currentName)
+                    .font(.caption.weight(.semibold))
+                Spacer()
+                Text("Rules active")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(ClinIQTheme.accent.opacity(0.16), in: Capsule())
+                    .foregroundStyle(ClinIQTheme.accent)
+            }
+            HStack(spacing: 6) {
+                RuleDecisionChip(decision: .reportable, count: counts[.reportable, default: 0])
+                RuleDecisionChip(decision: .needsReview, count: counts[.needsReview, default: 0])
+                RuleDecisionChip(decision: .notIncluded, count: counts[.notIncluded, default: 0])
+            }
+            Text("Enabled categories: \(JurisdictionProfile.enabledCategories.map { JurisdictionProfile.categoryLabel($0) }.sorted().joined(separator: ", "))")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
         .background(ClinIQTheme.cardBackground, in: RoundedRectangle(cornerRadius: 10))
     }
 
@@ -480,6 +530,7 @@ struct ReviewFlowView: View {
     }
 
     private func applyAndQueue() {
+        guard canQueueDraft else { return }
         // Wipe the previous extraction rows and replace with the reviewed
         // draft. We deliberately overwrite so repeat extractions don't
         // leave stale entities.
@@ -568,6 +619,10 @@ struct ReviewFlowView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(ClinIQTheme.cardBackground, in: RoundedRectangle(cornerRadius: 12))
     }
+
+    private var canQueueDraft: Bool {
+        !draft.isEmpty && (!JurisdictionProfile.requireClinicianReview || draft.needsReviewCount == 0)
+    }
 }
 
 // MARK: - Draft + supporting rows
@@ -602,6 +657,32 @@ struct ReviewDraft {
         conditions.contains { $0.provenance != nil }
             || labs.contains { $0.provenance != nil }
             || medications.contains { $0.provenance != nil }
+    }
+
+    var ruleDecisionCounts: [JurisdictionRuleDecision: Int] {
+        var counts: [JurisdictionRuleDecision: Int] = [:]
+        for cond in conditions {
+            counts[JurisdictionProfile.decision(axis: .condition,
+                                                code: cond.code,
+                                                reviewState: cond.reviewState),
+                   default: 0] += 1
+        }
+        for lab in labs {
+            counts[JurisdictionProfile.decision(axis: .lab,
+                                                code: lab.code,
+                                                reviewState: lab.reviewState),
+                   default: 0] += 1
+        }
+        for med in medications {
+            counts[JurisdictionProfile.decision(axis: .medication,
+                                                code: med.code,
+                                                reviewState: med.reviewState),
+                   default: 0] += 1
+        }
+        if vitals != nil {
+            counts[.reportable, default: 0] += 1
+        }
+        return counts
     }
 
     static func from(parsed: ParsedExtraction) -> ReviewDraft {
@@ -721,6 +802,7 @@ struct EntityReviewRow: View {
     let title: String
     let subtitle: String
     let reviewState: ReviewState
+    let ruleDecision: JurisdictionRuleDecision
     let onAccept: () -> Void
     let onReject: () -> Void
     let onEdit: () -> Void
@@ -737,6 +819,7 @@ struct EntityReviewRow: View {
                             .font(.body.weight(.medium))
                             .fixedSize(horizontal: false, vertical: true)
                         ReviewStateChip(state: reviewState)
+                        RuleDecisionChip(decision: ruleDecision)
                     }
                     Text(subtitle)
                         .font(.caption2.monospacedDigit())
@@ -769,6 +852,7 @@ struct EntityReviewRow: View {
 
 struct LabReviewRow: View {
     @Binding var lab: DraftLab
+    let ruleDecision: JurisdictionRuleDecision
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -779,6 +863,7 @@ struct LabReviewRow: View {
                             .font(.body.weight(.medium))
                             .fixedSize(horizontal: false, vertical: true)
                         ReviewStateChip(state: lab.reviewState)
+                        RuleDecisionChip(decision: ruleDecision)
                     }
                     Text("LOINC · \(lab.code)")
                         .font(.caption2.monospacedDigit())
@@ -822,6 +907,37 @@ struct LabReviewRow: View {
             return Color(red: 0.66, green: 0.15, blue: 0.12)
         }
         return .primary
+    }
+}
+
+struct RuleDecisionChip: View {
+    let decision: JurisdictionRuleDecision
+    var count: Int? = nil
+
+    var body: some View {
+        let label = count.map { "\(decision.displayName): \($0)" } ?? decision.displayName
+        Text(label)
+            .font(.caption2.weight(.bold))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(background, in: Capsule())
+            .foregroundStyle(foreground)
+    }
+
+    private var foreground: Color {
+        switch decision {
+        case .reportable: return Color(red: 0.13, green: 0.36, blue: 0.22)
+        case .needsReview: return Color(red: 0.45, green: 0.30, blue: 0.00)
+        case .notIncluded: return Color(red: 0.42, green: 0.42, blue: 0.44)
+        }
+    }
+
+    private var background: Color {
+        switch decision {
+        case .reportable: return Color(red: 0.72, green: 0.87, blue: 0.73)
+        case .needsReview: return Color(red: 1.00, green: 0.88, blue: 0.62)
+        case .notIncluded: return Color(.tertiarySystemGroupedBackground)
+        }
     }
 }
 

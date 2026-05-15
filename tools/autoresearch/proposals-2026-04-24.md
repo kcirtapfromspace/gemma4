@@ -124,7 +124,7 @@ Ranking is by `(impact × p(works)) / engineer-hours`; rank-1 is the highest rat
 
 **Mechanism:**
 
-1. Take 5 publicly-available CDA eICR samples from CDC EZeCR / HL7 sample bundles (the user has prior CDC EZeCR experience per memory).
+1. Take 5 publicly-available CDA eICR samples from CDC / HL7 sample bundles.
 2. Hand-author ground truth in the same `expected_conditions/loincs/rxnorms` schema.
 3. Add 3 "code-attribute-only" variants (codes in XML attrs, not parenthesized) and 2 prose-only variants (clinician narrative, no codes — only display strings the LLM must look up).
 4. Update `scripts/test_cases.jsonl` from 9 → 14 cases.
@@ -137,7 +137,7 @@ Ranking is by `(impact × p(works)) / engineer-hours`; rank-1 is the highest rat
 
 **Measurable outcome:** A new `experiments` row `c17-bench-expanded-baseline` at the new (lower) aggregate score, plus *every subsequent proposal scored on the harder bench*. This is a quality-of-research-program change as much as a numerical change.
 
-**Risk / killer assumption:** None really — worst case the new cases are too hard and everything looks bad in the report. The benefit is that the demo team can rehearse against a realistic input distribution. **Killer:** if licensing on a particular CDA sample is unclear, drop it; CDC EZeCR samples are public-domain US-government works.
+**Risk / killer assumption:** None really — worst case the new cases are too hard and everything looks bad in the report. The benefit is that the demo team can rehearse against a realistic input distribution. **Killer:** if licensing on a particular CDA sample is unclear, drop it; use public-domain US-government samples where available.
 
 **Pivot fit:** Universal. Bench improvements help every runtime equally.
 

@@ -7,10 +7,14 @@
 // Hidden entirely on first eCR for a new patient (no prior).
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct WhatsNewBanner: View {
     let diff: CaseDiff
     @State private var expanded: Bool = false
+    @State private var copied: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -26,6 +30,7 @@ struct WhatsNewBanner: View {
             if expanded {
                 Divider().padding(.vertical, 6)
                 expandedBody
+                exportButton
             }
         }
         .padding(12)
@@ -70,6 +75,19 @@ struct WhatsNewBanner: View {
         }
     }
 
+    private var exportButton: some View {
+        Button {
+            copyExport()
+        } label: {
+            Label(copied ? "Copied ClinIQ diff JSON" : "Copy ClinIQ diff JSON",
+                  systemImage: copied ? "checkmark.circle.fill" : "doc.on.doc")
+                .font(.caption.weight(.semibold))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .padding(.top, 8)
+    }
+
     @ViewBuilder
     private func section(title: String, entries: [DiffEntry], kind: ChipKind) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -90,5 +108,18 @@ struct WhatsNewBanner: View {
     /// teal accent.
     private var banding: Color {
         ClinIQTheme.accent.opacity(0.10)
+    }
+
+    private func copyExport() {
+        let text = CaseDiffExport.jsonString(from: diff)
+        #if canImport(UIKit)
+        UIPasteboard.general.string = text
+        copied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            copied = false
+        }
+        #else
+        copied = false
+        #endif
     }
 }

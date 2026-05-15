@@ -12,14 +12,18 @@ targeting the **Health Impact** and **Unsloth** ($10K) tracks. Deadline
 
 ## Headline numbers
 
+Canonical evidence and limitations live in
+[`tools/autoresearch/evidence-ledger.md`](tools/autoresearch/evidence-ledger.md).
+Use that ledger as the source of truth for submission copy.
+
 ```
-F1 = 1.000 sustained across 80 deterministic reps
-   (combined-45 ×20 + combined-54 ×30 + combined-64 ×30, 0 FPs ×50 reps)
-F1 = 0.997 on the 64-case adversarial bench (recall = 1.000)
-F1 = 1.000 on 7 / 7 external CDC eICR test vectors (360 / 360 codes recovered)
-HL7 FHIR validator (Java IG): structural pass on every emitted Bundle
-F1 = 1.000 on Jetson Orin NX 8 GB k8s pod (edge deployment)
-0 parse errors over 81 runs of the agent path (grammar stability)
+Combined-64 default bench: F1 = 0.997, recall = 1.000, precision = 0.994
+Combined-45 / combined-54 sustained loops: F1 = 1.000 in c20/c21 ledgers
+External CDC/HL7 eICR vectors: 7 / 7, 360 / 360 authored codes recovered
+FHIR R4: structural Bundle validation via fhir.resources.R4B; HL7 Java structure pass
+Jetson Orin NX 8 GB: 11 / 11 edge smoke, ~0.97 tok/s agent decode
+Agent stability: 0 parse errors over 81 combined-27 agent-path runs
+iPhone Metal throughput: required final gate, not yet claimed as measured
 ```
 
 **Unsloth track delta** (val-compact, 200 cases):
@@ -36,8 +40,8 @@ F1 = 1.000 on Jetson Orin NX 8 GB k8s pod (edge deployment)
 
 | Surface | URL | What you'll see |
 |---|---|---|
-| **Hosted demo (HF Spaces)** | https://huggingface.co/spaces/kcirtapfromspace/cliniq-eicr-fhir | Paste an eICR narrative, watch the 3-tier pipeline emit a FHIR Bundle on ZeroGPU H200 |
-| **iOS app** | `apps/mobile/ios-app/ClinIQ/` | SwiftUI app, builds on `iPhone17ProDemo` simulator (UDID `CADA1806-F64D-4B02-B983-B75F197D1EF3`), Gemma 4 E2B Q3_K_M GGUF in-bundle |
+| **Hosted demo (HF Spaces)** | https://huggingface.co/spaces/kcirtapfromspace/cliniq-eicr-fhir | Paste an eICR narrative; deterministic/RAG tiers run without GPU, Gemma agent path reports availability explicitly |
+| **iOS app** | `apps/mobile/ios-app/ClinIQ/` | SwiftUI app, builds on `iPhone17ProDemo`; Settings show model/fallback status, jurisdiction rules, and evidence gates |
 | **60-second demo script** | `apps/mobile/ios-app/DEMO_SCRIPT.md` | Read-along narration timed to a 7-beat sim walkthrough |
 
 ---
@@ -81,9 +85,10 @@ scripts/test_cases*.jsonl Bench cases (combined-27, adv4-7, longitudinal)
 ## Read in this order (judges, 5-min path)
 
 1. **This README** — orientation
-2. **[`tools/autoresearch/hackathon-submission-2026-04-27.md`](tools/autoresearch/hackathon-submission-2026-04-27.md)** — judge-facing one-pager
-3. **[`tools/autoresearch/v62-submission/MODEL_CARD.md`](tools/autoresearch/v62-submission/MODEL_CARD.md)** — Unsloth-track model card
-4. **[HF Space](https://huggingface.co/spaces/kcirtapfromspace/cliniq-eicr-fhir)** — see it run
+2. **[`tools/autoresearch/evidence-ledger.md`](tools/autoresearch/evidence-ledger.md)** — canonical claims + final smoke checks
+3. **[`tools/autoresearch/hackathon-submission-2026-04-27.md`](tools/autoresearch/hackathon-submission-2026-04-27.md)** — judge-facing one-pager
+4. **[`tools/autoresearch/v62-submission/MODEL_CARD.md`](tools/autoresearch/v62-submission/MODEL_CARD.md)** — Unsloth-track model card
+5. **[HF Space](https://huggingface.co/spaces/kcirtapfromspace/cliniq-eicr-fhir)** — see it run
 
 15-min path: add `tools/autoresearch/c20-llm-tuning-2026-04-25.md` (full
 ledger, 80-rep variance tables, every ablation) and `apps/mobile/convert/build/c45_sustained_*.json` (the 20 sustained-load reps).
@@ -136,7 +141,11 @@ scripts/.venv/bin/python apps/mobile/convert/bench_v62_singleshot.py \
   8 in Python and Swift. The model never moved.
 - **External credibility** — every Bundle structurally validates against
   HL7's official Java IG validator. 7/7 perfect on the same CDC eICR test
-  vectors EZeCR uses.
+  vectors in the ClinIQ external bench.
+- **Jurisdiction-aware review** — the iOS app tags accepted entities with
+  demo public-health rules (`reportable`, `needs review`, `not included`)
+  and copies a ClinIQ flat "what changed" diff JSON from the patient
+  timeline banner.
 - **Unsloth-distilled single-shot path** — `unsloth/gemma-4-E2B-it` LoRA
   trained for 1h 4m on a free Kaggle T4 ×2 turns the base model from
   F1 = 0.34 into F1 = 0.82 with 0.98 precision, 1.6× faster. The fine-tune
@@ -147,16 +156,18 @@ scripts/.venv/bin/python apps/mobile/convert/bench_v62_singleshot.py \
 
 ## Background
 
-[CDC EZeCR](https://easyecr.org) (the CDC's electronic Case Report
-processing platform) is the canonical reference architecture: NLP
-extraction (Comprehend Medical) → ontology mapping (IMO Precision Normalize)
-→ identity resolution (Glue FindMatches) → jurisdiction-specific rules
-engine. ClinIQ is the **on-device extraction tier of an EZeCR-style
-pipeline** — what an LMIC clinic would run when there's no AWS, no internet,
-no Verato, and no AIMS.
+ClinIQ is designed around public-health case-reporting workflows: NLP
+extraction, ontology mapping, local identity grouping, jurisdiction-specific
+rules, and FHIR Bundle payloads. It is the **on-device extraction tier of the
+ClinIQ pipeline** — what an LMIC clinic would run when there's no AWS,
+no internet, no Verato, and no AIMS.
 
 The longitudinal "what's new" view (see `apps/mobile/ios-app/ClinIQ/ClinIQ/Views/Cases/PatientTimelineView.swift`) is the edge-side analogue
-of EZeCR's flat-CSV diff between case versions for the same patient.
+of ClinIQ's flat diff between case versions for the same patient. The
+hackathon build intentionally stops at offline extraction/review, local
+exact-match identity, demo jurisdiction rules, FHIR Bundle payloads, and
+mock/optional POST sync; production mTLS, OAuth/FaceID, probabilistic
+identity resolution, and a shared rules marketplace are out of scope.
 
 ---
 
@@ -168,5 +179,5 @@ Built with: Gemma 4 E2B (Google DeepMind), Unsloth, llama.cpp,
 HuggingFace Transformers + PEFT + TRL, SwiftUI, Talos Linux,
 HL7 FHIR Validator, fhir.resources (Python).
 
-Thanks to the CDC EZeCR / D2E workshop participants whose 2022 design
-informed the architecture, and to the Gemma team for the open weights.
+Thanks to the CDC D2E workshop participants whose 2022 design informed the
+architecture, and to the Gemma team for the open weights.

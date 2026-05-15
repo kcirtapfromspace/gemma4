@@ -116,7 +116,7 @@ The residual risk surface is small and narrow. Six proposals, sharply ranked.
 **Hypothesis:** The dictation feature ships a *new* input distribution we have never benched. Voice-dictated narratives include disfluencies ("uh", "um", trailing thoughts, restart phrases, mis-segmented punctuation), informal disease names ("the H5N1 thing", "that valley fever case"), and frequent code-omission. Simultaneously, real CDA eICR clones often nest the same diagnosis in both prose and `<code code="…">` XML — testing the *interaction* of the two parsers. Adv4 = 4 voice-dictated + 4 CDA-XML-heavy cases.
 
 **Mechanism:**
-1. Author `scripts/test_cases_adversarial4.jsonl` — 4 voice cases hand-written to mimic the team's own dictation samples (record a few `DictationButton` outputs first; mine `last-extraction-raw.txt` for shape), 4 CDA cases adapted from CDC EZeCR sample bundles.
+1. Author `scripts/test_cases_adversarial4.jsonl` — 4 voice cases hand-written to mimic the team's own dictation samples (record a few `DictationButton` outputs first; mine `last-extraction-raw.txt` for shape), 4 CDA cases adapted from CDC/HL7 sample bundles.
 2. Run through deterministic-only, agent-only, agent+RAG, and the new fast-path (Rank 2) variants.
 3. Publish row `c18-adv4-{deterministic,agent,fast-path}`.
 

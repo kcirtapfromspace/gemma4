@@ -11,6 +11,11 @@ headline is up front; the full story follows. Supersedes
 reproducibility, external-validator credibility, and Jetson edge
 deployment evidence.
 
+**2026-04-30 note:** use `tools/autoresearch/evidence-ledger.md` as the
+canonical source for final public claims. This narrative is retained as the
+long-form draft; claims about HF Space hardware and physical iPhone
+throughput must be rechecked against the ledger before submission.
+
 ---
 
 ## Headline
@@ -143,7 +148,8 @@ favorable run.
 
 Independent of our test bench, the pipeline was run against:
 
-- **7 CDC eICR test vectors** (the same ones EZeCR ships against),
+- **7 CDC eICR test vectors** (the same external-vector class ClinIQ
+  ships against),
   full CDA XML — **7 / 7 perfect, 360 / 360 codes recovered**.
   Bench: `external_eicr_agent_bench.json` and the chunked variant.
 - **HL7 FHIR Validator (Java, official IG validator)** — every
@@ -151,7 +157,7 @@ Independent of our test bench, the pipeline was run against:
   `external_fhir_validity_java_post.json`.
 
 This gives the submission an external referee. The Java validator is
-the same one CDC EZeCR uses to gate eICR submissions.
+the same class of validator ClinIQ uses to gate eICR submissions.
 
 ### 4. Jetson Orin NX edge deployment
 
@@ -161,9 +167,8 @@ deterministic + RAG tiers serve **F1 = 1.000 on 11 / 11 cases**
 that don't require the agent. The agent path itself decodes at
 ~0.97 tok / s on the Jetson (vs ~13 tok/s on Mac M-series Metal),
 which is too slow for live demo but satisfies the "this works on
-edge hardware that an LMIC clinic could afford" claim. The deferred
-mobile pivot (LiteRT-LM on iPhone, 52–56 tok/s on Google's published
-benches) remains the headline performance story; Jetson is the
+edge hardware that an LMIC clinic could afford" claim. The physical
+iPhone path remains the required final measurement gate; Jetson is the
 "edge-deployable today" credibility hook.
 
 Bench artifacts: `jetson_combined54_bench.json` /
@@ -227,39 +232,43 @@ simulator (UDID `CADA1806-F64D-4B02-B983-B75F197D1EF3`). The app:
 - Renders extracted entities as provenance chips
   (`INLINE` / `CDA` / `RAG` / `LOOKUP` / `AGENT`) — tap a chip to
   see the source span highlighted.
+- Applies Arizona Demo PHA jurisdiction rules to tag rows as
+  `reportable`, `needs review`, or `not included`, then copies an
+  ClinIQ flat "what changed" diff JSON from the timeline banner.
 - Emits a FHIR R4 Bundle to the Outbox for sync; tappable
   "View FHIR Bundle" sheet on the review screen.
 - All-offline. No network calls. PHI never leaves the device.
 
-The Gemma 4 E2B Q3_K_M GGUF (3.0 GB) ships in the app bundle. iOS
-sim decode currently 4.0 tok/s; physical-iPhone tok/s is the one
-remaining open uncertainty (see "Open uncertainties" below).
+The app can run the Gemma 4 E2B Q3_K_M GGUF when seeded/bundled; Settings
+show whether the app is on a real model path or the rule fallback. iOS sim
+decode currently measures around 1–4 tok/s; physical-iPhone tok/s is the
+required remaining evidence gate (see "Open uncertainties" below).
 
 ### HF Spaces hosted demo
 
 **Live: `https://huggingface.co/spaces/kcirtapfromspace/cliniq-eicr-fhir`**
-(deployed 2026-04-27, ZeroGPU H200 backend wired 2026-04-28).
+(public URL; smoke the live hardware path before final submission).
 
 `spaces/`. Gradio 5.9 frontend, same Python pipeline as the bench
 harness, plus `spaces/zerogpu_engine.py` — a transformers-based
-in-process Gemma 4 backend that exposes an OpenAI-compatible
+Gemma 4 backend that exposes an OpenAI-compatible
 `chat_completion` and is signature-compatible with the existing
 `agent_pipeline.chat()` HTTP transport via a one-line monkey-patch.
-The `@spaces.GPU(duration=120)` decorator allocates a half-H200 on
-demand for the duration of each agent call and releases it on
-return. Gemma's native `<|tool_call>...<tool_call|>` sentinel format
-is parsed into OpenAI tool_calls inside the engine (the same
-parser the iOS Swift `ToolCallParser` runs on-device).
+On ZeroGPU or CUDA hardware it uses the available GPU; otherwise it boots
+slowly or surfaces an explicit agent-unavailable/error state. Gemma's native
+`<|tool_call>...<tool_call|>` sentinel format is parsed into OpenAI
+tool_calls inside the engine (the same parser the iOS Swift
+`ToolCallParser` runs on-device).
 
-Five sample cases pre-loaded (COVID-19 inline, valley fever RAG,
-Marburg RAG, C. diff RAG, negated lab precision check). Bench-table
-screenshots cite the 80-rep + Jetson + chunked-CDA rows. The hosted
+Six sample cases pre-loaded (COVID-19 inline, valley fever RAG,
+Marburg RAG, C. diff RAG, hard narrative agent/fallback, negated lab
+precision check). Bench-table screenshots cite the evidence ledger. The hosted
 URL goes on the submission form when judges don't have an iPhone.
 
 Hardening: the engine detects ZeroGPU vs CUDA vs CPU at module
 import (`SPACES_ZERO_GPU` env var + `torch.cuda.is_available()`) and
 falls back gracefully — if a build pushes before the hardware is
-flipped to ZeroGPU, the deterministic + RAG tiers still serve and
+configured for GPU hardware, the deterministic + RAG tiers still serve and
 the agent path surfaces a precise unavailability reason in the UI
 status row instead of crashing the Space.
 
@@ -307,14 +316,10 @@ and HF Spaces deploy both closed on 2026-04-27 (recorded below for
 the audit trail).
 
 1. **Physical iPhone tok/s.** The 4.0 tok/s simulator number is from
-   C12. Google's published LiteRT-LM benchmarks for the same model
-   project 52–56 tok/s on iPhone 17 Pro and 52 tok/s on Samsung S26
-   Ultra. We have not yet measured on a physical device. Decision
-   rule on the measurement: ≥10 tok/s → "real-time clinical
-   extraction on a 3-yo iPhone"; 4–10 tok/s → "iPhone 15 Pro and
-   newer"; <4 tok/s → emergency rebuild xcframework with Accelerate.
-   Owner: `ios-eng`. Estimated 3 engineer-hours once a device is in
-   hand.
+   C12/C13. We have not yet measured on a physical device, so final
+   copy must not claim measured iPhone Metal throughput. Record cold
+   load, warm extraction, tok/s, memory if available, and Metal
+   success/failure in `tools/autoresearch/evidence-ledger.md`.
 
 2. **v31 Kaggle fine-tune verdict — DISCARD.** The v31 Unsloth
    re-train (KV-shared-layer exclusion + +20 code-preservation cases
@@ -404,11 +409,11 @@ Documents the judge should read in order:
   model never moved; quality came from the loop.
 - **What's portable**: the same Q3_K_M GGUF runs on Jetson Orin NX
   edge hardware (k8s cluster), satisfying an LMIC-clinic deployment
-  story. Mobile decoding (52–56 tok/s on iPhone 17 Pro per Google's
-  published LiteRT-LM benches) is the headline performance story.
+  story. Physical iPhone decoding is a required measurement gate, not a
+  current public claim.
 - **Demo**: iPhone 17 Pro simulator works today; Hugging Face
-  Spaces URL goes live as soon as `huggingface-cli login` lands;
-  physical iPhone tok/s still to be measured.
+  Spaces URL is the no-Xcode path; physical iPhone tok/s still to be
+  measured and recorded in the evidence ledger.
 - **What's honest**: combined-64's 3 FPs / run trace to 4 documented
   deferred precision bugs (none LLM-side), and v31 fine-tune verdict
   is pending. Reporting both rather than burying.

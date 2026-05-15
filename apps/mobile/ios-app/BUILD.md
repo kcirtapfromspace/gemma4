@@ -26,6 +26,11 @@ iPhone sideload with a free Apple ID.
   in the UI.
 - **Inference**: unchanged — reuses `LlamaCppInferenceEngine` with
   `<|turn>` prompt wrapping.
+- **LiteRT-LM package**: wrapper code remains under
+  `apps/mobile/litertlm-swift/`, but the ClinIQ app target does not link it
+  by default because `build/LiteRtLmCore.xcframework` is a local, gitignored
+  artifact. Rebuild that package first, then re-add it to the target for a
+  LiteRT experiment.
 
 ## Environment
 
@@ -184,18 +189,20 @@ The GGUF files are 2.5-3.2 GB each; **do not** commit them to git
 (`.gitignore` covers `*.gguf`). See the C12 notes (unchanged): seed into
 the simulator sandbox, bundle into the .app, or download on first launch.
 
-## Performance (simulator CPU)
+## Performance (simulator CPU + device gate)
 
-Unchanged from C12: 1-1.5 tok/s decode on Q3_K_M fine-tune, ~2-5 min per
-extraction. Physical iPhone with Metal is projected 10-20 tok/s — never
-validated on device by C12 or C13.
+Simulator CPU remains the measured local path: roughly 1-4 tok/s depending
+on cold/warm model state and quantization. Physical iPhone throughput is a
+required hackathon evidence gate and must not be claimed until measured.
+Record device model, backend, GGUF name, Metal success/failure, cold load,
+warm extraction time, and tok/s in `tools/autoresearch/evidence-ledger.md`.
 
 ## Physical iPhone sideload (free Apple ID)
 
-NOT tested on a physical device by any of C10/C12/C13. Steps unchanged
-from C10 — open the project in Xcode, select a Personal Team, connect a
-device, hit Run. A free signing cert is good for 7 days; 3 free apps per
-phone. See the C10 BUILD.md in git history for the full flow.
+Use this to fill the evidence-ledger physical-iPhone row. Open the project
+in Xcode, select a Personal Team, connect a device, hit Run, seed the GGUF,
+then run one deterministic/RAG case and one model case. A free signing cert
+is good for 7 days; 3 free apps per phone.
 
 ## Project layout
 

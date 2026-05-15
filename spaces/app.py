@@ -11,7 +11,7 @@ Three execution paths (in priority order):
 2. **Fast-path** — when deterministic returns nothing, `try_fast_path` runs
    the curated reportable-conditions RAG + NegEx filter. ~80 ms, no model.
 3. **Agent loop** — only invoked when (1) and (2) miss. Runs Gemma 4 E2B-it
-   in-process on the Space's ZeroGPU H200 (transformers backend). On by
+   through the configured Space backend when the model is available. On by
    default; toggle off in the Advanced row if you want to test deterministic
    + RAG only.
 
@@ -54,8 +54,9 @@ from agent_pipeline import run_agent, try_fast_path  # noqa: E402
 from fhir_bundle import to_bundle  # noqa: E402
 from regex_preparser import extract as deterministic_extract  # noqa: E402
 
-# In-process Gemma 4 backend on ZeroGPU. Importing this module loads the
-# model on cuda (PyTorch CUDA emulation outside @spaces.GPU keeps that safe);
+# In-process Gemma 4 backend. On ZeroGPU this loads via PyTorch's CUDA
+# emulation; on plain CUDA it uses the available GPU; on CPU it boots slowly
+# but still surfaces a clear agent-unavailable/slow status in the UI.
 # `chat_http_shim` is a drop-in replacement for `agent_pipeline.chat()` so
 # `run_agent(...)` works unchanged with no HTTP endpoint.
 from zerogpu_engine import chat_http_shim, model_banner  # noqa: E402
@@ -120,6 +121,15 @@ SAMPLES: dict[str, str] = dict([
         "HPI: 3 days of profuse watery diarrhea after a course of "
         "clindamycin. Stool studies notable for C diff toxin positive. "
         "Started on oral vancomycin.",
+    ),
+    (
+        "Hard narrative (Gemma agent / fallback)",
+        "Patient: Noor Patel\nDOB: 1992-02-17\n"
+        "Assessment: febrile illness with conjunctival suffusion, calf "
+        "tenderness, jaundice, and acute kidney injury after floodwater "
+        "cleanup. Clinician suspects a reportable zoonotic infection and "
+        "requests public-health review, but no explicit SNOMED, LOINC, or "
+        "RxNorm codes are present in the note.",
     ),
     (
         "Negated lab (precision check)",
@@ -286,7 +296,7 @@ def run_pipeline(
         status = _badge("fast_path", detail, fp_ms)
         return (status, extraction, bundle, prov_rows, {"path": "fast_path", "elapsed_ms": fp_ms, "trace": fp_trace})
 
-    # Path 3: agent loop (in-process Gemma 4 on ZeroGPU)
+    # Path 3: agent loop (configured Gemma 4 Space backend)
     if not enable_agent:
         detail = (
             "Both deterministic and fast-path miss. Toggle "
@@ -336,11 +346,19 @@ Bundle is structurally validated against `fhir.resources.R4B` — judges get
 a binary <b>✓ R4-valid</b> signal next to every extraction.
 """
 
+DEMO_STATUS_MD = """
+**Demo status shown per run:** deterministic hit, RAG fast-path hit, Gemma
+agent hit, agent unavailable/error, and FHIR R4 structural validation. The
+deterministic and RAG tiers do not need GPU hardware; the agent tier depends
+on the Space model backend and surfaces a precise error when unavailable.
+"""
+
 
 def build_ui() -> gr.Blocks:
     theme = gr.themes.Soft(primary_hue="blue", secondary_hue="green")
     with gr.Blocks(title="ClinIQ — eICR to FHIR (Gemma 4)", theme=theme) as demo:
         gr.Markdown(INTRO_MD)
+        gr.Markdown(DEMO_STATUS_MD)
 
         with gr.Row():
             with gr.Column(scale=1, min_width=380):
@@ -360,10 +378,10 @@ def build_ui() -> gr.Blocks:
                         value=True,
                         label="Enable Gemma 4 agent loop on miss",
                         info=(
-                            "Invokes Gemma 4 in-process on the Space's "
-                            "ZeroGPU H200 when deterministic + RAG miss. "
+                            "Invokes Gemma 4 on the configured Space model "
+                            "backend when deterministic + RAG miss. "
                             "Each invocation consumes a few seconds of "
-                            "ZeroGPU quota."
+                            "GPU quota when hardware is available."
                         ),
                     )
                     gr.Markdown(f"**Backend:** {model_banner()}")
@@ -394,9 +412,10 @@ def build_ui() -> gr.Blocks:
         )
 
         gr.Markdown(
-            "_Bench: F1 = 1.000 over 35 cases (combined-27 + adv4, Python pipeline) · "
-            "35/35 perfect, 0 FP · 35/35 R4-valid · "
-            "Same code as the iOS app's offline pipeline._"
+            "_Evidence ledger: combined-64 F1 = 0.997 / recall = 1.000; "
+            "external CDC eICR vectors 7/7 with 360/360 authored codes recovered; "
+            "v62 LoRA F1 = 0.823, precision = 0.979, JSON validity = 86%. "
+            "See tools/autoresearch/evidence-ledger.md._"
         )
 
     return demo

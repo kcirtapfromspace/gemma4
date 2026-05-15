@@ -641,7 +641,7 @@ def main() -> int:
         "--diff-csv",
         default=None,
         help=(
-            "Emit the EZeCR-style flat longitudinal CSV (one row per axis "
+            "Emit the ClinIQ flat longitudinal CSV (one row per axis "
             "change across the case series) to this path. Requires "
             "`--manifest` pointing at the longitudinal manifest produced by "
             "`agent_pipeline.py --prior-bundle`. Skips the validator entirely "
@@ -668,7 +668,7 @@ def main() -> int:
             return 2
         n_rows = emit_csv_from_manifest(args.manifest, args.diff_csv)
         print(
-            f"EZeCR flat CSV: {args.diff_csv} ({n_rows} rows, plus header) "
+            f"ClinIQ flat CSV: {args.diff_csv} ({n_rows} rows, plus header) "
             f"from manifest {args.manifest}"
         )
         return 0

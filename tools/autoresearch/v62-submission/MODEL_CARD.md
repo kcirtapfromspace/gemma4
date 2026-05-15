@@ -47,11 +47,11 @@ Base produces structurally-valid JSON but gets the *content* wrong 2/3 of the
 time — micro-precision 0.47, micro-recall 0.26. The 124 MB LoRA flips
 content quality to 0.98 precision and 0.71 recall in a single forward pass.
 
-**The 14% JSON validity gap is solvable at inference time** with GBNF
-grammar-constrained decoding (a llama-server flag, no retrain). On the 172
-cases where v62 currently produces valid JSON, F1 already hits **0.895**.
-With grammar enforcement, the headline F1 should land in the **0.90 ± 0.02**
-range — see "GBNF inference path" below.
+**The 14% JSON validity gap is a truncation problem, not the shipped
+headline.** On the 172 cases where v62 currently produces valid JSON, F1
+already hits **0.895**. We tried GBNF grammar enforcement, but it regressed
+both F1 and JSON validity on the measured sub-bench; ship v62 without
+grammar and treat retry/salvage or v63 longer-context training as follow-up.
 
 ## Why Unsloth specifically
 
@@ -162,8 +162,8 @@ On the **172 cases where the JSON parses** (no grammar):
 - recall = 0.824
 - **F1 = 0.895**
 
-That's the achievable F1 once GBNF grammar enforces validity at decode
-time — which is a single llama-server flag, no retrain.
+That is the ceiling implied by the JSON-valid subset. It is not the shipped
+headline, and the measured GBNF path below did not recover it.
 
 ### GBNF inference path — **negative result, do not use**
 

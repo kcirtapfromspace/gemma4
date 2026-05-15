@@ -1,12 +1,10 @@
-"""Longitudinal case diff — EZeCR-style flat CSV at the edge.
+"""Longitudinal case diff — ClinIQ flat CSV at the edge.
 
-Mirrors the CDC EZeCR (Easy electronic Case Reporting) MVP "flat CSV diff
-between case versions for the same patient" feature documented in the
-ThoughtWorks/Ad Hoc CDC D2E Workshop Readout (page 10–11). EZeCR's MVP
-deliberately avoids structured longitudinal patient records: instead it
-emits one row per axis change (added / removed / unchanged) keyed on a
-patient hash, so a clinician can see "what's new this visit" without
-maintaining a server-side longitudinal record. We do the same on-device.
+Mirrors ClinIQ's flat diff between case versions for the same patient.
+ClinIQ deliberately avoids structured longitudinal patient records in this
+edge tier: instead it emits one row per axis change (added / removed /
+unchanged) keyed on a patient hash, so a clinician can see "what's new this
+visit" without maintaining a server-side longitudinal record.
 
 Patient identity (edge, no Verato-style probabilistic matching):
 
@@ -53,13 +51,13 @@ _CAT_LAB = "laboratory"
 _CAT_VITAL = "vital-signs"
 
 # Axis labels — keep these stable; the Swift CaseDiff enum uses the same
-# strings, and the EZeCR CSV `axis` column is keyed off them downstream.
+# strings, and the ClinIQ CSV `axis` column is keyed off them downstream.
 AXIS_CONDITION = "condition"
 AXIS_LAB = "lab"
 AXIS_VITAL = "vital"
 AXIS_MEDICATION = "medication"
 
-# CSV header order — fixed by the EZeCR MVP spec; do not reorder without
+# CSV header order — fixed by the ClinIQ flat-diff contract; do not reorder without
 # coordinating with the iOS CaseDiff exporter.
 CSV_HEADER = [
     "patient_hash",
@@ -224,7 +222,7 @@ def entities_from_bundle(bundle: dict) -> list[CodedEntity]:
 
     Unsupported resource types are silently skipped. Observations without a
     laboratory or vital-signs category are also skipped — we only diff the
-    four EZeCR axes.
+    four ClinIQ axes.
     """
     out: list[CodedEntity] = []
     for entry in bundle.get("entry") or []:
@@ -324,7 +322,7 @@ def compute_diff(
 
 
 # ---------------------------------------------------------------------------
-# EZeCR flat CSV emission
+# ClinIQ flat CSV emission
 
 
 def _csv_rows_for_case(
@@ -360,7 +358,7 @@ def _csv_sort_key(row: list[str]) -> tuple:
 def emit_csv_rows(
     series: Iterable[dict],
 ) -> list[list[str]]:
-    """Flatten a longitudinal series into EZeCR flat CSV rows.
+    """Flatten a longitudinal series into ClinIQ flat CSV rows.
 
     `series` is an ordered iterable of dicts with shape:
 

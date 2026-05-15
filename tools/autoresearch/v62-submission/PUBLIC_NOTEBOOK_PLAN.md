@@ -20,7 +20,7 @@ The public version should be a single notebook that:
 | 1 | md | Title + 200-word abstract: "Why this notebook exists, what it does, what's novel" |
 | 2 | md | Track eligibility: explicit list of Unsloth APIs used + why each one matters |
 | 3 | code | `pip install unsloth trl peft accelerate bitsandbytes` |
-| 4 | md | Background: eICR / EZeCR / public health context (~150 words) |
+| 4 | md | Background: eICR / ClinIQ / public health context (~150 words) |
 | 5 | code | `FastLanguageModel.from_pretrained("unsloth/gemma-4-E2B-it", load_in_4bit=True)` |
 | 6 | code | `FastLanguageModel.get_peft_model(...)` with the 7-target-module config |
 | 7 | code | `get_chat_template(tokenizer, "gemma-4")` — explain why the template matters |

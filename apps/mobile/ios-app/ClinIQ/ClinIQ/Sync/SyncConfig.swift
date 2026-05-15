@@ -66,3 +66,114 @@ enum SyncConfig {
         UserDefaults.standard.set(value, forKey: "ClinIQ.UseFhirBundlePayload")
     }
 }
+
+// MARK: - Jurisdiction rules
+
+enum JurisdictionRuleDecision: String, Codable, Hashable {
+    case reportable
+    case needsReview
+    case notIncluded
+
+    var displayName: String {
+        switch self {
+        case .reportable: return "Reportable"
+        case .needsReview: return "Needs review"
+        case .notIncluded: return "Not included"
+        }
+    }
+}
+
+struct JurisdictionCategoryOption: Identifiable {
+    let id: String
+    let label: String
+}
+
+enum JurisdictionProfile {
+    static let defaultName = "Arizona Demo PHA"
+    static let nameKey = "ClinIQ.Jurisdiction.Name"
+    static let enabledCategoriesKey = "ClinIQ.Jurisdiction.EnabledCategories"
+    static let requireReviewKey = "ClinIQ.Jurisdiction.RequireClinicianReview"
+    static let includeOnlyAddedKey = "ClinIQ.Jurisdiction.IncludeOnlyAddedFindings"
+
+    static let categoryOptions: [JurisdictionCategoryOption] = [
+        JurisdictionCategoryOption(id: "outbreak_priority", label: "Outbreak priority"),
+        JurisdictionCategoryOption(id: "vector_borne", label: "Vector-borne"),
+        JurisdictionCategoryOption(id: "respiratory", label: "Respiratory"),
+        JurisdictionCategoryOption(id: "vaccine_preventable", label: "Vaccine-preventable"),
+        JurisdictionCategoryOption(id: "foodborne", label: "Foodborne"),
+        JurisdictionCategoryOption(id: "fungal", label: "Fungal"),
+        JurisdictionCategoryOption(id: "zoonotic", label: "Zoonotic"),
+        JurisdictionCategoryOption(id: "stis", label: "STIs"),
+        JurisdictionCategoryOption(id: "healthcare_associated", label: "Healthcare-associated"),
+        JurisdictionCategoryOption(id: "select_agent", label: "Select agent"),
+    ]
+
+    static let defaultEnabledCategories: Set<String> = Set(categoryOptions.map(\.id))
+
+    static var defaultEnabledCategoriesCSV: String {
+        defaultEnabledCategories.sorted().joined(separator: ",")
+    }
+
+    static var currentName: String {
+        let raw = UserDefaults.standard.string(forKey: nameKey) ?? defaultName
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? defaultName : trimmed
+    }
+
+    static var enabledCategories: Set<String> {
+        let raw = UserDefaults.standard.string(forKey: enabledCategoriesKey)
+            ?? defaultEnabledCategoriesCSV
+        let values = raw.split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return values.isEmpty ? defaultEnabledCategories : Set(values)
+    }
+
+    static func setEnabledCategories(_ categories: Set<String>) {
+        let next = categories.isEmpty ? defaultEnabledCategories : categories
+        UserDefaults.standard.set(next.sorted().joined(separator: ","), forKey: enabledCategoriesKey)
+    }
+
+    static var requireClinicianReview: Bool {
+        if UserDefaults.standard.object(forKey: requireReviewKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: requireReviewKey)
+    }
+
+    static var includeOnlyAddedFindings: Bool {
+        if UserDefaults.standard.object(forKey: includeOnlyAddedKey) == nil {
+            return false
+        }
+        return UserDefaults.standard.bool(forKey: includeOnlyAddedKey)
+    }
+
+    static func category(forSNOMED code: String) -> String? {
+        ReportableConditions.all.first { $0.code == code }?.category
+    }
+
+    static func categoryLabel(_ id: String?) -> String {
+        guard let id else { return "Unmapped" }
+        return categoryOptions.first { $0.id == id }?.label ?? id
+            .replacingOccurrences(of: "_", with: " ")
+            .capitalized
+    }
+
+    static func decision(axis: ExtractionAxis,
+                         code: String,
+                         reviewState: ReviewState?) -> JurisdictionRuleDecision {
+        if reviewState == .rejected {
+            return .notIncluded
+        }
+        if requireClinicianReview && reviewState == .needsReview {
+            return .needsReview
+        }
+        guard axis == .condition else {
+            return .reportable
+        }
+        guard let category = category(forSNOMED: code) else {
+            return .needsReview
+        }
+        return enabledCategories.contains(category) ? .reportable : .notIncluded
+    }
+}

@@ -29,8 +29,8 @@ fine-tune, warm mmap). Cold-cache first run was 1.3 tok/s (130 s) due to
 the page-in cost of the 3 GB file on a fresh simulator — subsequent runs
 in the same launch hit the OS page cache and sustain 4+ tok/s. Prefill
 time is bundled into the total — a more granular breakdown isn't wired
-in the current UI. Projected physical iPhone 17 Pro Metal throughput:
-10-20 tok/s (upstream benchmarks).
+in the current UI. Physical iPhone throughput is not claimed until the
+evidence ledger is filled from a real device run.
 
 ### Why simulator is this slow
 
@@ -221,22 +221,21 @@ fine-tune Q3_K_M on the iPhone 17 Pro simulator (C12 real inference):
 | peak resident memory | ~4.3 GB |
 | CPU utilization | ~400% (4 cores saturated) |
 
-Projected for iPhone 17 Pro (real device, Metal):
+Physical iPhone validation gate:
 
 | metric | value |
 |---|---:|
-| model load | ~1-2 s (mmap) |
-| prefill @ 350 tokens | 0.2-0.5 s |
-| decode @ 172 tokens | 10-15 s |
-| peak RAM | ~1.5-2 GB |
+| model load | pending |
+| prefill | pending |
+| decode | pending |
+| peak RAM | pending |
 
 ## Blockers documented
 
 1. **Simulator CPU throughput**. ggml's gemma4 graph has no fused CPU
    path for the simulator's arm64 target; 311 graph splits per batch. The
-   model works correctly but is I/O-bound at ~1.3 tok/s. This is a
-   simulator-only artifact — the physical iPhone A19 GPU via Metal is the
-   real target. Workaround: prefer the base model for smoke tests
+   model works correctly but is I/O-bound at ~1.3 tok/s. Physical iPhone
+   Metal is the required final measurement gate. Workaround: prefer the base model for smoke tests
    (`gemma-4-E2B-it-Q3_K_M.gguf` is smaller + faster), accept the wait on
    the fine-tune.
 
