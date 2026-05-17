@@ -16,8 +16,9 @@ __pycache__/
 target/
 Cargo.lock
 
-# Demo video recordings
-demo-video/
+# Demo video recordings — keep the final .mp4 + judges' README in repo,
+# exclude only the raw .webm captures the .mp4 was derived from.
+demo-video/*.webm
 
 # Personal Claude Code settings (contains Obsidian API key etc.)
 .claude/settings.local.json

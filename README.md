@@ -5,8 +5,25 @@ into a FHIR R4 Bundle ready for public-health surveillance — all on-device,
 no PHI off the phone.
 
 **Submission for the Gemma 4 Good Hackathon** (Kaggle × Google DeepMind),
-targeting the **Health Impact** and **Unsloth** ($10K) tracks. Deadline
-2026-05-18.
+targeting the **Health & Sciences** category and the **Unsloth** ($10K)
+prize track. Deadline 2026-05-18 23:59 UTC.
+
+![ClinIQ AI Review on iPhone — Gemma 4 extracts SNOMED/LOINC/RxNorm coded
+findings from a clinical narrative, clinician confirms each
+row.](apps/mobile/ios-app/poc-03-ai-review.png)
+
+<table>
+<tr>
+<td width="33%"><img src="apps/mobile/ios-app/poc-01-case-list.png" alt="Cases list with offline banner" /></td>
+<td width="33%"><img src="apps/mobile/ios-app/screenshot-c21-longitudinal-timeline.png" alt="On-device longitudinal diff across three eCRs for the same patient" /></td>
+<td width="33%"><img src="spaces/screenshots/homepage.png" alt="HF Spaces hosted demo — paste eICR, get FHIR R4 Bundle" /></td>
+</tr>
+<tr>
+<td align="center"><sub>Cases list, offline mode</sub></td>
+<td align="center"><sub>Longitudinal diff (on-device)</sub></td>
+<td align="center"><sub><a href="https://huggingface.co/spaces/kcirtapfromspace/cliniq-eicr-fhir">Hosted demo on HF Spaces</a></sub></td>
+</tr>
+</table>
 
 ---
 
@@ -100,7 +117,7 @@ scripts/test_cases*.jsonl Bench cases (combined-27, adv4-7, longitudinal)
 ## Read in this order (judges, 5-min path)
 
 1. **This README** — orientation
-2. **[`tools/autoresearch/hackathon-submission-2026-05-18.md`](tools/autoresearch/hackathon-submission-2026-05-18.md)** — final judge-facing one-pager (Health Impact + Unsloth)
+2. **[`tools/autoresearch/hackathon-submission-2026-05-18.md`](tools/autoresearch/hackathon-submission-2026-05-18.md)** — final judge-facing one-pager (Health & Sciences + Unsloth)
 3. **[`tools/autoresearch/v62-submission/MODEL_CARD.md`](tools/autoresearch/v62-submission/MODEL_CARD.md)** — Unsloth-track model card (v62 shipped, v63 follow-up section appended)
 4. **[`tools/autoresearch/v63-experiment/EXPERIMENT.md`](tools/autoresearch/v63-experiment/EXPERIMENT.md)** — v63 run record (max_seq=1024 retrain, F1=0.9989)
 5. **[HF Space](https://huggingface.co/spaces/kcirtapfromspace/cliniq-eicr-fhir)** — see it run
@@ -115,7 +132,11 @@ ledger, 80-rep variance tables, every ablation) and `apps/mobile/convert/build/c
 ```bash
 # Python venv with bench harness deps
 python -m venv scripts/.venv && source scripts/.venv/bin/activate
-pip install -r apps/mobile/convert/pyproject.toml
+pip install -e apps/mobile/convert
+
+# Fetch the base Gemma 4 E2B Q3_K_M GGUF (2.4 GB):
+huggingface-cli download unsloth/gemma-4-E2B-it-GGUF \
+    gemma-4-E2B-it-Q3_K_M.gguf --local-dir models/
 
 # Run the canonical bench against the local llama-server:
 llama-server --model models/gemma-4-E2B-it-Q3_K_M.gguf \

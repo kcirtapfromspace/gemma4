@@ -35,23 +35,24 @@ Submission for the **Gemma 4 Good Hackathon — Unsloth Track ($10K)**.
 
 | Metric | Base `gemma-4-E2B-it` | + ClinIQ v62 LoRA | Delta |
 |---|---:|---:|---:|
-| Micro-F1 (val-compact, 200 cases) | 0.337 | **0.823** | **+0.486** |
-| Micro-F1 (JSON-valid cases only, 172) | n/a | **0.895** | — |
-| Micro-precision | 0.469 | **0.979** | +0.510 |
-| Micro-recall | 0.263 | 0.710 | +0.447 |
-| JSON validity | 100% | 86% | -14pp |
-| Latency p50 (Mac M-series Q3_K_M) | 6.6s | **4.1s** | 1.6× faster |
+| Micro-F1 (val-compact, 200 cases) | 0.337 | **0.837** | **+0.500** |
+| Micro-F1 (JSON-valid cases only, 184) | n/a | **0.872** | — |
+| Micro-precision | 0.469 | **0.837** | +0.368 |
+| Micro-recall | 0.263 | **0.837** | +0.574 |
+| JSON validity | 100% | 92% | -8pp |
+| Latency p50 (Mac M-series Q3_K_M) | 6.6s | **3.08s** | 2.1× faster |
 | Adapter size | — | 124 MB (r=16) | — |
 
 Base produces structurally-valid JSON but gets the *content* wrong 2/3 of the
 time — micro-precision 0.47, micro-recall 0.26. The 124 MB LoRA flips
-content quality to 0.98 precision and 0.71 recall in a single forward pass.
+content quality to 0.84 precision and 0.84 recall in a single forward pass.
 
-**The 14% JSON validity gap is a truncation problem, not the shipped
-headline.** On the 172 cases where v62 currently produces valid JSON, F1
-already hits **0.895**. We tried GBNF grammar enforcement, but it regressed
-both F1 and JSON validity on the measured sub-bench; ship v62 without
-grammar and treat retry/salvage or v63 longer-context training as follow-up.
+**The 8% JSON validity gap is a truncation problem, not the shipped
+headline.** On the 184 cases where v62 produces valid JSON, F1 reaches
+**0.872** (precision 0.837, recall 0.911). We tried GBNF grammar enforcement,
+but it regressed both F1 and JSON validity on the measured sub-bench; ship
+v62 without grammar and treat retry/salvage or v63 longer-context training as
+follow-up.
 
 ## Why Unsloth specifically
 
@@ -72,9 +73,10 @@ Three specific Unsloth features did real work in this fine-tune:
    `<start_of_turn>` / `<end_of_turn>` and the LoRA would have learned the
    wrong delimiters, breaking inference.
 
-The training kernel (private, will be cloned to a public version on
-submission) runs end-to-end in **~1h 4m on Kaggle's free T4 ×2**. No
-GPU-hour budget, no proprietary dependencies, no auth-walled datasets.
+The public training kernel
+([`kaggle.com/code/patrickdeutsch/cliniq-gemma4-unsloth-submission`](https://www.kaggle.com/code/patrickdeutsch/cliniq-gemma4-unsloth-submission))
+runs end-to-end in **~1 h 4 m on Kaggle's free T4 ×2**. No GPU-hour budget,
+no proprietary dependencies, no auth-walled datasets.
 
 ## Training data
 
@@ -142,35 +144,36 @@ held out from training). **Code-level micro-F1** scored on the union of
 
 | F1 band | v62 | base |
 |---|---:|---:|
-| ≥ 0.95 | 0 | 0 |
-| 0.85 – 0.95 | 146 (73%) | 0 |
-| 0.70 – 0.85 | 16 (8%) | 0 |
-| 0.50 – 0.70 | 0 | 38 (19%) |
-| 0.0 – 0.50 | 10 | 149 |
-| 0.0 (incl. invalid JSON) | 28 | 13 |
+| ≥ 0.95 | **150 (75%)** | 0 |
+| 0.85 – 0.95 | 1 | 0 |
+| 0.70 – 0.85 | 5 | 0 |
+| 0.50 – 0.70 | 17 | 38 (19%) |
+| 0.0 – 0.50 | 2 | 149 |
+| 0.0 (incl. invalid JSON) | 25 | 13 |
 
-**v62 puts 81% of cases above F1 = 0.70; base puts 0%.**
+**v62 puts 78% of cases above F1 = 0.70; base puts 0%.**
 
 ### JSON validity is the bottleneck
 
-The 28 v62 cases scoring F1 = 0 are entirely the JSON-invalid cases (the
-extraction was good but malformed; mean latency 3.66s vs 4.11s on valid
-cases — the model truncated mid-output).
+Of the 25 v62 cases scoring F1 = 0, most are JSON-invalid (the model
+truncated mid-output before closing the schema). Mean latency is similar
+across valid and invalid cases — failures are at the length-limit
+boundary, not on confused inputs.
 
-On the **172 cases where the JSON parses** (no grammar):
-- precision = 0.979
-- recall = 0.824
-- **F1 = 0.895**
+On the **184 cases where the JSON parses** (no grammar):
+- precision = 0.837
+- recall = 0.911
+- **F1 = 0.872**
 
-That is the ceiling implied by the JSON-valid subset. It is not the shipped
-headline, and the measured GBNF path below did not recover it.
+That is the ceiling implied by the JSON-valid subset. The measured GBNF path
+below did not recover it.
 
 ### GBNF inference path — **negative result, do not use**
 
 We tried a permissive GBNF grammar enforcing the 6-top-level-key schema
 (`apps/mobile/convert/cliniq_v62_compact.gbnf`). On a 50-case sub-bench,
-F1 actually *dropped* from 0.823 → **0.780**, JSON validity dropped from
-0.86 → 0.82.
+F1 dropped from the no-grammar baseline by ~5pp and JSON validity dropped
+by ~4pp. Raw output: `apps/mobile/convert/build/v62_val_compact_grammar_bench.json`.
 
 Why: at `max_new_tokens=2048`, the grammar pushes the model into longer
 expansions that hit the length limit before closing the JSON, and forces
@@ -178,9 +181,9 @@ token paths that don't match the model's learned distribution on rare
 fields. The model's own learned format is *more* JSON-valid than the
 grammar-constrained version on this distribution.
 
-**Recommendation: ship without grammar.** The unconstrained F1=0.823 with
-86% JSON validity is the production number. JSON validity can be patched
-client-side by retrying or salvaging truncated outputs (the 28 invalid
+**Recommendation: ship without grammar.** The unconstrained F1=0.837 with
+92% JSON validity is the production number. JSON validity can be patched
+client-side by retrying or salvaging truncated outputs (the 25 invalid
 cases are all length-limit truncations, not malformed-JSON-from-confusion).
 
 A targeted v63 retrain with longer `max_seq_length` and ~50 longer
@@ -199,9 +202,9 @@ expansion examples would close the recall + JSON gap together.
 
 ## Repo + demo
 
-- iOS app: GitHub `patrickdeutsch/gemma4` — `apps/mobile/ios-app/ClinIQ/`
+- iOS app: GitHub `kcirtapfromspace/gemma4` — `apps/mobile/ios-app/ClinIQ/`
 - Hosted demo: <https://huggingface.co/spaces/kcirtapfromspace/cliniq-eicr-fhir>
-- Submission narrative: `tools/autoresearch/hackathon-submission-2026-04-27.md`
+- Submission narrative: `tools/autoresearch/hackathon-submission-2026-05-18.md`
 - This card: `tools/autoresearch/v62-submission/MODEL_CARD.md`
 
 ## Citation

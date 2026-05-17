@@ -4,7 +4,7 @@
 Supersedes `hackathon-submission-2026-04-27.md` with the v63 Unsloth
 retrain that closed the v62 truncation gap, the deployment hardening
 that resulted from the 2026-05-11 audit, and the final list of
-submission artifacts. Both tracks (Health Impact, Unsloth $10K) in one
+submission artifacts. Both tracks (Health & Sciences, Unsloth $10K) in one
 doc; the lead claim is unchanged.
 
 ---
@@ -79,7 +79,7 @@ the agent hits F1 = 1.000 on real free-text input, the single-shot is
 
 ---
 
-## Health Impact track
+## Health & Sciences track
 
 The motivating problem: CDC EZeCR — the canonical electronic Case
 Report processing platform — is cloud-only (AWS Comprehend Medical +
@@ -98,7 +98,7 @@ External credibility:
 - Jetson Orin NX 8 GB pod deployment under Talos k8s — same code that
   runs on a phone runs on a $400 edge box for clinic walk-in kiosks.
 
-Deployment surfaces (Health Impact track):
+Deployment surfaces (Health & Sciences track):
 - **iOS app** — `apps/mobile/ios-app/ClinIQ/`, SwiftUI. Demo script in
   `DEMO_SCRIPT.md` (60 s, 7 beats). GGUF is side-loaded into the
   simulator's `Documents/` per `DEMO_SCRIPT.md` step 0; the loader
@@ -177,8 +177,8 @@ demo option for known-format eICRs; it doesn't replace the agent path.
 |---|---|---|
 | Repo | `github.com/kcirtapfromspace/gemma4` | both |
 | Hosted demo | https://huggingface.co/spaces/kcirtapfromspace/cliniq-eicr-fhir | both |
-| iOS app | `apps/mobile/ios-app/ClinIQ/` + `DEMO_SCRIPT.md` | Health Impact |
-| Jetson deploy | `infra/` (Talos overlays) | Health Impact |
+| iOS app | `apps/mobile/ios-app/ClinIQ/` + `DEMO_SCRIPT.md` | Health & Sciences |
+| Jetson deploy | `infra/` (Talos overlays) | Health & Sciences |
 | HF Hub — v62 LoRA (shipped) | `kcirtapfromspace/cliniq-gemma4-e2b-unsloth-v62` | Unsloth |
 | HF Hub — v63b LoRA (if it lands by deadline) | `kcirtapfromspace/cliniq-gemma4-e2b-unsloth-v63b` | Unsloth |
 | Public Kaggle notebook (v62) | `kaggle.com/code/patrickdeutsch/cliniq-gemma4-unsloth-submission` | Unsloth |
@@ -220,7 +220,11 @@ demo option for known-format eICRs; it doesn't replace the agent path.
 ```bash
 # Agent path
 python -m venv scripts/.venv && source scripts/.venv/bin/activate
-pip install -r apps/mobile/convert/pyproject.toml
+pip install -e apps/mobile/convert
+
+# Fetch the base Gemma 4 E2B Q3_K_M GGUF (2.4 GB):
+huggingface-cli download unsloth/gemma-4-E2B-it-GGUF \
+    gemma-4-E2B-it-Q3_K_M.gguf --local-dir models/
 
 llama-server --model models/gemma-4-E2B-it-Q3_K_M.gguf \
              --port 8090 --jinja --ctx-size 32768 \
