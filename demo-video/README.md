@@ -1,38 +1,63 @@
 # ClinIQ demo video — judges' guide
 
-`cliniq-demo.mp4` is a 64-second screen capture of the ClinIQ iOS app on
-the iPhone 17 Pro simulator. No voiceover; read along with the narration
-below. The capture follows the original 7-beat demo flow.
+`cliniq-demo.mp4` is a 1 min 54 s screen recording of the ClinIQ iOS app on
+the iPhone 17 Pro simulator, with synthesized voiceover (macOS Samantha).
+The recording follows the 8-beat flow in
+[`../apps/mobile/ios-app/DEMO_SCRIPT.md`](../apps/mobile/ios-app/DEMO_SCRIPT.md).
+Each beat was captured by relaunching the app with a different
+`CLINIQ_*` environment hook between segments, then assembled by
+[`../scripts/mux_demo_video.sh`](../scripts/mux_demo_video.sh).
 
-> **Note for judges:** the video was recorded 2026-04-13, before the c21
-> longitudinal "what's new" view shipped (added 2026-05-15). The current
-> demo script in [`../apps/mobile/ios-app/DEMO_SCRIPT.md`](../apps/mobile/ios-app/DEMO_SCRIPT.md)
-> includes an 8th beat for the longitudinal feature; the video does not.
-> The longitudinal feature is visible in the
-> [`screenshot-c21-longitudinal-timeline.png`](../apps/mobile/ios-app/screenshot-c21-longitudinal-timeline.png)
-> and [`screenshot-c21-longitudinal-diff-banner.png`](../apps/mobile/ios-app/screenshot-c21-longitudinal-diff-banner.png)
-> stills in the repo root and is wired through `PatientTimelineView.swift`.
+## Beat list
 
-## Narration (read along with the .mp4)
-
-| Time | Beat | Narration |
+| Time | Beat | What you see |
 |---:|---|---|
-| 0:00 | Set the scene | A clinician is in a remote clinic with no cellular or Wi-Fi during her shift. On her phone she opens ClinIQ. The yellow bar at the top tells her she's offline — cases stay on the device until the network comes back. |
-| 0:10 | Create a case | She sees a patient with a possible notifiable disease. She taps the plus button, enters demographics, and types or pastes a narrative describing fever, cough, and a positive respiratory test. |
-| 0:20 | Run AI extraction | She taps Review with AI. When the GGUF model is present, Gemma 4 runs entirely on the phone. If the model is missing, ClinIQ labels the deterministic fallback instead of pretending the model ran. No data leaves the device. |
-| 0:30 | Review and curate | The model proposes a condition, a lab result, a medication, and the vitals. Each row shows the human-readable name, a review state chip, and the SNOMED, LOINC, or RxNorm code underneath for audit. She taps the green check to confirm each one — or the red minus to remove anything incorrect. |
-| 0:40 | Queue to outbox | Happy with the extraction, she queues the case. It lands in the Outbox. The report isn't sent yet — there's still no network, so the status stays "Queued". |
-| 0:50 | Network returns | Back at the district hospital her phone picks up Wi-Fi. ClinIQ detects the network, drains the outbox automatically, and stamps each report with a submitted badge and a receipt reference. |
-| 1:00 | Audit trail | The History tab now shows the submission alongside past ones — filterable by condition or status for follow-up. |
+| 0:00 | Set the scene | Offline banner, Cases list with mixed Draft / Submitted statuses |
+| 0:11 | Create a case | New Case sheet pre-filled with a COVID-19 narrative |
+| 0:25 | Run AI extraction | Gemma 4 Q3_K_M streams extraction on-device |
+| 0:44 | Review and curate | SNOMED / LOINC / RxNorm codes underneath each row, clinician confirms |
+| 1:00 | Queue to outbox | Outbox tab, queued report waiting for network |
+| 1:11 | Longitudinal "what's new" (c21) | Maria Santos returns — three eCRs across ten days, color-coded diff |
+| 1:27 | What's New banner | "1 new, 2 resolved since last eCR" — on-device diff vs prior visit |
+| 1:43 | History + audit | Submitted reports filterable by condition / status |
 
-## Key talking points (for a live demo)
+## Reproduce
 
-- Runs fully offline — inference + storage + queueing.
-- Clinician sees clinical names; audit codes stay visible but muted.
+```bash
+# 1. Boot simulator, install fresh build, seed GGUF (see apps/mobile/ios-app/BUILD.md)
+# 2. Capture per-beat .mov clips by relaunching with CLINIQ_* env vars:
+./scripts/record_ios_demo.sh demo-video/raw
+
+# 3. Generate per-beat narration (macOS Samantha, no API keys required):
+./scripts/generate_say_narration.sh
+
+# 4. Assemble the final .mp4:
+./scripts/mux_demo_video.sh
+```
+
+The recording script drives the simulator entirely through the app's built-in
+`CLINIQ_*` env hooks (see `apps/mobile/ios-app/ClinIQ/ClinIQ/Views/Cases/CasesTab.swift`),
+so no XCUITest harness or UI automation library is required — each beat is
+a clean app relaunch with a different env var set.
+
+## Voiceover
+
+Synthesized with macOS `say` (Samantha voice at 185 wpm). The script
+([`../scripts/generate_say_narration.sh`](../scripts/generate_say_narration.sh))
+also supports OpenAI TTS via [`../scripts/generate_tts_narration.py`](../scripts/generate_tts_narration.py)
+if you set `OPENAI_API_KEY`; switch by running the Python script before
+`mux_demo_video.sh`.
+
+## Talking points
+
+- Runs fully offline — inference + storage + queueing happen on the
+  device. No PHI in flight.
+- Clinician sees clinical names; audit codes (SNOMED / LOINC / RxNorm)
+  stay visible but muted.
 - Every submission is logged with endpoint + response for audit.
-- Sync endpoint is configurable (`SyncConfig.swift`). Real public-health
-  interop (mTLS, jurisdiction routing) is documented as out of scope for
-  this PoC.
-
-For the most up-to-date 8-beat script including the longitudinal "what's
-new" view, see [`../apps/mobile/ios-app/DEMO_SCRIPT.md`](../apps/mobile/ios-app/DEMO_SCRIPT.md).
+- The phone IS the longitudinal source of truth for the patients the
+  clinician has seen. The c21 diff between case versions for the same
+  patient runs on-device, no Verato, exact identity-hash match only.
+- The sync endpoint is configurable (`SyncConfig.swift`). Real
+  public-health interop (mTLS, jurisdiction routing) is documented as
+  out of scope for this PoC.

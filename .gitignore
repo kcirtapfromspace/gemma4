@@ -17,8 +17,10 @@ target/
 Cargo.lock
 
 # Demo video recordings — keep the final .mp4 + judges' README in repo,
-# exclude only the raw .webm captures the .mp4 was derived from.
+# exclude only the raw .webm captures and per-beat working artifacts the
+# .mp4 was derived from.
 demo-video/*.webm
+demo-video/raw/
 
 # Personal Claude Code settings (contains Obsidian API key etc.)
 .claude/settings.local.json
